@@ -1,4 +1,5 @@
 import { assertFirstRunStateStore } from "../../contracts/first-run-state-store.mjs";
+import { FIRST_RUN_APP_SELECTION_SCHEMA } from "../../services/apps/first-run-selection.mjs";
 import {
   assertIdentityActionsPort,
   isIdentityActionSupported,
@@ -70,6 +71,7 @@ export function mountFirstRunExperience(
   root,
   {
     stateStore,
+    firstRunAppSelection = null,
     preferences,
     networkManagement = null,
     identitySession,
@@ -89,6 +91,18 @@ export function mountFirstRunExperience(
   const credentialsPort = identityCredentials === null ? null : assertIdentityCredentialsPort(identityCredentials);
   const localSessionPort = localSession === null ? null : assertLocalSessionPort(localSession);
   const initial = validateFirstRunState(store.load());
+  if (firstRunAppSelection !== null && (
+    firstRunAppSelection.schema !== FIRST_RUN_APP_SELECTION_SCHEMA
+    || firstRunAppSelection.authority !== "none"
+    || firstRunAppSelection.installedByThisPlan !== false
+    || firstRunAppSelection.mayInstallWithoutVerifiedLifecycle !== false
+    || !Array.isArray(firstRunAppSelection.alreadyInstalledAppIds)
+    || !Array.isArray(firstRunAppSelection.eligibleCandidateAppIds)
+    || !Array.isArray(firstRunAppSelection.suppressedAppIds)
+    || !Array.isArray(firstRunAppSelection.unavailableAppIds)
+  )) {
+    throw new TypeError("First Run application overview requires a verified authority-free plan");
+  }
 
   if (initial.completed) {
     return Object.freeze({ shown: false, destroy() {} });
@@ -574,6 +588,25 @@ export function mountFirstRunExperience(
       summary.append(el(documentObject, "dt", "", key), el(documentObject, "dd", "", value));
     });
     body.append(summary);
+    if (firstRunAppSelection !== null) {
+      const appSummary = el(documentObject, "section", "ordax-first-run-tile");
+      appSummary.dataset.firstRunEssentials = "";
+      appSummary.append(el(documentObject, "strong", "", "Aplicativos essenciais"));
+      for (const [label, count] of [
+        ["Pacotes independentes confirmados:", firstRunAppSelection.alreadyInstalledAppIds.length],
+        ["Candidatos verificados para futura distribuição:", firstRunAppSelection.eligibleCandidateAppIds.length],
+        ["Remoção preservada ou fora do primeiro uso:", firstRunAppSelection.suppressedAppIds.length],
+        ["Ainda sem comprovação de distribuição:", firstRunAppSelection.unavailableAppIds.length],
+      ]) {
+        const line = el(documentObject, "p", "", label);
+        line.append(documentObject.createTextNode(` ${count}`));
+        appSummary.append(line);
+      }
+      appSummary.append(el(documentObject, "p", "",
+        "Resumo somente leitura. Nenhum aplicativo adicional foi instalado. Apps embutidos fora do catálogo verificado não são contabilizados como pacotes independentes."
+      ));
+      body.append(appSummary);
+    }
     if (completionError) {
       const error = el(documentObject, "p", "ordax-first-run-error", completionError);
       error.setAttribute("role", "alert");
