@@ -59,8 +59,19 @@ export function createDesktopShellMarkup(localization) {
   const t = localizationPort.translate;
   return `
     <div class="ordax-shell" data-ordax-shell>
+        <header class="ordax-brandbar">
+          <div class="ordax-brand" aria-label="OrdaX">
+            <span class="ordax-brand-symbol" aria-hidden="true"></span>
+            <span class="ordax-brand-word">OrdaX <small>OS</small></span>
+          </div>
+          <button type="button" class="ordax-command" aria-label="${t("shell.launcher.command")}" data-launcher-toggle aria-expanded="false" aria-controls="ordax-launcher">
+            <span class="ordax-command-icon">${ICONS.search}</span>
+            <span class="ordax-command-copy">${t("shell.launcher.command")}</span>
+            <kbd>Ctrl + K</kbd>
+          </button>
+          <div class="ordax-space-switcher-slot" data-space-switcher-slot></div>
+        </header>
       <aside class="ordax-rail" aria-label="${t("shell.rail.aria")}">
-        <div class="ordax-rail-brand"><span class="ordax-brand-symbol" aria-hidden="true"></span><span class="ordax-brand-word">OrdaX <small>OS</small></span></div>
         <nav class="ordax-rail-nav">
           <button type="button" class="ordax-rail-button" data-show-desktop><span class="ordax-rail-icon">${ICONS.home}</span><span data-home-nav-label>${t("shell.home.title")}</span></button>
           ${railButton("files", t("app.files.title"), ICONS.files, t)}
@@ -77,26 +88,16 @@ export function createDesktopShellMarkup(localization) {
       </aside>
 
       <main class="ordax-workspace" tabindex="-1" data-workspace>
-        <header class="ordax-brandbar">
-          <div class="ordax-brand" aria-label="OrdaX">
-            <span class="ordax-brand-symbol" aria-hidden="true"></span>
-            <span class="ordax-brand-word">OrdaX</span>
-          </div>
-          <button type="button" class="ordax-command" data-launcher-toggle aria-expanded="false" aria-controls="ordax-launcher">
-            <span class="ordax-command-icon">${ICONS.search}</span>
-            <span class="ordax-command-copy">${t("shell.launcher.command")}</span>
-            <kbd>Ctrl + K</kbd>
-          </button>
-          <div class="ordax-space-switcher-slot" data-space-switcher-slot></div>
-        </header>
-
         <section class="ordax-desktop" aria-labelledby="surface-home-title">
           <div class="ordax-home-panel">
             <div class="ordax-home-hero">
               <p class="ordax-area-kicker" data-area-kicker>${t("surface.area.label", { ordinal: "01" })}</p>
-              <span class="ordax-brand-symbol ordax-home-symbol" aria-hidden="true"></span>
               <h1 id="surface-home-title" class="ordax-home-title">OrdaX <span>OS</span></h1>
               <p class="ordax-home-tagline" data-home-tagline>${t("shell.home.tagline")}</p>
+              <div class="ordax-welcome-actions">
+                ${railButton("projects", t("app.projects.title"), ICONS.projects, t, "ordax-welcome-action")}
+                ${railButton("assistant", t("app.assistant.title"), ICONS.assistant, t, "ordax-welcome-action")}
+              </div>
             </div>
             <div class="ordax-home-meta">
               <time class="ordax-clock" data-ordax-clock>--:--</time>
@@ -105,7 +106,7 @@ export function createDesktopShellMarkup(localization) {
             <section class="ordax-home-actions" aria-labelledby="ordax-home-actions-title">
               <p id="ordax-home-actions-title" class="ordax-section-kicker">${t("shell.home.quickAccess")}</p>
               <div class="ordax-home-action-grid">
-                ${["assistant", "projects", "files", "internet", "network", "settings"].map((id) => railButton(id, t(`app.${id}.title`), ICONS[id === "network" ? "networkApp" : id], t, "ordax-home-action")).join("")}
+                ${["studio", "files", "projects", "internet", "assistant", "settings"].map((id) => railButton(id, t(`app.${id}.title`), ICONS[id === "network" ? "networkApp" : id], t, "ordax-home-action")).join("")}
               </div>
             </section>
 

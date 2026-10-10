@@ -79,7 +79,7 @@ html[data-ordax-text-scale="extra-large"] {
   --ordax-wallpaper-opacity: 1;
   --ordax-glass: rgba(14, 22, 40, 0.94);
   --ordax-rail-width: 202px;
-  --ordax-header-height: 92px;
+  --ordax-header-height: 64px;
 
   /* Geometry. */
   --ordax-radius-xs: 4px;
@@ -178,7 +178,7 @@ html[data-ordax-text-scale="extra-large"] {
 }
 
 @media (max-width: 760px) {
-  :root, [data-ordax-theme] { --ordax-rail-width: 0px; --ordax-header-height: 82px; }
+  :root, [data-ordax-theme] { --ordax-rail-width: 0px; --ordax-header-height: 64px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
