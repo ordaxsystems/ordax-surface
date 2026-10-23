@@ -1,0 +1,16 @@
+{
+  "$schema": "ordax.surface-source-provenance/1",
+  "status": "migration-candidate",
+  "source_repository": "ordaxsystems/ordax-os",
+  "source_commit": "f65acc4fb9f8ded376fc9b44b4c7c2068c793265",
+  "filtered_history_commit": "22181734ee24d723d308f1e9ee1557b60f253845",
+  "source_paths": [
+    "system/surface/ui/",
+    "system/surface/workspace/"
+  ],
+  "file_count": 157,
+  "source_blob_map": "provenance/original-os-git-blobs.tsv",
+  "source_blob_map_sha256": "8efa35099620e4bfe46fbfe719566dd5096f7d9d8ac9bf1996ecc40df9c1b535",
+  "ownership_cutover_complete": false,
+  "note": "Filtered Git history retains authorship; source content modes and Git blob IDs were compared byte-for-byte at the pinned OS commit. This is not a production release."
+}
