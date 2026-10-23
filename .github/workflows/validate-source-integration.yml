@@ -1,0 +1,107 @@
+name: Surface source integration candidate
+
+on:
+  pull_request:
+    paths:
+      - 'system/surface/ui/**'
+      - 'system/surface/workspace/**'
+      - 'provenance/**'
+      - '.github/workflows/validate-source-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-and-native-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Surface candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: surface
+
+      - name: Checkout immutable OS integration baseline
+        uses: actions/checkout@v4
+        with:
+          repository: ordaxsystems/ordax-os
+          ref: f65acc4fb9f8ded376fc9b44b4c7c2068c793265
+          persist-credentials: false
+          path: os
+
+      - name: Verify imported source provenance and mount only visual source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          surface = Path("surface")
+          manifest = json.loads((surface / "provenance/import.json").read_text())
+          if manifest["source_commit"] != "f65acc4fb9f8ded376fc9b44b4c7c2068c793265":
+              raise SystemExit("wrong immutable source baseline")
+          blobmap = (surface / manifest["source_blob_map"]).read_bytes()
+          if hashlib.sha256(blobmap).hexdigest() != manifest["source_blob_map_sha256"]:
+              raise SystemExit("corrupted source provenance")
+          if len(blobmap.splitlines()) != 157 or manifest["file_count"] != 157:
+              raise SystemExit("wrong source file count")
+          PY
+          for part in ui workspace; do
+            test -d "surface/system/surface/$part"
+            rm -rf "os/system/surface/$part"
+            cp -a "surface/system/surface/$part" "os/system/surface/$part"
+          done
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          lines = (Path("surface") / "provenance/original-os-git-blobs.tsv").read_text().splitlines()
+          for line in lines:
+              meta, name = line.split("\t", 1)
+              mode, kind, expected_sha = meta.split()
+              if mode != "100644" or kind != "blob":
+                  raise SystemExit(f"unsupported staged source mode: {name}")
+              raw = (Path("os") / name).read_bytes()
+              actual_sha = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+              if actual_sha != expected_sha:
+                  raise SystemExit(f"Git blob mismatch: {name}")
+          print(f"Verified {len(lines)} OS-mounted Git blobs from exact Surface import.")
+          PY
+
+      - name: Set up Node for Web typecheck and bundle
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+
+      - name: Install OS-locked Web dependencies
+        working-directory: os
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Web typecheck and bundle from imported Surface source
+        working-directory: os
+        run: npm run build --workspace tools/surface-web
+
+      - name: Validate canonical module boundaries
+        working-directory: os
+        run: python3 tools/verify/module_boundaries.py
+
+      - name: Verify Surface, Native host and source graph regressions
+        working-directory: os
+        run: |
+          python3 -m unittest \
+            tests.test_surface_ui_contract \
+            tests.test_surface_visual_identity \
+            tests.test_surface_boot_screen \
+            tests.test_surface_web_builder \
+            tests.test_native_host_module_integrity \
+            tests.test_system_runtime_contract -v
+
+      - name: Verify shared Surface state and localization
+        working-directory: os
+        run: |
+          node --test \
+            tests/test_surface_workspace.mjs \
+            tests/test_surface_localization.mjs \
+            tests/test_sidebar_layout.mjs
