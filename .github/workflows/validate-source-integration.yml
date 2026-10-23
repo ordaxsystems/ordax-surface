@@ -48,6 +48,17 @@ jobs:
               raise SystemExit("corrupted source provenance")
           if len(blobmap.splitlines()) != 157 or manifest["file_count"] != 157:
               raise SystemExit("wrong source file count")
+          # Baseline provenance is immutable. Compare the frozen original
+          # file identities against the frozen OS commit BEFORE overlaying.
+          lines = blobmap.decode("utf-8").splitlines()
+          for line in lines:
+              metadata, relative = line.split("\t", 1)
+              mode, kind, expected = metadata.split()
+              original = (Path("os") / relative).read_bytes()
+              actual = hashlib.sha1(b"blob " + str(len(original)).encode() + b"\0" + original).hexdigest()
+              if mode != "100644" or kind != "blob" or actual != expected:
+                  raise SystemExit(f"original OS import provenance mismatch: {relative}")
+          print(f"Verified {len(lines)} original Git blobs at frozen OS baseline")
           PY
           for part in ui workspace; do
             test -d "surface/system/surface/$part"
@@ -56,18 +67,34 @@ jobs:
           done
           python3 - <<'PY'
           import hashlib
+          import subprocess
           from pathlib import Path
-          lines = (Path("surface") / "provenance/original-os-git-blobs.tsv").read_text().splitlines()
-          for line in lines:
-              meta, name = line.split("\t", 1)
-              mode, kind, expected_sha = meta.split()
-              if mode != "100644" or kind != "blob":
-                  raise SystemExit(f"unsupported staged source mode: {name}")
-              raw = (Path("os") / name).read_bytes()
-              actual_sha = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
-              if actual_sha != expected_sha:
-                  raise SystemExit(f"Git blob mismatch: {name}")
-          print(f"Verified {len(lines)} OS-mounted Git blobs from exact Surface import.")
+          # Later legitimate Surface changes must be checked against the
+          # candidate Git HEAD, not the frozen pre-migration baseline.
+          records = subprocess.check_output([
+              "git", "-C", "surface", "ls-tree", "-r", "-z", "HEAD",
+              "--", "system/surface/ui", "system/surface/workspace",
+          ])
+          verified = 0
+          for record in records.split(b"\0"):
+              if not record:
+                  continue
+              meta, name = record.split(b"\t", 1)
+              mode, kind, expected = meta.decode("ascii").split()
+              relative = name.decode("utf-8")
+              if mode not in ("100644", "100755") or kind != "blob":
+                  raise SystemExit(f"invalid candidate tree entry: {relative}")
+              actual_file = Path("os") / relative
+              if actual_file.is_symlink():
+                  raise SystemExit(f"candidate source symlink: {relative}")
+              data = actual_file.read_bytes()
+              actual = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Surface candidate Git blob mismatch: {relative}")
+              verified += 1
+          if verified < 157:
+              raise SystemExit(f"lost visual source files: {verified}")
+          print(f"Verified {verified} candidate Surface blobs after OS integration overlay")
           PY
 
       - name: Set up Node for Web typecheck and bundle
@@ -94,6 +121,7 @@ jobs:
             tests.test_surface_ui_contract \
             tests.test_surface_visual_identity \
             tests.test_surface_boot_screen \
+            tests.test_notification_center_ui_contract \
             tests.test_surface_web_builder \
             tests.test_native_host_module_integrity \
             tests.test_system_runtime_contract -v
