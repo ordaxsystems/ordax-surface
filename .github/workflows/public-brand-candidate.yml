@@ -34,6 +34,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # PR workflows default to a synthetic merge SHA; artifact provenance
+          # must identify the exact immutable Surface candidate commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: surface
 
       - name: Checkout frozen canonical Inter license only
@@ -84,7 +87,7 @@ jobs:
       - name: Upload candidate for downstream review (not an official release)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: surface-brand-candidate-${{ github.sha }}
+          name: surface-brand-candidate-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/surface-brand-one/
           if-no-files-found: error
           retention-days: 14
