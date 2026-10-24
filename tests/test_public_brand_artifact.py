@@ -108,13 +108,9 @@ class BrandExportTests(unittest.TestCase):
             pack = directory / "brand"
             build_receipt = brand.build(pack, self.os_source, self.os_commit)
             archive = directory / "brand.tar.gz"
+            # Include GNU tar's top-level '.' and parent directory entries.
             with tarfile.open(archive, mode="w:gz") as tar:
-                for path in sorted(brand.EXPECTED_FILES | {"manifest.json"}):
-                    data = (pack / path).read_bytes()
-                    item = tarfile.TarInfo("./" + path)
-                    item.mode = 0o644
-                    item.size = len(data)
-                    tar.addfile(item, io.BytesIO(data))
+                tar.add(pack, arcname=".")
             pinned_digest = brand.sha256(archive.read_bytes())
             result = brand.verify_archive(
                 archive, self.surface_commit,
