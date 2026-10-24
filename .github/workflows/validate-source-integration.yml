@@ -174,3 +174,9 @@ jobs:
             tests/test_surface_workspace.mjs \
             tests/test_surface_localization.mjs \
             tests/test_sidebar_layout.mjs
+
+      - name: Prove shared Native Surface in Chromium at desktop and mobile viewports
+        working-directory: os
+        run: |
+          set -euo pipefail
+          node tools/surface-native/browser-smoke.mjs
