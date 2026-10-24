@@ -29,51 +29,31 @@ A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adap
 
 A prova histórica inicial permanece em `provenance/import.json` com `status: migration-candidate`: esse campo descreve a **importação original**, não o estado atual de ownership, e não deve ser reescrito para fingir outra proveniência.
 
-## Publicação
+## Publicação da apresentação — **desenvolvimento**
 
-Não há GitHub Release oficial de marca/demonstração publicada da Surface nesta etapa. O OS já utiliza revisão Git imutável verificada como source de build e distribuição. Nenhuma nova versão visual passa a ativa por criar um artefato de apresentação pública.
+A Surface **já publica dois artefatos Dev independentes e atestados**. Ambos são gerados por workflows na `main`, com proveniência de commits/arquivos de origem, inventário de bytes e hashes externos. São **prereleases de desenvolvimento**, não distribuição de produto nem autorização de produção.
 
-O [exportador de marca para revisão](tools/public-artifacts/brand.py) projeta **somente as variáveis CSS** existentes em `tokens.css` e `meridian.tokens.css`, mantendo o mesmo design system sem redefinir paleta ou alterar os elementos `html/body` do Site. Os três arquivos visuais (símbolo, landscape e fonte Inter) são copiados byte a byte do Git source exato. A licença OFL não é duplicada no repositório: é importada e verificada contra o blob original `556792990d740c111b4fee7fe1938dc90bcee2ce` na revisão OS imutável de proveniência `f65acc4fb9f8ded376fc9b44b4c7c2068c793265`.
+| Artefato | Publicador e evidência | Consumidor |
+| --- | --- | --- |
+| Marca (tokens, CSS, símbolo, landscape, fonte e licença Inter) | [`Surface Public Brand Candidate`](.github/workflows/public-brand-candidate.yml), [PR #14](https://github.com/ordaxsystems/ordax-surface/pull/14), [prerelease brand Dev](https://github.com/ordaxsystems/ordax-surface/releases/tag/brand-dev-863310a2e0a285f35fb1080c84c3cc5a88d41cde) | Site, com pin externo |
+| Meridian (11 vistas read-only, fixture + CSS) | [`Surface source integration candidate`](.github/workflows/validate-source-integration.yml), [PR #13](https://github.com/ordaxsystems/ordax-surface/pull/13), [prerelease Meridian Dev](https://github.com/ordaxsystems/ordax-surface/releases/tag/meridian-dev-1ab73da4aae5991273a5f4ca380d5af135ffd8d5) | Site, com pin externo |
 
-A CI [`Surface Public Brand Candidate`](.github/workflows/public-brand-candidate.yml) gera **duas vezes** o mesmo pacote, compara os bytes e manifestos, executa testes negativos de alterações/trocas de revisão e anexa um **artefato candidato de revisão**. A saída contém os seis arquivos contratados pelo Site e `manifest.json` com `artifact_class=ordax-brand`, revisão Source SHA e origem real dos seis blobs necessários. Permanece marcada `status=candidate-not-published`, não uma release oficial.
+O Site é proprietário da integração estática, **não do renderer nem dos recursos visuais**. Seu único contrato operacional para essas dependências é [`ordax-site/contracts/dev-artifact-lock.json`](https://github.com/ordaxsystems/ordax-site/blob/main/contracts/dev-artifact-lock.json): SHA-40 do commit, SHA-256 do arquivo e do manifesto. O CI Site verifica a atestação GitHub vinculada ao workflow correto, `refs/heads/main` e source SHA, antes de construir o pacote; o builder confere os conteúdos sem confiar nas flags de status do próprio JSON. A integridade por hash detecta substituições mesmo que a plataforma de releases permita mudanças administrativas.
 
-**Atestação criptográfica (restrita à `main`):** após CI de source validada, o job independente `attest-main-brand` reutiliza o pacote da **mesma execução** e gera um `ordax-brand-<SHA>.tar.gz` de metadados determinísticos. O `actions/attest` cria proveniência SLSA assinada pela identidade GitHub OIDC/Sigstore do workflow. O próprio job verifica com `gh attestation verify` o repositório, caminho exato do workflow, `refs/heads/main` e o commit. PRs não possuem acesso ao token de assinatura; não há tag/release, deploy, promoção Stable ou gravador de mídia.
+### Marca
 
-**Procedimento obrigatório para o consumidor** (o bundle `.tar.gz` deve ser obtido da execução GitHub Actions da `main`, jamais enviado pelo browser do Site):
+[`tools/public-artifacts/brand.py`](tools/public-artifacts/brand.py) é o **único exportador** dos tokens e recursos da marca. O CI gera saídas determinísticas e valida cada arquivo, incluindo a licença OFL proveniente do blob canônico do OS. A publicação automática **Dev** é dependente da atestação `attest-main-brand` e faz conferência de roundtrip da prerelease, sem recompilar a marca no Site. O formato do manifesto conserva `candidate-not-published` porque a arte não tem autorização comercial/produção.
 
-```sh
-gh attestation verify ordax-brand-<SURFACE_SHA>.tar.gz \
-  --repo ordaxsystems/ordax-surface \
-  --signer-workflow ordaxsystems/ordax-surface/.github/workflows/public-brand-candidate.yml \
-  --source-ref refs/heads/main \
-  --source-digest <SURFACE_SHA> \
-  --deny-self-hosted-runners
-```
+O workflow [`Surface Brand Draft Release (manual)`](.github/workflows/public-brand-draft-release.yml) oferece **somente** uma revisão manual em draft, separada do caminho automático Dev. Não é um segundo exportador, nem a fonte usada pelo Site, nem um mecanismo de promoção Stable.
 
-Em seguida, descompactar o arquivo **somente em diretório temporário seguro**, rejeitando entradas inesperadas, links e traversal, e verificar `manifest.json` pelo SHA-256 obtido do artefato atestado e pelo validador `tools/public-artifacts/brand.py verify`. A assinatura sozinha não valida autorização comercial/deploy. A política de confiança do Site deve exigir sua **própria** versão aprovada do artefato e não confiar no campo `status` que qualquer produtor de JSON poderia declarar.
+### Demonstração Meridian
 
-**Verificação antes de qualquer extração:** o subcomando `python3 tools/public-artifacts/brand.py verify-archive` lê o TAR/GZIP como bytes não confiáveis, confere SHA-256 do pacote e do manifesto **contra pins externos**, recusa links, traversal, arquivos repetidos, permissões executáveis e inventário extra, impõe limites de tamanho, e reutiliza o validador de fonte/brand já existente. O consumidor Site não deve apenas executar `tar -xf` sobre entrada não validada.
+O renderer canônico da apresentação read-only está em [`tools/public-artifacts/meridian-preview-entry.tsx`](tools/public-artifacts/meridian-preview-entry.tsx) e [`meridian-preview.mjs`](tools/public-artifacts/meridian-preview.mjs). Os componentes visuais vêm de `system/surface/{ui,workspace}`; os dados de apps/atalhos/i18n vêm **da projeção OS-owned** integrada na [OS #2234](https://github.com/ordaxsystems/ordax-os/pull/2234). A composição ocorre em checkout descartável com identidade de ambas as origens, sem sessão ativa, capacidades reais ou JavaScript executável no pacote.
 
-### Rascunho durável da marca — manual e não público
+A [Site #7](https://github.com/ordaxsystems/ordax-site/pull/7) substituiu o snapshot demo do OS pela prerelease Surface. A [Site #10](https://github.com/ordaxsystems/ordax-site/pull/10) removeu o último snapshot de marca e integrou as duas releases. O [OS #2238](https://github.com/ordaxsystems/ordax-os/pull/2238) verificou o Site independente no portal e login Web, sem reintroduzir arquivos visuais em `ordax-os`. O código-fonte do Site e seus registros de distribuição pertencem aos seus owners respectivos.
 
-O workflow [`Surface Brand Draft Release (manual)`](.github/workflows/public-brand-draft-release.yml) não é acionado por PR, push ou CI automática. Um operador com autorização de escrita pode executar **workflow_dispatch na `main`**, informando explicitamente: SHA-40 do commit Surface, ID de execução `push/main` do publicador de candidatos, SHA-256 aprovado do arquivo atestado, SHA-256 aprovado de `manifest.json` e confirmação `CREATE_DRAFT_ONLY`. O workflow:
+### Autorização e evolução
 
-1. Confere revisão ancestral da `main`, metadados da execução publicadora aprovada, SHA e assinatura do arquivo e a identidade do workflow de origem.
-2. Executa `verify-archive` antes de colocar qualquer conteúdo à disposição de consumidores.
-3. Recusa sobrescrever tag/release existente e cria, **somente se o operador disparou a ação**, um `gh release create --draft --prerelease` com nome de tag específico ao source SHA. Confirma pelo registro da release o `targetCommitish` exato, `isDraft=true`, `isPrerelease=true`, um único arquivo com nome/tamanho esperado e baixa esse arquivo para conferir novamente seu SHA-256. **Não exige nem cria uma referência Git para um draft ainda não publicado**; se uma tag existir, recusa alvo divergente.
+A publicação Dev não altera o lock de source do OS, gravação física, USB, DNS, Vercel de produção, Identity, billing, downloads públicos ou Stable. A revisão visual ativa no OS continua determinada exclusivamente por [`surface-source.json`](https://github.com/ordaxsystems/ordax-os/blob/main/docs/contracts/surface-source.json). As revisões de Site/Surface devem atualizar seus pins por PR com CI, nunca copiar componentes para manter espelhos.
 
-**Uma release draft não é distribuição pública imutável:** pode ser alterada por mantenedores com permissão; a imutabilidade GitHub se aplica apenas quando uma release é publicada e a opção do repositório está habilitada. Nem a operação manual de draft nem um artefato de Actions de curta retenção autorizam automaticamente promover o pacote, desbloquear downloads, implantar o Site ou liberar OS Stable. Essa autorização exige gates próprios dos consumidores e da autoridade de publicação.
-
-### Demo Meridian — renderer read-only, candidata sem distribuição
-
-A apresentação Meridian pública passa a ter um **único novo renderer proprietário**, em [`tools/public-artifacts/meridian-preview-entry.tsx`](tools/public-artifacts/meridian-preview-entry.tsx) e [`meridian-preview.mjs`](tools/public-artifacts/meridian-preview.mjs). Ele não copia os componentes React; renderiza os mesmos componentes de `system/surface/{ui,workspace}` que o produto usa. A integração é compilada em um **checkout descartável** do OS para resolver as dependências verdadeiras de serviços, destinos, preferências e i18n sob o SHA do host. Os contextos de Conta, preferências e inteligência do snapshot são explicitamente negados ou limitados à apresentação de exemplo, sem conferir sessão/autorização.
-
-A CI `Surface source integration candidate` monta o visual Surface sobre o OS atual, materializa apenas os dois scripts do exportador no host descartável, gera duas saídas separadas e exige que os pacotes sejam idênticos. O único destino de gravação permitido é o diretório temporário externo. Cada dependência do grafo é vinculada a owner + commit + Git blob + SHA-256; arquivo fora dos owners esperados ou arquivo montado diferente do Git oficial interrompe o build. O pacote candidato expõe a composição e o CSS, com 11 vistas, **sem** backend, JS executável, edição da localização do Site ou escrita em `sites/public`. `manifest.json` é `candidate-not-published`; não equivale a fixture de app oficial, atestação ou autorização de release.
-
-**Não há cutover da demo nesta etapa.** O antigo writer `ordax-os/tools/public-site/{surface_snapshot.mjs,playground_fixture.py}` só pode ser retirado quando a projeção app/shortcut/i18n do OS for consumida como entrada multi-owner autorizada, o artefato total estiver assinado e a PR do Site demonstrar paridade. Não copiar essa projeção, gerar segundo catálogo nem adaptar o Site a esta candidata parcial.
-
-O [`ordax-site#1`](https://github.com/ordaxsystems/ordax-site/pull/1) atualmente aceita **somente** a cópia de migração do OS por lock de desenvolvimento, e **deve continuar rejeitando** esta candidata enquanto o owner Surface não aprovar/publicar um manifesto atestado e o Site não implementar o verificador desse trust path. A [issue #3](https://github.com/ordaxsystems/ordax-surface/issues/3) controla também o pacote demo: sua fixture depende do catálogo, i18n e composição do OS, portanto não pode ser reclassificada como source puramente visual nem criada com outro gerador do Site.
-
-A distribuição de `ordax-surface` nunca cria outro mecanismo de atualização de SO ou altera o `docs/contracts/surface-source.json` no OS.
-
-**Segurança:** não realizar escrita em USB/discos físicos, publicação Stable ou ativação de produção sem os gates e autorizações correspondentes.
+A [issue #3](https://github.com/ordaxsystems/ordax-surface/issues/3) registra a conclusão do **pacote de apresentação Dev**; quaisquer autorizações de produção são escopo separado. Homologação em hardware real, Identity em staging e acessibilidade manual continuam gates independentes.
