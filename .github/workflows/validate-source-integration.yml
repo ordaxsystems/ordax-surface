@@ -197,6 +197,14 @@ jobs:
           git -C surface diff --exit-code
           git -C os diff --exit-code
 
+      - name: Upload read-only Meridian fixture for Dev Site consumers
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: meridian-site-fixture-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/meridian-preview-one/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Validate canonical module boundaries
         working-directory: os
         run: python3 tools/verify/module_boundaries.py
