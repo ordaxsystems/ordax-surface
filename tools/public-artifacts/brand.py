@@ -8,6 +8,7 @@ OS Git blob, without creating another tracked maintenance copy of the license.
 from __future__ import annotations
 
 import argparse
+import tarfile
 import hashlib
 import json
 import re
@@ -242,6 +243,72 @@ def verify(directory: Path, expected_commit: str, expected_manifest_sha256: str)
     return manifest
 
 
+def verify_archive(
+    archive: Path, expected_commit: str, expected_manifest_sha256: str,
+    expected_archive_sha256: str,
+) -> dict:
+    """Verify an attested TAR without ever extracting untrusted metadata.
+
+    The caller MUST first verify the archive's GitHub/Sigstore provenance
+    (repository, signer workflow, source commit and refs/heads/main). All three
+    digests here must come from the caller's approved release transaction, not
+    from fields inside the TAR. Reuses verify() as the only brand file contract.
+    """
+    if (not SHA40.fullmatch(expected_commit)
+            or not SHA256.fullmatch(expected_manifest_sha256)
+            or not SHA256.fullmatch(expected_archive_sha256)):
+        raise ExportError("trusted source, manifest and archive pins required")
+    if archive.is_symlink() or not archive.is_file():
+        raise ExportError("missing or linked archive")
+    if archive.stat().st_size > 16 * 1024 * 1024:
+        raise ExportError("archive exceeds strict 16 MiB transfer limit")
+    if sha256(archive.read_bytes()) != expected_archive_sha256:
+        raise ExportError("archive does not match externally approved SHA-256")
+    required = EXPECTED_FILES | {"manifest.json"}
+    allowed_dirs = {"", "assets", "assets/fonts"}
+    seen: set[str] = set()
+    seen_dirs: set[str] = set()
+    total = 0
+    with tempfile.TemporaryDirectory(prefix="ordax-brand-verify-") as scratch:
+        root = Path(scratch)
+        try:
+            with tarfile.open(archive, mode="r:gz") as members:
+                for member in members:
+                    raw = member.name
+                    path = raw.removeprefix("./").rstrip("/")
+                    if (raw.startswith("/") or "\\" in raw
+                            or any(x in {"", ".", ".."} for x in path.split("/") if path)
+                            or member.issym() or member.islnk()):
+                        raise ExportError("unsafe archive path/link")
+                    if member.isdir():
+                        if path not in allowed_dirs or path in seen_dirs:
+                            raise ExportError("unexpected/duplicate archive directory")
+                        seen_dirs.add(path)
+                        continue
+                    if (not member.isfile() or path not in required or path in seen
+                            or member.size < 0 or member.size > 8 * 1024 * 1024
+                            or (member.mode & 0o111)):
+                        raise ExportError("unsafe/duplicate/unexpected archive member")
+                    total += member.size
+                    if total > 16 * 1024 * 1024:
+                        raise ExportError("archive expanded content too large")
+                    stream = members.extractfile(member)
+                    if stream is None:
+                        raise ExportError("unreadable archive member")
+                    data = stream.read(member.size + 1)
+                    if len(data) != member.size:
+                        raise ExportError("truncated archive member")
+                    target = root / path
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+                    seen.add(path)
+        except (tarfile.TarError, EOFError) as exc:
+            raise ExportError("invalid or truncated compressed archive") from exc
+        if seen != required:
+            raise ExportError("missing required brand archive members")
+        return verify(root, expected_commit, expected_manifest_sha256)
+
+
 def build(directory: Path, os_repo: Path, os_commit: str) -> dict:
     directory = directory.resolve()
     if directory.is_relative_to(ROOT) or directory.is_relative_to(os_repo.resolve()):
@@ -294,9 +361,20 @@ def main() -> int:
     check.add_argument("--package-dir", type=Path, required=True)
     check.add_argument("--expected-source-commit", required=True)
     check.add_argument("--manifest-sha256", required=True)
+    archive_check = sub.add_parser("verify-archive")
+    archive_check.add_argument("--archive", type=Path, required=True)
+    archive_check.add_argument("--expected-source-commit", required=True)
+    archive_check.add_argument("--manifest-sha256", required=True)
+    archive_check.add_argument("--archive-sha256", required=True)
     args = parser.parse_args()
     if args.command == "build":
         result = build(args.out_dir, args.os_source_dir, args.os_source_commit)
+    elif args.command == "verify-archive":
+        result = verify_archive(
+            args.archive, args.expected_source_commit, args.manifest_sha256,
+            args.archive_sha256,
+        )
+        result = {"source_commit": result["source_commit"], "verified": True}
     else:
         result = verify(args.package_dir, args.expected_source_commit, args.manifest_sha256)
         result = {"source_commit": result["source_commit"], "verified": True}
