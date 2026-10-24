@@ -62,7 +62,7 @@ class BrandExportTests(unittest.TestCase):
                 brand.verify(out, self.surface_commit, receipt["manifest_sha256"])
             with self.assertRaisesRegex(brand.ExportError, "output exists"):
                 brand.build(out, self.os_source, self.os_commit)
-            with self.assertRaisesRegex(brand.ExportError, "externally supplied"):
+            with self.assertRaisesRegex(brand.ExportError, "trusted SHA-40 and SHA-256"):
                 brand.verify(out, self.surface_commit, "0")
             css.unlink()
             with self.assertRaisesRegex(brand.ExportError, "inventory"):
@@ -74,7 +74,7 @@ class BrandExportTests(unittest.TestCase):
                 brand.build(Path(temp) / "bad-source", self.os_source, "0" * 40)
             out = Path(temp) / "good-source"
             receipt = brand.build(out, self.os_source, self.os_commit)
-            with self.assertRaisesRegex(brand.ExportError, "externally supplied"):
+            with self.assertRaisesRegex(brand.ExportError, "trusted SHA-40 and SHA-256"):
                 brand.verify(out, "not-a-sha", receipt["manifest_sha256"])
             with self.assertRaisesRegex(brand.ExportError, "manifest does not match"):
                 brand.verify(out, self.surface_commit, "0" * 64)
