@@ -77,6 +77,24 @@ jobs:
           echo "SURFACE_BRAND_SOURCE=$source_sha"
           echo "SURFACE_BRAND_MANIFEST_SHA256=$manifest_sha"
 
+      - name: Verify actual GNU archive layout before any signature or release
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/brand-verified.tar.gz"
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            --format=gnu -cf - -C "$RUNNER_TEMP/surface-brand-one" . \
+            | gzip -n > "$archive"
+          archive_sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+          manifest_sha="$(sha256sum "$RUNNER_TEMP/surface-brand-one/manifest.json" | cut -d' ' -f1)"
+          source_sha="$(git -C surface rev-parse HEAD)"
+          python3 surface/tools/public-artifacts/brand.py verify-archive \
+            --archive "$archive" \
+            --archive-sha256 "$archive_sha" \
+            --manifest-sha256 "$manifest_sha" \
+            --expected-source-commit "$source_sha"
+          echo "SURFACE_BRAND_GNU_TAR=VERIFIED"
+
       - name: Verify fail-closed brand artifact tests
         working-directory: surface
         env:

@@ -1,0 +1,148 @@
+name: Surface Brand Draft Release (manual)
+
+# Deliberately separate from source CI. No automatic publication or production deploy.
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Attested Surface main commit (40 lowercase hex)
+        type: string
+        required: true
+      signer_run_id:
+        description: Successful main-only Surface Public Brand Candidate run ID
+        type: string
+        required: true
+      archive_sha256:
+        description: Approved SHA-256 of the signed TAR.GZ
+        type: string
+        required: true
+      manifest_sha256:
+        description: Approved SHA-256 of its inner manifest.json
+        type: string
+        required: true
+      confirmation:
+        description: Type CREATE_DRAFT_ONLY; never publish automatically
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: surface-brand-draft-${{ inputs.source_commit }}
+  cancel-in-progress: false
+
+jobs:
+  review-and-create-draft:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ordaxsystems/ordax-surface
+      SOURCE_SHA: ${{ inputs.source_commit }}
+      RUN_ID: ${{ inputs.signer_run_id }}
+      ARCHIVE_SHA: ${{ inputs.archive_sha256 }}
+      MANIFEST_SHA: ${{ inputs.manifest_sha256 }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - name: Checkout reviewed workflow exclusively on main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Validate manual approval and exact immutable producer run
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "CREATE_DRAFT_ONLY"
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RUN_ID" =~ ^[1-9][0-9]{0,18}$ ]]
+          [[ "$ARCHIVE_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$MANIFEST_SHA" =~ ^[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" "$GITHUB_SHA"
+
+          run_json="$(gh api "repos/$REPO/actions/runs/$RUN_ID")"
+          test "$(jq -r '.status' <<< "$run_json")" = "completed"
+          test "$(jq -r '.conclusion' <<< "$run_json")" = "success"
+          test "$(jq -r '.event' <<< "$run_json")" = "push"
+          test "$(jq -r '.head_branch' <<< "$run_json")" = "main"
+          test "$(jq -r '.head_sha' <<< "$run_json")" = "$SOURCE_SHA"
+          test "$(jq -r '.path' <<< "$run_json")" = ".github/workflows/public-brand-candidate.yml"
+          test "$(jq -r '.repository.full_name' <<< "$run_json")" = "$REPO"
+          echo "SURFACE_BRAND_SIGNER_RUN=VERIFIED"
+
+      - name: Retrieve only archive from the exact attested producer run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/brand"
+          gh run download "$RUN_ID" --repo "$REPO" \
+            --name "attested-brand-main-$SOURCE_SHA" --dir "$RUNNER_TEMP/brand"
+          archive="$RUNNER_TEMP/brand/ordax-brand-$SOURCE_SHA.tar.gz"
+          test -f "$archive" && test ! -L "$archive"
+          echo "$ARCHIVE_SHA  $archive" | sha256sum --check --status
+          echo "SURFACE_BRAND_ARCHIVE_DIGEST=VERIFIED"
+
+      - name: Require trusted signer and inspect archive without unsafe extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/brand/ordax-brand-$SOURCE_SHA.tar.gz"
+          gh attestation verify "$archive" \
+            --repo "$REPO" \
+            --signer-workflow "$REPO/.github/workflows/public-brand-candidate.yml" \
+            --source-digest "$SOURCE_SHA" \
+            --source-ref refs/heads/main \
+            --deny-self-hosted-runners
+          python3 tools/public-artifacts/brand.py verify-archive \
+            --archive "$archive" \
+            --expected-source-commit "$SOURCE_SHA" \
+            --manifest-sha256 "$MANIFEST_SHA" \
+            --archive-sha256 "$ARCHIVE_SHA"
+          echo "SURFACE_BRAND_DRAFT_INPUT=VERIFIED"
+
+      - name: Create operator-authorized draft only (never publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/brand/ordax-brand-$SOURCE_SHA.tar.gz"
+          tag="brand-candidate-$SOURCE_SHA"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Refusing to overwrite an existing draft/release"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Refusing to reuse an existing tag"
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/brand/release-notes.md" <<EOF
+          # Brand review draft — NOT an authorized public release
+
+          Immutable source repository: $REPO
+          Git source commit: $SOURCE_SHA
+          Producer workflow: .github/workflows/public-brand-candidate.yml
+          Producer run: https://github.com/$REPO/actions/runs/$RUN_ID
+          Signed archive SHA-256: $ARCHIVE_SHA
+          Inner manifest SHA-256: $MANIFEST_SHA
+
+          This draft contains candidate-not-published files. It is not
+          authorized for production, OS Stable, Site deploy or customer use.
+          EOF
+          gh release create "$tag" "$archive" --repo "$REPO" \
+            --target "$SOURCE_SHA" --draft --prerelease --latest=false \
+            --title "Surface brand candidate $SOURCE_SHA" \
+            --notes-file "$RUNNER_TEMP/brand/release-notes.md"
+          tag_target="$(git ls-remote --tags origin "refs/tags/$tag" | awk '{print $1}')"
+          test "$tag_target" = "$SOURCE_SHA"
+          test "$(gh release view "$tag" --repo "$REPO" --json isDraft --jq '.isDraft')" = true
+          echo "SURFACE_BRAND_DRAFT_RELEASE=CREATED_NOT_PUBLISHED"
