@@ -10,9 +10,9 @@ import {createHash} from 'node:crypto';
 import {resolve,dirname,relative,sep} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
-const out=resolve(process.argv[2]??''),surface=resolve(process.argv[3]??'');
+const out=resolve(process.argv[2]??''),surface=resolve(process.argv[3]??''),catalogFile=resolve(process.argv[4]??'');
 const inside=(a,b)=>b===a||b.startsWith(a+sep);
-if(process.argv.length!==4||inside(root,out)||inside(surface,out)||inside(out,root)||inside(out,surface))
+if(process.argv.length!==5||inside(root,out)||inside(surface,out)||inside(out,root)||inside(out,surface)||inside(root,catalogFile)||inside(surface,catalogFile))
   throw Error('Required external output and Surface source directory');
 const git=(dir,...args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8'}).trim();
 const osSha=git(root,'rev-parse','HEAD'),surfaceSha=git(surface,'rev-parse','HEAD');
@@ -117,13 +117,30 @@ const html=[preview.chrome,...Object.values(preview.views)].join('');
 if(/<script\b|<iframe\b|<form\b[^>]*action=/i.test(html))
  throw Error('Executable or authoritative browser UI prohibited');
 const css=cssTree.toString()+inline;
-await writeFile(resolve(assets,'surface-preview.css'),css);
-await rm(resolve(assets,cssFiles[0]));
-preview.format='ordax.meridian-readonly-preview/1';
+const stylesheet=resolve(assets,'surface-snapshot.css');
+await writeFile(stylesheet,css);
+if(resolve(assets,cssFiles[0])!==stylesheet)await rm(resolve(assets,cssFiles[0]));
+const catalog=JSON.parse(await readFile(catalogFile,'utf8'));
+if(catalog.$schema!=='ordax.os-public-catalog-projection/1'
+  ||catalog.source_repository!=='ordaxsystems/ordax-os'
+  ||!Array.isArray(catalog.apps)||!catalog.apps.length
+  ||!Array.isArray(catalog.home?.rail_apps)
+  ||catalog.home.rail_apps.some(id=>!catalog.apps.some(app=>app.id===id))
+  ||!catalog.source||catalog.source.apps!=='system/apps/catalog.mjs')
+ throw Error('OS catalog projection is invalid or not authorized');
+const ids=catalog.apps.map(x=>x.id);
+if(new Set(ids).size!==ids.length)throw Error('Duplicate OS projected app IDs');
 preview.presentation='example-only-not-an-authorized-session';
 preview.sources=sources;
 preview.cssSha256=digest(Buffer.from(css));
-await writeFile(resolve(assets,'surface-preview.json'),JSON.stringify(preview)+'\n');
+const fixture={
+  $schema:'prototype-ordax.public-playground-fixture/1',
+  source:catalog.source,
+  home:catalog.home,
+  apps:catalog.apps,
+  surface:preview,
+};
+await writeFile(resolve(assets,'playground-fixture.json'),JSON.stringify(fixture)+'\n');
 const items=[];
 async function scan(dir){
  for(const part of await readdir(dir,{withFileTypes:true})){
@@ -139,11 +156,14 @@ async function scan(dir){
 await scan(out);
 items.sort((a,b)=>a.path.localeCompare(b.path));
 await writeFile(resolve(out,'manifest.json'),JSON.stringify({
- $schema:'ordax.meridian-readonly-preview-artifact/1',status:'candidate-not-published',
+ $schema:'ordax.meridian-readonly-preview-artifact/2',status:'candidate-not-published',
  artifact_class:'ordax-meridian-preview',runtime_authority:false,
+ catalog_schema:catalog.$schema,
+ catalog_sha256:digest(await readFile(catalogFile)),
+ sources,
  source_repository:'ordaxsystems/ordax-surface',source_commit:surfaceSha,
  os_host_repository:'ordaxsystems/ordax-os',os_host_commit:osSha,
  files:items
 },null,2)+'\n');
-console.log('MERIDIAN_READONLY_PREVIEW=PASS views=11 files='+items.length+
+console.log('MERIDIAN_READONLY_PREVIEW=PASS views=11 apps='+catalog.apps.length+' files='+items.length+
  ' surface='+surfaceSha+' host='+osSha);
