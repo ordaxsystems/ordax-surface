@@ -52,6 +52,18 @@ gh attestation verify ordax-brand-<SURFACE_SHA>.tar.gz \
 
 Em seguida, descompactar o arquivo **somente em diretório temporário seguro**, rejeitando entradas inesperadas, links e traversal, e verificar `manifest.json` pelo SHA-256 obtido do artefato atestado e pelo validador `tools/public-artifacts/brand.py verify`. A assinatura sozinha não valida autorização comercial/deploy. A política de confiança do Site deve exigir sua **própria** versão aprovada do artefato e não confiar no campo `status` que qualquer produtor de JSON poderia declarar.
 
+**Verificação antes de qualquer extração:** o subcomando `python3 tools/public-artifacts/brand.py verify-archive` lê o TAR/GZIP como bytes não confiáveis, confere SHA-256 do pacote e do manifesto **contra pins externos**, recusa links, traversal, arquivos repetidos, permissões executáveis e inventário extra, impõe limites de tamanho, e reutiliza o validador de fonte/brand já existente. O consumidor Site não deve apenas executar `tar -xf` sobre entrada não validada.
+
+### Rascunho durável da marca — manual e não público
+
+O workflow [`Surface Brand Draft Release (manual)`](.github/workflows/public-brand-draft-release.yml) não é acionado por PR, push ou CI automática. Um operador com autorização de escrita pode executar **workflow_dispatch na `main`**, informando explicitamente: SHA-40 do commit Surface, ID de execução `push/main` do publicador de candidatos, SHA-256 aprovado do arquivo atestado, SHA-256 aprovado de `manifest.json` e confirmação `CREATE_DRAFT_ONLY`. O workflow:
+
+1. Confere revisão ancestral da `main`, metadados da execução publicadora aprovada, SHA e assinatura do arquivo e a identidade do workflow de origem.
+2. Executa `verify-archive` antes de colocar qualquer conteúdo à disposição de consumidores.
+3. Recusa sobrescrever tag/release existente e cria, **somente se o operador disparou a ação**, um `gh release create --draft --prerelease` com tag específica ao source SHA. Testa que a tag aponta ao commit solicitado e que a release continua **draft**.
+
+**Uma release draft não é distribuição pública imutável:** pode ser alterada por mantenedores com permissão; a imutabilidade GitHub se aplica apenas quando uma release é publicada e a opção do repositório está habilitada. Nem a operação manual de draft nem um artefato de Actions de curta retenção autorizam automaticamente promover o pacote, desbloquear downloads, implantar o Site ou liberar OS Stable. Essa autorização exige gates próprios dos consumidores e da autoridade de publicação.
+
 O [`ordax-site#1`](https://github.com/ordaxsystems/ordax-site/pull/1) atualmente aceita **somente** a cópia de migração do OS por lock de desenvolvimento, e **deve continuar rejeitando** esta candidata enquanto o owner Surface não aprovar/publicar um manifesto atestado e o Site não implementar o verificador desse trust path. A [issue #3](https://github.com/ordaxsystems/ordax-surface/issues/3) controla também o pacote demo: sua fixture depende do catálogo, i18n e composição do OS, portanto não pode ser reclassificada como source puramente visual nem criada com outro gerador do Site.
 
 A distribuição de `ordax-surface` nunca cria outro mecanismo de atualização de SO ou altera o `docs/contracts/surface-source.json` no OS.
