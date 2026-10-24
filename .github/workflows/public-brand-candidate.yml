@@ -1,0 +1,90 @@
+name: Surface Public Brand Candidate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'system/surface/ui/tokens.css'
+      - 'system/surface/ui/meridian.tokens.css'
+      - 'system/surface/ui/brand/**'
+      - 'system/surface/ui/fonts/**'
+      - 'tools/public-artifacts/**'
+      - 'tests/test_public_brand_artifact.py'
+      - '.github/workflows/public-brand-candidate.yml'
+  pull_request:
+    paths:
+      - 'system/surface/ui/tokens.css'
+      - 'system/surface/ui/meridian.tokens.css'
+      - 'system/surface/ui/brand/**'
+      - 'system/surface/ui/fonts/**'
+      - 'tools/public-artifacts/**'
+      - 'tests/test_public_brand_artifact.py'
+      - '.github/workflows/public-brand-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-bound-brand:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact Surface candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          path: surface
+
+      - name: Checkout frozen canonical Inter license only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ordaxsystems/ordax-os
+          ref: f65acc4fb9f8ded376fc9b44b4c7c2068c793265
+          persist-credentials: false
+          sparse-checkout: |
+            third_party/licenses/Inter-OFL-1.1.txt
+          path: os-license
+
+      - name: Assert exact licensed sources and independent output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C os-license rev-parse HEAD)" = f65acc4fb9f8ded376fc9b44b4c7c2068c793265
+          test "$(git -C os-license rev-parse HEAD:third_party/licenses/Inter-OFL-1.1.txt)" = 556792990d740c111b4fee7fe1938dc90bcee2ce
+          git -C surface status --porcelain
+          python3 surface/tools/public-artifacts/brand.py build \
+            --os-source-dir os-license \
+            --os-source-commit f65acc4fb9f8ded376fc9b44b4c7c2068c793265 \
+            --out-dir "${{ runner.temp }}/surface-brand-one" > "${{ runner.temp }}/brand-receipt-one.json"
+          python3 surface/tools/public-artifacts/brand.py build \
+            --os-source-dir os-license \
+            --os-source-commit f65acc4fb9f8ded376fc9b44b4c7c2068c793265 \
+            --out-dir "${{ runner.temp }}/surface-brand-two" > "${{ runner.temp }}/brand-receipt-two.json"
+          diff -qr "${{ runner.temp }}/surface-brand-one" "${{ runner.temp }}/surface-brand-two"
+          diff -u "${{ runner.temp }}/brand-receipt-one.json" "${{ runner.temp }}/brand-receipt-two.json"
+          test "$(find "${{ runner.temp }}/surface-brand-one" -type f | wc -l)" = 7
+          source_sha="$(git -C surface rev-parse HEAD)"
+          manifest_sha="$(sha256sum "${{ runner.temp }}/surface-brand-one/manifest.json" | cut -d' ' -f1)"
+          python3 surface/tools/public-artifacts/brand.py verify \
+            --package-dir "${{ runner.temp }}/surface-brand-one" \
+            --expected-source-commit "$source_sha" \
+            --manifest-sha256 "$manifest_sha"
+          echo "SURFACE_BRAND_CANDIDATE=PASS"
+          echo "SURFACE_BRAND_SOURCE=$source_sha"
+          echo "SURFACE_BRAND_MANIFEST_SHA256=$manifest_sha"
+
+      - name: Verify fail-closed brand artifact tests
+        working-directory: surface
+        env:
+          ORDAX_FROZEN_OS_LICENSE_SOURCE: ${{ github.workspace }}/os-license
+          ORDAX_FROZEN_OS_LICENSE_COMMIT: f65acc4fb9f8ded376fc9b44b4c7c2068c793265
+        run: python3 -m unittest discover -s tests -p 'test_public_brand_artifact.py' -v
+
+      - name: Upload candidate for downstream review (not an official release)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: surface-brand-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/surface-brand-one/
+          if-no-files-found: error
+          retention-days: 14
