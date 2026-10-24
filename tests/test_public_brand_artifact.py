@@ -99,7 +99,16 @@ class BrandExportTests(unittest.TestCase):
         self.assertNotIn("id-token: write", candidate)
         self.assertNotIn("attestations: write", candidate)
         self.assertNotIn("permissions:\n  id-token: write", candidate)
-        self.assertNotIn("gh release create", workflow)
+        self.assertNotIn("gh release create", candidate)
+        self.assertNotIn("gh release create", signer.split("  publish-dev-brand:", 1)[0])
+        release = workflow.split("  publish-dev-brand:", 1)[1]
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", release)
+        self.assertIn("needs: attest-main-brand", release)
+        self.assertIn("contents: write", release)
+        self.assertIn("gh release create", release)
+        self.assertIn("gh attestation verify", release)
+        self.assertIn("verify-archive", release)
+        self.assertIn("--deny-self-hosted-runners", release)
         self.assertNotIn("push-to-registry: true", workflow)
 
     def test_signed_archive_shape_and_independent_pins(self):
