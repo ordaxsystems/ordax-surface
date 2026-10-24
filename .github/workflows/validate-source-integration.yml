@@ -161,10 +161,12 @@ jobs:
           mkdir -p os/tools/surface-demo
           cp surface/tools/public-artifacts/meridian-preview* os/tools/surface-demo/
           export ORDAX_SURFACE_CANDIDATE_SHA="$(git -C surface rev-parse HEAD)"
+          python3 os/tools/public-site/playground_fixture.py \
+            --project-catalog "$RUNNER_TEMP/ordax-catalog.json"
           node os/tools/surface-demo/meridian-preview.mjs \
-            "$RUNNER_TEMP/meridian-preview-one" "$PWD/surface"
+            "$RUNNER_TEMP/meridian-preview-one" "$PWD/surface" "$RUNNER_TEMP/ordax-catalog.json"
           node os/tools/surface-demo/meridian-preview.mjs \
-            "$RUNNER_TEMP/meridian-preview-two" "$PWD/surface"
+            "$RUNNER_TEMP/meridian-preview-two" "$PWD/surface" "$RUNNER_TEMP/ordax-catalog.json"
           diff -qr "$RUNNER_TEMP/meridian-preview-one" "$RUNNER_TEMP/meridian-preview-two"
           python3 - <<'PY'
           import hashlib, json, os
@@ -179,16 +181,29 @@ jobs:
               data=(root/file["path"]).read_bytes()
               assert len(data)==file["size"]
               assert hashlib.sha256(data).hexdigest()==file["sha256"]
-          payload=json.loads((root/"assets/surface-preview.json").read_text())
+          fixture=json.loads((root/"assets/playground-fixture.json").read_text())
+          assert fixture["$schema"]=="prototype-ordax.public-playground-fixture/1"
+          assert fixture["apps"] and fixture["home"]["rail_apps"]
+          payload=fixture["surface"]
           assert len(payload["views"])==11
           assert payload["presentation"]=="example-only-not-an-authorized-session"
           assert any(s["repository"]=="ordaxsystems/ordax-os" for s in payload["sources"])
           assert any(s["repository"]=="ordaxsystems/ordax-surface" for s in payload["sources"])
+          assert payload["cssSha256"]==hashlib.sha256((root/"assets/surface-snapshot.css").read_bytes()).hexdigest()
           assert "sourceCopy" in payload
+          assert not (root/"assets/surface-preview.json").exists()
           print("MERIDIAN_PREVIEW_PROVENANCE=PASS")
           PY
           git -C surface diff --exit-code
           git -C os diff --exit-code
+
+      - name: Upload read-only Meridian fixture for Dev Site consumers
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: meridian-site-fixture-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/meridian-preview-one/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Validate canonical module boundaries
         working-directory: os
