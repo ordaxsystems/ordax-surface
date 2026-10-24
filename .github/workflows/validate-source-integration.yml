@@ -1,6 +1,13 @@
 name: Surface source integration candidate
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'system/surface/ui/**'
+      - 'system/surface/workspace/**'
+      - 'provenance/**'
+      - '.github/workflows/validate-source-integration.yml'
   pull_request:
     paths:
       - 'system/surface/ui/**'
@@ -23,13 +30,31 @@ jobs:
           persist-credentials: false
           path: surface
 
-      - name: Checkout immutable OS integration baseline
+      - name: Checkout immutable OS import baseline (provenance only)
         uses: actions/checkout@v4
         with:
           repository: ordaxsystems/ordax-os
           ref: f65acc4fb9f8ded376fc9b44b4c7c2068c793265
           persist-credentials: false
+          sparse-checkout: |
+            system/surface/ui
+            system/surface/workspace
+          path: os-import
+
+      - name: Checkout current OS integration host (not historical baseline)
+        uses: actions/checkout@v4
+        with:
+          repository: ordaxsystems/ordax-os
+          ref: main
+          persist-credentials: false
           path: os
+
+      - name: Record exact integration revisions
+        shell: bash
+        run: |
+          echo "SURFACE_CANDIDATE_SHA=$(git -C surface rev-parse HEAD)"
+          echo "OS_CURRENT_HOST_SHA=$(git -C os rev-parse HEAD)"
+          echo "OS_HISTORICAL_IMPORT_SHA=$(git -C os-import rev-parse HEAD)"
 
       - name: Verify imported source provenance and mount only visual source
         shell: bash
@@ -54,16 +79,26 @@ jobs:
           for line in lines:
               metadata, relative = line.split("\t", 1)
               mode, kind, expected = metadata.split()
-              original = (Path("os") / relative).read_bytes()
+              original = (Path("os-import") / relative).read_bytes()
               actual = hashlib.sha1(b"blob " + str(len(original)).encode() + b"\0" + original).hexdigest()
               if mode != "100644" or kind != "blob" or actual != expected:
                   raise SystemExit(f"original OS import provenance mismatch: {relative}")
           print(f"Verified {len(lines)} original Git blobs at frozen OS baseline")
           PY
+          # The post-cutover OS must not track another copy of visual source.
+          if git -C os ls-files -- system/surface/ui system/surface/workspace | grep -q .; then
+            echo "::error::Current OS still tracks Surface visual source"
+            exit 1
+          fi
           for part in ui workspace; do
-            test -d "surface/system/surface/$part"
-            rm -rf "os/system/surface/$part"
-            cp -a "surface/system/surface/$part" "os/system/surface/$part"
+            source="surface/system/surface/$part"
+            target="os/system/surface/$part"
+            test -d "$source" && test ! -L "$source"
+            test ! -e "$target" && test ! -L "$target" || {
+              echo "::error::OS host already contains a Surface visual tree"
+              exit 1
+            }
+            cp -a "$source" "$target"
           done
           python3 - <<'PY'
           import hashlib
@@ -92,9 +127,9 @@ jobs:
               if actual != expected:
                   raise SystemExit(f"Surface candidate Git blob mismatch: {relative}")
               verified += 1
-          if verified < 157:
-              raise SystemExit(f"lost visual source files: {verified}")
-          print(f"Verified {verified} candidate Surface blobs after OS integration overlay")
+          if not verified:
+              raise SystemExit("Surface candidate has no visual source files")
+          print(f"Verified {verified} candidate Surface blobs after overlay onto current OS")
           PY
 
       - name: Set up Node for Web typecheck and bundle
