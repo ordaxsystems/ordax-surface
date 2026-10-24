@@ -161,8 +161,8 @@ jobs:
           mkdir -p os/tools/surface-demo
           cp surface/tools/public-artifacts/meridian-preview* os/tools/surface-demo/
           export ORDAX_SURFACE_CANDIDATE_SHA="$(git -C surface rev-parse HEAD)"
-          python3 os/tools/public-site/playground_fixture.py \
-            --project-catalog "$RUNNER_TEMP/ordax-catalog.json"
+          python3 os/tools/public-catalog/project.py \
+            --output "$RUNNER_TEMP/ordax-catalog.json"
           node os/tools/surface-demo/meridian-preview.mjs \
             "$RUNNER_TEMP/meridian-preview-one" "$PWD/surface" "$RUNNER_TEMP/ordax-catalog.json"
           node os/tools/surface-demo/meridian-preview.mjs \
