@@ -29,7 +29,7 @@ const blobs=(dir,prefixes)=>new Map(git(dir,'ls-tree','-r','HEAD','--',...prefix
   }));
 const owned=blobs(surface,['system/surface/ui','system/surface/workspace','tools/public-artifacts']);
 const hosted=blobs(root,['system/services','system/contracts','system/apps','system/surface/runtime','system/surface/entrypoint']);
-const used=new Set([resolve(root,'tools/surface-demo/meridian-preview-entry.tsx')]);
+const used=new Set([resolve(root,'tools/surface-demo/meridian-preview-entry.tsx'),resolve(root,'tools/surface-demo/meridian-preview.mjs')]);
 const identityMock="import {projectSidebarAccount} from '"+resolve(root,'system/surface/ui/sidebar-account.mjs').replaceAll('\\','/')+"';export function useWebAccount(t){const identity={state:'signed-out'};const sidebarAccount=projectSidebarAccount(identity,false,t);return {identity,actions:{supportedActions:[],pending:false},displayName:sidebarAccount.displayName,initials:sidebarAccount.initials,sidebarAccount,offline:false,authorized:{ready:false,visibleSpaces:[],activeSpace:null}}}";
 const adapters=new Map([
  ['account-context',identityMock],
