@@ -8,6 +8,7 @@ on:
       - 'system/surface/workspace/**'
       - 'provenance/**'
       - 'tests/**'
+      - 'tools/public-artifacts/meridian-preview*'
       - '.github/workflows/validate-source-integration.yml'
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - 'system/surface/workspace/**'
       - 'provenance/**'
       - 'tests/**'
+      - 'tools/public-artifacts/meridian-preview*'
       - '.github/workflows/validate-source-integration.yml'
   workflow_dispatch:
 
@@ -29,6 +31,7 @@ jobs:
       - name: Checkout Surface candidate
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           path: surface
 
@@ -150,6 +153,42 @@ jobs:
       - name: Web typecheck and bundle from imported Surface source
         working-directory: os
         run: npm run build --workspace tools/surface-web
+
+      - name: Prove read-only Meridian renderer across immutable owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p os/tools/surface-demo
+          cp surface/tools/public-artifacts/meridian-preview* os/tools/surface-demo/
+          export ORDAX_SURFACE_CANDIDATE_SHA="$(git -C surface rev-parse HEAD)"
+          node os/tools/surface-demo/meridian-preview.mjs \
+            "$RUNNER_TEMP/meridian-preview-one" "$PWD/surface"
+          node os/tools/surface-demo/meridian-preview.mjs \
+            "$RUNNER_TEMP/meridian-preview-two" "$PWD/surface"
+          diff -qr "$RUNNER_TEMP/meridian-preview-one" "$RUNNER_TEMP/meridian-preview-two"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"meridian-preview-one"
+          manifest=json.loads((root/"manifest.json").read_text())
+          assert manifest["artifact_class"]=="ordax-meridian-preview"
+          assert manifest["runtime_authority"] is False
+          assert manifest["status"]=="candidate-not-published"
+          assert len(manifest["files"])>=2
+          for file in manifest["files"]:
+              data=(root/file["path"]).read_bytes()
+              assert len(data)==file["size"]
+              assert hashlib.sha256(data).hexdigest()==file["sha256"]
+          payload=json.loads((root/"assets/surface-preview.json").read_text())
+          assert len(payload["views"])==11
+          assert payload["presentation"]=="example-only-not-an-authorized-session"
+          assert any(s["repository"]=="ordaxsystems/ordax-os" for s in payload["sources"])
+          assert any(s["repository"]=="ordaxsystems/ordax-surface" for s in payload["sources"])
+          assert "sourceCopy" in payload
+          print("MERIDIAN_PREVIEW_PROVENANCE=PASS")
+          PY
+          git -C surface diff --exit-code
+          git -C os diff --exit-code
 
       - name: Validate canonical module boundaries
         working-directory: os
