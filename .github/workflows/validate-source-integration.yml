@@ -234,3 +234,128 @@ jobs:
         run: |
           set -euo pipefail
           node tools/surface-native/browser-smoke.mjs
+
+
+  # Surface owns one durable signed Dev-only demonstration artifact.
+  # This does not authorize production, Stable, Identity, USB or Site deployment.
+  publish-meridian-dev-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: web-and-native-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ordaxsystems/ordax-surface
+    steps:
+      - name: Checkout exact reviewed main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download only the current verified renderer output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: meridian-site-fixture-${{ github.sha }}
+          path: ${{ runner.temp }}/meridian-input
+      - name: Verify all preview bytes and both source authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          import hashlib,json,os,re
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'meridian-input'
+          assert root.is_dir() and not root.is_symlink()
+          manifest=json.loads((root/'manifest.json').read_bytes())
+          assert manifest['$schema']=='ordax.meridian-readonly-preview-artifact/2'
+          assert manifest['artifact_class']=='ordax-meridian-preview'
+          assert manifest['status']=='candidate-not-published'
+          assert manifest['runtime_authority'] is False
+          assert manifest['source_repository']=='ordaxsystems/ordax-surface'
+          assert manifest['source_commit']==os.environ['GITHUB_SHA']
+          assert manifest['os_host_repository']=='ordaxsystems/ordax-os'
+          assert re.fullmatch('[a-f0-9]{40}',manifest['os_host_commit'])
+          files=manifest['files']
+          assert isinstance(files,list) and 2<=len(files)<=48
+          names={'manifest.json'}
+          total=0
+          for record in files:
+              path=record['path']
+              assert re.fullmatch(r'assets/[A-Za-z0-9._/-]+',path)
+              assert all(s not in ('','.','..') for s in path.split('/'))
+              assert path not in names
+              names.add(path)
+              file=root/path
+              assert file.is_file() and not file.is_symlink()
+              raw=file.read_bytes()
+              assert len(raw)==record['size'] and hashlib.sha256(raw).hexdigest()==record['sha256']
+              total+=len(raw)
+          assert total<=12*1024*1024
+          present={p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file() or p.is_symlink()}
+          assert present==names
+          assert {'assets/playground-fixture.json','assets/surface-snapshot.css'}<=names
+          sources=manifest['sources']
+          assert isinstance(sources,list) and sources
+          assert {s['repository'] for s in sources}=={'ordaxsystems/ordax-surface','ordaxsystems/ordax-os'}
+          for source in sources:
+              expected=manifest['source_commit' if source['repository'].endswith('surface') else 'os_host_commit']
+              assert source['commit']==expected
+              assert re.fullmatch('[a-f0-9]{40}',source['git_blob'])
+              assert re.fullmatch('[a-f0-9]{64}',source['sha256'])
+          fixture=json.loads((root/'assets/playground-fixture.json').read_bytes())
+          assert len(fixture['surface']['views'])==11
+          assert fixture['surface']['sources']==sources
+          assert fixture['surface']['presentation']=='example-only-not-an-authorized-session'
+          css=(root/'assets/surface-snapshot.css').read_bytes()
+          assert fixture['surface']['cssSha256']==hashlib.sha256(css).hexdigest()
+          print('MERIDIAN_DEV_RELEASE_INPUT=VERIFIED')
+          PY
+      - name: Package deterministic preview and print external pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/meridian-dev-$GITHUB_SHA.tar.gz"
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            --format=gnu -cf - -C "$RUNNER_TEMP/meridian-input" . | gzip -n > "$archive"
+          test -s "$archive"
+          echo "MERIDIAN_DEV_ARCHIVE_SHA256=$(sha256sum "$archive" | cut -d' ' -f1)"
+          echo "MERIDIAN_DEV_MANIFEST_SHA256=$(sha256sum "$RUNNER_TEMP/meridian-input/manifest.json" | cut -d' ' -f1)"
+      - name: Attest preview provenance using GitHub OIDC on main only
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ runner.temp }}/meridian-dev-${{ github.sha }}.tar.gz
+      - name: Publish immutable-by-digest development prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/meridian-dev-$GITHUB_SHA.tar.gz"
+          gh attestation verify "$archive" \
+            --repo "$REPOSITORY" \
+            --signer-workflow "$REPOSITORY/.github/workflows/validate-source-integration.yml" \
+            --source-digest "$GITHUB_SHA" --source-ref refs/heads/main \
+            --deny-self-hosted-runners
+          tag="meridian-dev-$GITHUB_SHA"
+          if ! gh release view "$tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" "$archive" --repo "$REPOSITORY" \
+              --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Meridian Dev preview $GITHUB_SHA" \
+              --notes "Development-only preview from pinned Surface + OS sources. Not authorized for Site production, Stable, Identity or USB."
+          fi
+          gh release view "$tag" --repo "$REPOSITORY" \
+            --json isDraft,isPrerelease,tagName,targetCommitish,assets \
+            | jq -e --arg tag "$tag" --arg sha "$GITHUB_SHA" \
+              --arg asset "meridian-dev-$GITHUB_SHA.tar.gz" \
+              '(.isDraft==false) and (.isPrerelease==true) and (.tagName==$tag) and
+               (.targetCommitish==$sha) and (.assets|length==1) and
+               (.assets[0].name==$asset)' >/dev/null
+          mkdir -p "$RUNNER_TEMP/release-roundtrip"
+          gh release download "$tag" --repo "$REPOSITORY" \
+            --pattern "meridian-dev-$GITHUB_SHA.tar.gz" \
+            --dir "$RUNNER_TEMP/release-roundtrip"
+          cmp "$archive" "$RUNNER_TEMP/release-roundtrip/meridian-dev-$GITHUB_SHA.tar.gz"
+          echo "MERIDIAN_DEV_RELEASE=VERIFIED_PRERELEASE_ONLY"
