@@ -198,7 +198,7 @@ class BrandExportTests(unittest.TestCase):
         self.assertIn("gh release download \"$tag\"", workflow)
         self.assertIn('echo "$ARCHIVE_SHA  $downloaded" | sha256sum --check', workflow)
         self.assertIn('test -z "$tag_target" || test "$tag_target" = "$SOURCE_SHA"', workflow)
-        self.assertNotIn('test "$tag_target" = "$SOURCE_SHA"', workflow)
+        self.assertNotIn('          test "$tag_target" = "$SOURCE_SHA"\n', workflow)
         self.assertNotIn("gh release edit", workflow)
         self.assertNotIn("--draft=false", workflow)
         self.assertNotIn("--clobber", workflow)
