@@ -79,6 +79,27 @@ class BrandExportTests(unittest.TestCase):
             with self.assertRaisesRegex(brand.ExportError, "manifest does not match"):
                 brand.verify(out, self.surface_commit, "0" * 64)
 
+    def test_github_attestor_restricted_to_reviewed_main_and_exact_identity(self):
+        workflow = (HERE / ".github/workflows/public-brand-candidate.yml").read_text()
+        self.assertIn("attest-main-brand:", workflow)
+        signer = workflow.split("  attest-main-brand:", 1)[1]
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", signer)
+        self.assertIn("needs: source-bound-brand", signer)
+        self.assertIn("id-token: write", signer)
+        self.assertIn("attestations: write", signer)
+        self.assertIn("contents: read", signer)
+        self.assertIn("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6", signer)
+        self.assertIn("--signer-workflow ordaxsystems/ordax-surface/.github/workflows/public-brand-candidate.yml", signer)
+        self.assertIn("--source-digest \"$GITHUB_SHA\"", signer)
+        self.assertIn("--source-ref refs/heads/main", signer)
+        self.assertIn("--deny-self-hosted-runners", signer)
+        candidate = workflow.split("  attest-main-brand:", 1)[0]
+        self.assertNotIn("id-token: write", candidate)
+        self.assertNotIn("attestations: write", candidate)
+        self.assertNotIn("permissions:\n  id-token: write", candidate)
+        self.assertNotIn("gh release create", workflow)
+        self.assertNotIn("push-to-registry: true", workflow)
+
     def test_source_css_mutation_guard_on_local_fixture(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)

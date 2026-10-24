@@ -35,7 +35,22 @@ Não há GitHub Release oficial de marca/demonstração publicada da Surface nes
 
 O [exportador de marca para revisão](tools/public-artifacts/brand.py) projeta **somente as variáveis CSS** existentes em `tokens.css` e `meridian.tokens.css`, mantendo o mesmo design system sem redefinir paleta ou alterar os elementos `html/body` do Site. Os três arquivos visuais (símbolo, landscape e fonte Inter) são copiados byte a byte do Git source exato. A licença OFL não é duplicada no repositório: é importada e verificada contra o blob original `556792990d740c111b4fee7fe1938dc90bcee2ce` na revisão OS imutável de proveniência `f65acc4fb9f8ded376fc9b44b4c7c2068c793265`.
 
-A CI [`Surface Public Brand Candidate`](.github/workflows/public-brand-candidate.yml) gera **duas vezes** o mesmo pacote, compara os bytes e manifestos, executa testes negativos de alterações/trocas de revisão e anexa apenas um **artefato candidato de revisão**. A saída contém os seis arquivos contratados pelo Site e `manifest.json` com `artifact_class=ordax-brand`, revisão Source SHA e origem real dos seis blobs necessários. É marcada `status=candidate-not-published`; não contém assinatura, attestation de publicação nem privilégio de promoção.
+A CI [`Surface Public Brand Candidate`](.github/workflows/public-brand-candidate.yml) gera **duas vezes** o mesmo pacote, compara os bytes e manifestos, executa testes negativos de alterações/trocas de revisão e anexa um **artefato candidato de revisão**. A saída contém os seis arquivos contratados pelo Site e `manifest.json` com `artifact_class=ordax-brand`, revisão Source SHA e origem real dos seis blobs necessários. Permanece marcada `status=candidate-not-published`, não uma release oficial.
+
+**Atestação criptográfica (restrita à `main`):** após CI de source validada, o job independente `attest-main-brand` reutiliza o pacote da **mesma execução** e gera um `ordax-brand-<SHA>.tar.gz` de metadados determinísticos. O `actions/attest` cria proveniência SLSA assinada pela identidade GitHub OIDC/Sigstore do workflow. O próprio job verifica com `gh attestation verify` o repositório, caminho exato do workflow, `refs/heads/main` e o commit. PRs não possuem acesso ao token de assinatura; não há tag/release, deploy, promoção Stable ou gravador de mídia.
+
+**Procedimento obrigatório para o consumidor** (o bundle `.tar.gz` deve ser obtido da execução GitHub Actions da `main`, jamais enviado pelo browser do Site):
+
+```sh
+gh attestation verify ordax-brand-<SURFACE_SHA>.tar.gz \
+  --repo ordaxsystems/ordax-surface \
+  --signer-workflow ordaxsystems/ordax-surface/.github/workflows/public-brand-candidate.yml \
+  --source-ref refs/heads/main \
+  --source-digest <SURFACE_SHA> \
+  --deny-self-hosted-runners
+```
+
+Em seguida, descompactar o arquivo **somente em diretório temporário seguro**, rejeitando entradas inesperadas, links e traversal, e verificar `manifest.json` pelo SHA-256 obtido do artefato atestado e pelo validador `tools/public-artifacts/brand.py verify`. A assinatura sozinha não valida autorização comercial/deploy. A política de confiança do Site deve exigir sua **própria** versão aprovada do artefato e não confiar no campo `status` que qualquer produtor de JSON poderia declarar.
 
 O [`ordax-site#1`](https://github.com/ordaxsystems/ordax-site/pull/1) atualmente aceita **somente** a cópia de migração do OS por lock de desenvolvimento, e **deve continuar rejeitando** esta candidata enquanto o owner Surface não aprovar/publicar um manifesto atestado e o Site não implementar o verificador desse trust path. A [issue #3](https://github.com/ordaxsystems/ordax-surface/issues/3) controla também o pacote demo: sua fixture depende do catálogo, i18n e composição do OS, portanto não pode ser reclassificada como source puramente visual nem criada com outro gerador do Site.
 

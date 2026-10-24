@@ -91,3 +91,73 @@ jobs:
           path: ${{ runner.temp }}/surface-brand-one/
           if-no-files-found: error
           retention-days: 14
+
+  # Only the reviewed main branch can mint a trusted workflow identity.
+  # Pull requests retain read-only CI and cannot exercise the signer.
+  attest-main-brand:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: source-bound-brand
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout exact reviewed main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: surface
+
+      - name: Download candidate from this same workflow run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: surface-brand-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/surface-brand-input
+
+      - name: Verify candidate and create deterministic attestation subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_sha="$(git -C surface rev-parse HEAD)"
+          test "$candidate_sha" = "$GITHUB_SHA"
+          # Trust only the immutable builder and the exact artifact from needs.
+          manifest_sha="$(sha256sum "${{ runner.temp }}/surface-brand-input/manifest.json" | cut -d' ' -f1)"
+          python3 surface/tools/public-artifacts/brand.py verify \
+            --package-dir "${{ runner.temp }}/surface-brand-input" \
+            --expected-source-commit "$candidate_sha" \
+            --manifest-sha256 "$manifest_sha"
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            --format=gnu -cf - -C "${{ runner.temp }}/surface-brand-input" . \
+            | gzip -n > "${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz"
+          test -s "${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz"
+          echo "SURFACE_BRAND_ARCHIVE_SHA256=$(sha256sum "${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz" | cut -d' ' -f1)"
+
+      - name: Attest immutable archive provenance with GitHub OIDC
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz
+
+      - name: Verify GitHub signature, signer workflow and main source identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz" \
+            --repo ordaxsystems/ordax-surface \
+            --signer-workflow ordaxsystems/ordax-surface/.github/workflows/public-brand-candidate.yml \
+            --source-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --deny-self-hosted-runners
+          echo "SURFACE_BRAND_PROVENANCE=VERIFIED_MAIN_ONLY"
+
+      - name: Retain attested archive for review (no GitHub Release)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: attested-brand-main-${{ github.sha }}
+          path: ${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
