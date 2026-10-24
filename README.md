@@ -31,6 +31,14 @@ A prova histórica inicial permanece em `provenance/import.json` com `status: mi
 
 ## Publicação
 
-Não há GitHub Release própria publicada da Surface nesta etapa. O OS já utiliza revisão Git imutável verificada como source de build e distribuição. Qualquer artefato adicional para consumidores, como o Site público, deve ter manifesto de integridade e proveniência explícita, sem criar um segundo empacotador, duplicar CSS/JS ou contornar o lock do OS.
+Não há GitHub Release oficial de marca/demonstração publicada da Surface nesta etapa. O OS já utiliza revisão Git imutável verificada como source de build e distribuição. Nenhuma nova versão visual passa a ativa por criar um artefato de apresentação pública.
+
+O [exportador de marca para revisão](tools/public-artifacts/brand.py) projeta **somente as variáveis CSS** existentes em `tokens.css` e `meridian.tokens.css`, mantendo o mesmo design system sem redefinir paleta ou alterar os elementos `html/body` do Site. Os três arquivos visuais (símbolo, landscape e fonte Inter) são copiados byte a byte do Git source exato. A licença OFL não é duplicada no repositório: é importada e verificada contra o blob original `556792990d740c111b4fee7fe1938dc90bcee2ce` na revisão OS imutável de proveniência `f65acc4fb9f8ded376fc9b44b4c7c2068c793265`.
+
+A CI [`Surface Public Brand Candidate`](.github/workflows/public-brand-candidate.yml) gera **duas vezes** o mesmo pacote, compara os bytes e manifestos, executa testes negativos de alterações/trocas de revisão e anexa apenas um **artefato candidato de revisão**. A saída contém os seis arquivos contratados pelo Site e `manifest.json` com `artifact_class=ordax-brand`, revisão Source SHA e origem real dos seis blobs necessários. É marcada `status=candidate-not-published`; não contém assinatura, attestation de publicação nem privilégio de promoção.
+
+O [`ordax-site#1`](https://github.com/ordaxsystems/ordax-site/pull/1) atualmente aceita **somente** a cópia de migração do OS por lock de desenvolvimento, e **deve continuar rejeitando** esta candidata enquanto o owner Surface não aprovar/publicar um manifesto atestado e o Site não implementar o verificador desse trust path. A [issue #3](https://github.com/ordaxsystems/ordax-surface/issues/3) controla também o pacote demo: sua fixture depende do catálogo, i18n e composição do OS, portanto não pode ser reclassificada como source puramente visual nem criada com outro gerador do Site.
+
+A distribuição de `ordax-surface` nunca cria outro mecanismo de atualização de SO ou altera o `docs/contracts/surface-source.json` no OS.
 
 **Segurança:** não realizar escrita em USB/discos físicos, publicação Stable ou ativação de produção sem os gates e autorizações correspondentes.
