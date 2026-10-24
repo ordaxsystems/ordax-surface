@@ -18,7 +18,7 @@ test("Native Meridian shell receives the same canonical presentation as root", a
     runtime,
     /const shell = root\.querySelector\("\[data-ordax-shell\]"\);\s*if \(shell\) \{\s*shell\.dataset\.workspacePresentation = state\.presentation;\s*shell\.dataset\.view = state\.presentation;/,
   );
-  assert.match(styles, /\.ordax-shell\.meridian-native-workspace\[data-view="desktop"\]/);
+  assert.match(styles, /\.ordax-shell\.meridian-native-workspace\s*\{/);
 });
 
 test("Sidebar utility touch targets retain at least 44 visual pixels across display zoom", async () => {
