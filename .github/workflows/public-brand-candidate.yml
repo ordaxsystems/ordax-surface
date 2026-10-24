@@ -179,3 +179,71 @@ jobs:
           path: ${{ runner.temp }}/ordax-brand-${{ github.sha }}.tar.gz
           if-no-files-found: error
           retention-days: 14
+
+
+  # Brand remains Dev-only: publish a durable, signed owner asset for exact
+  # source revisions. Does not authorize commercial, production or Stable.
+  publish-dev-brand:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: attest-main-brand
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ordaxsystems/ordax-surface
+    steps:
+      - name: Checkout exact signed Surface source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Retrieve attested archive from current run only
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: attested-brand-main-${{ github.sha }}
+          path: ${{ runner.temp }}/signed-brand
+      - name: Verify signature, TAR inventory and reproduce immutable pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          archive="$RUNNER_TEMP/signed-brand/ordax-brand-$GITHUB_SHA.tar.gz"
+          test -f "$archive" && test ! -L "$archive"
+          gh attestation verify "$archive" --repo "$REPOSITORY" \
+            --signer-workflow "$REPOSITORY/.github/workflows/public-brand-candidate.yml" \
+            --source-digest "$GITHUB_SHA" --source-ref refs/heads/main \
+            --deny-self-hosted-runners
+          archive_sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+          manifest_sha="$(tar -xOzf "$archive" ./manifest.json | sha256sum | cut -d' ' -f1)"
+          python3 tools/public-artifacts/brand.py verify-archive \
+            --archive "$archive" --expected-source-commit "$GITHUB_SHA" \
+            --manifest-sha256 "$manifest_sha" --archive-sha256 "$archive_sha"
+          echo "SURFACE_BRAND_DEV_ARCHIVE_SHA256=$archive_sha"
+          echo "SURFACE_BRAND_DEV_MANIFEST_SHA256=$manifest_sha"
+      - name: Create verifiable nonproduction prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="brand-dev-$GITHUB_SHA"
+          archive="$RUNNER_TEMP/signed-brand/ordax-brand-$GITHUB_SHA.tar.gz"
+          if ! gh release view "$tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" "$archive" --repo "$REPOSITORY" \
+              --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "OrdaX Brand Dev $GITHUB_SHA" \
+              --notes "Signed brand artifact for development only. No production, Stable, Site deployment or commerce authorization."
+          fi
+          gh release view "$tag" --repo "$REPOSITORY" \
+            --json tagName,isDraft,isPrerelease,targetCommitish,assets \
+            | jq -e --arg tag "$tag" --arg sha "$GITHUB_SHA" \
+              --arg file "ordax-brand-$GITHUB_SHA.tar.gz" \
+              '(.tagName==$tag) and (.isDraft==false) and (.isPrerelease==true) and
+               (.targetCommitish==$sha) and (.assets|length==1) and (.assets[0].name==$file)' >/dev/null
+          mkdir -p "$RUNNER_TEMP/brand-roundtrip"
+          gh release download "$tag" --repo "$REPOSITORY" \
+            --pattern "ordax-brand-$GITHUB_SHA.tar.gz" \
+            --dir "$RUNNER_TEMP/brand-roundtrip"
+          cmp "$archive" "$RUNNER_TEMP/brand-roundtrip/ordax-brand-$GITHUB_SHA.tar.gz"
+          echo "SURFACE_BRAND_DEV_PRERELEASE=VERIFIED"
