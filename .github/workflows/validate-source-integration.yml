@@ -7,12 +7,14 @@ on:
       - 'system/surface/ui/**'
       - 'system/surface/workspace/**'
       - 'provenance/**'
+      - 'tests/**'
       - '.github/workflows/validate-source-integration.yml'
   pull_request:
     paths:
       - 'system/surface/ui/**'
       - 'system/surface/workspace/**'
       - 'provenance/**'
+      - 'tests/**'
       - '.github/workflows/validate-source-integration.yml'
   workflow_dispatch:
 
@@ -136,6 +138,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.18.0'
+
+      - name: Surface-owned regression proofs (no OS source duplication)
+        working-directory: surface
+        run: node --test tests/*.test.mjs
 
       - name: Install OS-locked Web dependencies
         working-directory: os
