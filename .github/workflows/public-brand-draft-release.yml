@@ -142,7 +142,38 @@ jobs:
             --target "$SOURCE_SHA" --draft --prerelease --latest=false \
             --title "Surface brand candidate $SOURCE_SHA" \
             --notes-file "$RUNNER_TEMP/brand/release-notes.md"
+          # Draft releases often have no Git tag until publication. Validate
+          # the draft release transaction itself; do not create or publish a
+          # tag merely to make this check pass.
+          release_json="$(gh release view "$tag" --repo "$REPO" \
+            --json isDraft,isPrerelease,tagName,targetCommitish,assets)"
+          expected_asset="ordax-brand-$SOURCE_SHA.tar.gz"
+          expected_size="$(stat -c '%s' "$archive")"
+          jq -e \
+            --arg tag "$tag" \
+            --arg sha "$SOURCE_SHA" \
+            --arg asset "$expected_asset" \
+            --argjson size "$expected_size" \
+            '(.isDraft == true)
+              and (.isPrerelease == true)
+              and (.tagName == $tag)
+              and (.targetCommitish == $sha)
+              and (.assets | length == 1)
+              and (.assets[0].name == $asset)
+              and (.assets[0].size == $size)' <<< "$release_json" >/dev/null
+
+          # Confirm the remote GitHub Release asset is identical to the
+          # cryptographically attested archive, not merely a local upload.
+          mkdir -p "$RUNNER_TEMP/brand/release-roundtrip"
+          gh release download "$tag" --repo "$REPO" \
+            --pattern "$expected_asset" \
+            --dir "$RUNNER_TEMP/brand/release-roundtrip"
+          downloaded="$RUNNER_TEMP/brand/release-roundtrip/$expected_asset"
+          test -f "$downloaded" && test ! -L "$downloaded"
+          echo "$ARCHIVE_SHA  $downloaded" | sha256sum --check --status
+
+          # A draft may have no tag. If a tag exists, it must not point
+          # anywhere else (but we do not create one here).
           tag_target="$(git ls-remote --tags origin "refs/tags/$tag" | awk '{print $1}')"
-          test "$tag_target" = "$SOURCE_SHA"
-          test "$(gh release view "$tag" --repo "$REPO" --json isDraft --jq '.isDraft')" = true
+          test -z "$tag_target" || test "$tag_target" = "$SOURCE_SHA"
           echo "SURFACE_BRAND_DRAFT_RELEASE=CREATED_NOT_PUBLISHED"
