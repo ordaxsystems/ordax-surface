@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 import tempfile
 import unittest
@@ -83,7 +82,6 @@ class BrandExportTests(unittest.TestCase):
     def test_source_css_mutation_guard_on_local_fixture(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
-            os.system("")  # no subprocess, network or developer machine changes
             # The exporter reads the canonical font declaration strictly.
             data, _ = brand.read_tracked(
                 HERE, "system/surface/ui/tokens.css", self.surface_commit
