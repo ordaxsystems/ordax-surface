@@ -53,6 +53,7 @@ const plugin={
 try{await lstat(out);throw Error('Refusing to overwrite existing output')}catch(e){if(e.code!=='ENOENT')throw e}
 await mkdir(dirname(out),{recursive:true});
 await build({configFile:false,root,plugins:[plugin,react(),tailwind()],
+ ssr:{noExternal:true},
  resolve:{alias:{'@':resolve(root,'system/surface/workspace')}},
  build:{ssr:resolve(root,'tools/surface-demo/meridian-preview-entry.tsx'),
  outDir:out,emptyOutDir:false,ssrEmitAssets:true,cssCodeSplit:false,
