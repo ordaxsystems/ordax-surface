@@ -275,7 +275,7 @@ def verify_archive(
             with tarfile.open(archive, mode="r:gz") as members:
                 for member in members:
                     raw = member.name
-                    path = raw.removeprefix("./").rstrip("/")
+                    path = "" if raw in {".", "./"} else raw.removeprefix("./").rstrip("/")
                     if (raw.startswith("/") or "\\" in raw
                             or any(x in {"", ".", ".."} for x in path.split("/") if path)
                             or member.issym() or member.islnk()):
