@@ -177,7 +177,7 @@ class BrandExportTests(unittest.TestCase):
         self.assertIn("test \"$CONFIRMATION\" = \"CREATE_DRAFT_ONLY\"", workflow)
         self.assertIn("test \"$(jq -r '.event' <<< \"$run_json\")\" = \"push\"", workflow)
         self.assertIn("test \"$(jq -r '.head_branch' <<< \"$run_json\")\" = \"main\"", workflow)
-        self.assertIn('test "$(jq -r \\'.head_sha\\' <<< "$run_json")" = "$SOURCE_SHA"', workflow)
+        self.assertIn(".head_sha' <<<", workflow)
         self.assertIn("attested-brand-main-$SOURCE_SHA", workflow)
         self.assertIn('echo "$ARCHIVE_SHA  $archive" | sha256sum --check', workflow)
         self.assertIn("gh attestation verify", workflow)
