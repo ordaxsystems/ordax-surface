@@ -53,3 +53,71 @@ test("Sidebar utility touch targets retain at least 44 visual pixels across disp
     assert.ok(visualPx >= 43.999 && visualPx <= 44.001, "automatic/" + i + ": " + visualPx);
   }
 });
+
+
+test("Window titlebar and body use one dimension; viewport zoom is invertible", async () => {
+  const [windowCss, tokens] = await Promise.all([read("surface.css"), read("tokens.css")]);
+  const titlebarVariable = "var(--ordax-window-titlebar-height, 3.625rem)";
+  assert.ok(windowCss.includes("min-height: " + titlebarVariable + ";"));
+  assert.ok(windowCss.includes("height: calc(100% - " + titlebarVariable + ");"));
+  assert.ok(!windowCss.includes("height: calc(100% - 58px);"));
+  assert.match(tokens, /html\[data-ordax-text-scale="large"\] \{ font-size: 112\.5%; \}/);
+  assert.match(tokens, /html\[data-ordax-text-scale="extra-large"\] \{ font-size: 125%; \}/);
+  assert.doesNotMatch(tokens, /--ordax-text-scale-factor/);
+
+  const root = tokens.match(/html\[data-ordax-display-scale\] #ordax-root \{([^}]+)\}/)?.[1];
+  assert.ok(root, "scaled canvas must have one root");
+  assert.ok(root.includes("width: var(--ordax-display-scale-viewport-width);"));
+  assert.ok(root.includes("height: var(--ordax-display-scale-viewport-height);"));
+  assert.ok(root.includes("zoom: var(--ordax-display-scale-factor);"));
+
+  for (const mode of ["compact", "comfortable", "large"]) {
+    const rule = tokens.match(new RegExp('html\\[data-ordax-display-scale="' + mode + '"\\] \\{([^}]+)\\}'))?.[1];
+    assert.ok(rule, mode + " scale owner");
+    const factor = Number(rule.match(/--ordax-display-scale-factor:\s*([\d.]+);/)?.[1]);
+    const width = Number(rule.match(/--ordax-display-scale-viewport-width:\s*([\d.]+)vw;/)?.[1]);
+    const height = Number(rule.match(/--ordax-display-scale-viewport-height:\s*([\d.]+)dvh;/)?.[1]);
+    assert.ok(factor > 0, mode);
+    assert.ok(Math.abs(factor * width - 100) < 0.001, mode + " viewport width");
+    assert.ok(Math.abs(factor * height - 100) < 0.001, mode + " viewport height");
+  }
+});
+
+test("Wallpaper is owned by Meridian once, not duplicated in identity CSS", async () => {
+  const [meridian, identity, surfaceCss] = await Promise.all([
+    read("meridian.css"), read("identity.css"), read("surface.css"),
+  ]);
+  const declaration = '--md-desktop-wallpaper:url("./brand/meridian-field.svg");';
+  assert.equal(meridian.split(declaration).length - 1, 1);
+  assert.match(meridian, /\[data-meridian\] :is\(\.classic-desktop,\.ordax-workspace\)::before \{[^}]*background:var\(--md-desktop-wallpaper\) center\/cover no-repeat;/);
+  assert.doesNotMatch(identity, /--md-desktop-wallpaper:|background:var\(--md-desktop-wallpaper\)/);
+  assert.doesNotMatch(identity + meridian, /url\("\.\/brand\/midnight-landscape\.png"\)/);
+  assert.match(meridian, /\[data-meridian\] :is\(\.ordax-dock-shortcut,\.ordax-running-app,\.desktop-task\)\[data-active="true"\]/);
+  // The historic asset's byte provenance continues in the OS visual contract;
+  // this gate owns only current presentation CSS and must not redefine its hash.
+  assert.ok(surfaceCss.includes('.ordax-running-app[data-active="true"]'));
+});
+
+test("Notification overlay remains viewport-bound without a mobile CSS fork", async () => {
+  const css = await read("notification-center.css");
+  const rule = css.match(/\.ordax-quick-panel-notifications \{([^}]+)\}/)?.[1];
+  assert.ok(rule, "one shared quick-panel rule");
+  assert.ok(rule.includes("position: fixed;"));
+  assert.ok(rule.includes("width: min(380px, calc(100dvw - 24px));"));
+  assert.ok(rule.includes("inset-inline-start: clamp(12px, calc(var(--notification-sidebar-edge, 0px) + 12px), calc(100dvw - min(380px, 100dvw - 24px) - 12px));"));
+  assert.doesNotMatch(css, /@media\s*\(max-width:\s*600px\)/);
+  assert.match(css, /\.ordax-notification-center \{[^}]*container-type: inline-size;[^}]*min-width: 0;/);
+  assert.match(css, /@container\s*\(max-width:\s*360px\)/);
+
+  // Deterministic geometry of the verified clamp formula at the original
+  // problem viewports. This is a source-contract proof, not a browser E2E.
+  for (const viewport of [320, 390, 844, 1280]) {
+    const panelWidth = Math.min(380, viewport - 24);
+    for (const sidebarEdge of [0, 192, 224, 400]) {
+      const maxLeft = viewport - panelWidth - 12;
+      const left = Math.max(12, Math.min(sidebarEdge + 12, maxLeft));
+      assert.ok(left >= 12, viewport + ": left boundary");
+      assert.ok(left + panelWidth <= viewport - 12, viewport + ": right boundary");
+    }
+  }
+});
