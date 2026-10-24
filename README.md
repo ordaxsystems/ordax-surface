@@ -60,7 +60,7 @@ O workflow [`Surface Brand Draft Release (manual)`](.github/workflows/public-bra
 
 1. Confere revisão ancestral da `main`, metadados da execução publicadora aprovada, SHA e assinatura do arquivo e a identidade do workflow de origem.
 2. Executa `verify-archive` antes de colocar qualquer conteúdo à disposição de consumidores.
-3. Recusa sobrescrever tag/release existente e cria, **somente se o operador disparou a ação**, um `gh release create --draft --prerelease` com tag específica ao source SHA. Testa que a tag aponta ao commit solicitado e que a release continua **draft**.
+3. Recusa sobrescrever tag/release existente e cria, **somente se o operador disparou a ação**, um `gh release create --draft --prerelease` com nome de tag específico ao source SHA. Confirma pelo registro da release o `targetCommitish` exato, `isDraft=true`, `isPrerelease=true`, um único arquivo com nome/tamanho esperado e baixa esse arquivo para conferir novamente seu SHA-256. **Não exige nem cria uma referência Git para um draft ainda não publicado**; se uma tag existir, recusa alvo divergente.
 
 **Uma release draft não é distribuição pública imutável:** pode ser alterada por mantenedores com permissão; a imutabilidade GitHub se aplica apenas quando uma release é publicada e a opção do repositório está habilitada. Nem a operação manual de draft nem um artefato de Actions de curta retenção autorizam automaticamente promover o pacote, desbloquear downloads, implantar o Site ou liberar OS Stable. Essa autorização exige gates próprios dos consumidores e da autoridade de publicação.
 
