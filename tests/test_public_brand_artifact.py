@@ -168,6 +168,30 @@ class BrandExportTests(unittest.TestCase):
                         )
                     self.assertFalse((root / "outside").exists())
 
+    def test_durable_release_requires_explicit_manual_draft_and_signed_input(self):
+        workflow = (HERE / ".github/workflows/public-brand-draft-release.yml").read_text()
+        self.assertIn("on:\n  workflow_dispatch:", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertNotIn("\n  pull_request:", workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("test \"$CONFIRMATION\" = \"CREATE_DRAFT_ONLY\"", workflow)
+        self.assertIn("test \"$(jq -r '.event' <<< \"$run_json\")\" = \"push\"", workflow)
+        self.assertIn("test \"$(jq -r '.head_branch' <<< \"$run_json\")\" = \"main\"", workflow)
+        self.assertIn('test "$(jq -r \\'.head_sha\\' <<< "$run_json")" = "$SOURCE_SHA"', workflow)
+        self.assertIn("attested-brand-main-$SOURCE_SHA", workflow)
+        self.assertIn('echo "$ARCHIVE_SHA  $archive" | sha256sum --check', workflow)
+        self.assertIn("gh attestation verify", workflow)
+        self.assertIn("--source-ref refs/heads/main", workflow)
+        self.assertIn("--source-digest \"$SOURCE_SHA\"", workflow)
+        self.assertIn("brand.py verify-archive", workflow)
+        self.assertIn("--archive-sha256 \"$ARCHIVE_SHA\"", workflow)
+        self.assertIn("gh release create \"$tag\"", workflow)
+        self.assertIn("--target \"$SOURCE_SHA\" --draft --prerelease --latest=false", workflow)
+        self.assertIn("test \"$(gh release view \"$tag\"", workflow)
+        self.assertNotIn("gh release edit", workflow)
+        self.assertNotIn("--draft=false", workflow)
+        self.assertNotIn("--clobber", workflow)
+
     def test_source_css_mutation_guard_on_local_fixture(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
