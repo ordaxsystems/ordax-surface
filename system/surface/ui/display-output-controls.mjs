@@ -45,6 +45,9 @@ export function mountDisplayOutputControls(container, {
   );
   const status = make(documentObject, "p", "ordax-settings-display-status");
   status.setAttribute("role", "status");
+  const retryButton = make(documentObject, "button", "ordax-settings-action ordax-settings-display-retry", translate("settings.display.host.retry"));
+  retryButton.type = "button";
+  retryButton.dataset.settingsDisplayRetry = "true";
   const controls = make(documentObject, "div", "ordax-settings-display-controls");
   const outputLabel = make(documentObject, "label", "ordax-settings-display-field");
   const outputCaption = make(documentObject, "span", "ordax-settings-display-label", translate("settings.display.host.output"));
@@ -69,7 +72,7 @@ export function mountDisplayOutputControls(container, {
   examplesButton.type = "button";
   examplesButton.dataset.settingsDisplayExamples = "true";
   controls.append(outputLabel, modeLabel, actionRow, previewNote);
-  section.append(status, controls, examplesButton);
+  section.append(status, retryButton, controls, examplesButton);
   container.replaceChildren(section);
 
   const selectedOutput = () => snapshot?.outputs.find((output) => output.id === outputSelect.value) ?? null;
@@ -102,6 +105,8 @@ export function mountDisplayOutputControls(container, {
       ? translate(statusMessageId)
       : available ? translate("settings.display.host.available") : unavailableText;
     status.dataset.capabilityState = available ? "available" : "unavailable";
+    retryButton.hidden = !outputPort || statusMessageId !== "settings.display.host.readFailed";
+    retryButton.disabled = pending;
     controls.hidden = !available;
     outputLabel.hidden = !available;
     modeLabel.hidden = !available;
@@ -186,6 +191,7 @@ export function mountDisplayOutputControls(container, {
     }
   };
 
+  const handleRetry = () => { void refresh(); };
   const handleOutputChange = () => render();
   const handleModeChange = () => render();
   const handlePreview = () => {
@@ -201,6 +207,7 @@ export function mountDisplayOutputControls(container, {
   };
   const handleExamples = () => onExamples?.();
 
+  retryButton.addEventListener("click", handleRetry);
   outputSelect.addEventListener("change", handleOutputChange);
   modeSelect.addEventListener("change", handleModeChange);
   previewButton.addEventListener("click", handlePreview);
@@ -215,6 +222,7 @@ export function mountDisplayOutputControls(container, {
     destroy() {
       destroyed = true;
       stopPreviewCountdown();
+      retryButton.removeEventListener("click", handleRetry);
       outputSelect.removeEventListener("change", handleOutputChange);
       modeSelect.removeEventListener("change", handleModeChange);
       previewButton.removeEventListener("click", handlePreview);
