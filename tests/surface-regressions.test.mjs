@@ -121,3 +121,14 @@ test("Notification overlay remains viewport-bound without a mobile CSS fork", as
     }
   }
 });
+
+
+test("Display read recovery stays in the canonical Surface control and is explicitly user-triggered", async () => {
+  const source = await read("display-output-controls.mjs");
+  assert.match(source, /retryButton\.dataset\.settingsDisplayRetry = "true"/);
+  assert.match(source, /retryButton\.hidden = !outputPort \|\| statusMessageId !== "settings\.display\.host\.readFailed"/);
+  assert.match(source, /retryButton\.disabled = pending/);
+  assert.match(source, /const handleRetry = \(\) => \{ void refresh\(\); \}/);
+  assert.match(source, /retryButton\.removeEventListener\("click", handleRetry\)/);
+  assert.doesNotMatch(source, /setTimeout\([^\n]*refresh/);
+});
