@@ -156,3 +156,16 @@ test("Home Aura visibly ends a stuck request at ten seconds and aborts underlyin
   assert.match(source, /pending = false;\s*render\(\)/);
   assert.doesNotMatch(source, /fetch\(|new WebSocket|llama-server|cachedGreeting|fakeResponse/);
 });
+
+
+test("Aura client streams through the canonical Intelligence port and validates completion", async () => {
+  const client = await readFile(new URL("../system/surface/workspace/lib/intelligence/client.mjs", import.meta.url), "utf8");
+  const view = await readFile(new URL("../system/surface/workspace/components/intelligence/aura-content.tsx", import.meta.url), "utf8");
+  assert.match(client, /onDelta: onDelta === null \? null : async/);
+  assert.match(client, /validateIntelligenceResponse\(response\)/);
+  assert.match(client, /signal\?\.aborted/);
+  assert.match(view, /onDelta: \(delta: string\)/);
+  assert.match(view, /generation !== requestGeneration\.current/);
+  assert.match(view, /state: 'pending', partial:/);
+  assert.match(view, /state: 'ready', text: response\.text/);
+});
