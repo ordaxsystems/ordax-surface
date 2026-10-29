@@ -8,7 +8,7 @@ import { getSurfaceWindowTitle } from '../../../../services/surface/destination-
 type Props = { initialPrompt?: { text: string } | undefined };
 type ResultState =
   | { state: 'idle' }
-  | { state: 'pending' }
+  | { state: 'pending'; partial: string }
   | { state: 'ready'; text: string; engineId: string; modelId: string }
   | { state: 'unavailable' }
   | { state: 'error' };
@@ -36,9 +36,17 @@ export function AuraContent({ initialPrompt }: Props) {
     const controller = new AbortController();
     activeRequest.current = controller;
     const generation = ++requestGeneration.current;
-    setResult({ state: 'pending' });
+    setResult({ state: 'pending', partial: '' });
     try {
-      const response = await client.ask(normalized, { signal: controller.signal });
+      const response = await client.ask(normalized, {
+        signal: controller.signal,
+        onDelta: (delta: string) => {
+          if (controller.signal.aborted || generation !== requestGeneration.current) return;
+          setResult(current => current.state === 'pending'
+            ? { state: 'pending', partial: (current.partial + delta).slice(0, 65536) }
+            : current);
+        },
+      });
       if (controller.signal.aborted || generation !== requestGeneration.current) return;
       setResult({ state: 'ready', text: response.text, engineId: response.engineId, modelId: response.modelId });
     } catch {
@@ -70,7 +78,7 @@ export function AuraContent({ initialPrompt }: Props) {
       <Button type="submit" className="send-button" aria-label="Enviar pergunta" disabled={pending || !prompt.trim()}><Send/></Button>
     </form>
     {snapshot.state === 'ready' && <p className="service-state" role="status">Modelo disponível: {snapshot.modelId}</p>}
-    {pending && <p className="service-state" role="status">Processando sua solicitação.</p>}
+    {pending && <div role="status" aria-live="polite"><p className="service-state">Processando sua solicitação.</p>{result.state === 'pending' && result.partial && <p>{result.partial}</p>}</div>}
     {result.state === 'ready' && <article aria-label="Resposta da inteligência"><p>{result.text}</p><p className="service-state">{result.engineId} · {result.modelId}</p></article>}
     {result.state === 'unavailable' && <p className="desktop-unconnected" role="status">{unavailableServices.intelligence}</p>}
     {result.state === 'error' && <p className="desktop-unconnected" role="alert">Não foi possível concluir a solicitação. Tente novamente.</p>}
