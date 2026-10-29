@@ -5,6 +5,14 @@ import {
 } from "../../contracts/intelligence.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
 
+// The Home composer is a quick consultation, not the full conversation app.
+// Physical Windows CPU evidence: the 512-token request exceeded the bounded
+// Native inference deadline; 128 tokens completed with the same Intelligence
+// system prompt. Streaming keeps the first useful text visible while the
+// canonical port validates final completion and authority.
+const HOME_AURA_QUICK_MAX_TOKENS = 128;
+const HOME_AURA_MAX_PROVISIONAL_CHARS = 131072;
+
 function assertHomeAura(root) {
   if (!root || typeof root.querySelector !== "function" || !root.ownerDocument) {
     throw new TypeError("Home Aura requires a Surface root");
@@ -93,6 +101,7 @@ export function mountHomeAuraComposer(rootValue, {
     if (snapshot.state !== "ready" || !snapshot.inferenceAvailable) return;
 
     const controller = new AbortController();
+    let provisionalText = "";
     activeController = controller;
     pending = true;
     failed = false;
@@ -106,9 +115,22 @@ export function mountHomeAuraComposer(rootValue, {
         intent: "ask",
         prompt,
         context: [],
-        maxTokens: 512,
+        maxTokens: HOME_AURA_QUICK_MAX_TOKENS,
       }, {
         signal: controller.signal,
+        // Streamed tokens are provisional, not a validated final answer.
+        onDelta: async (delta) => {
+          if (destroyed || controller.signal.aborted) return;
+          if (typeof delta !== "string" || !delta || delta.includes("\0")) {
+            throw new TypeError("Invalid Aura response delta");
+          }
+          const next = provisionalText + delta;
+          if (next.length > HOME_AURA_MAX_PROVISIONAL_CHARS) {
+            throw new RangeError("Aura streaming response exceeded limit");
+          }
+          provisionalText = next;
+          elements.responseText.textContent = provisionalText;
+        },
       });
       if (destroyed || controller.signal.aborted) return;
       const validated = validateIntelligenceResponse(response);
