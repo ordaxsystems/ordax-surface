@@ -50,9 +50,9 @@ export function createIntelligenceClient(input) {
     },
     /**
      * @param {string} prompt
-     * @param {{ signal?: AbortSignal | null }} [options]
+     * @param {{ signal?: AbortSignal | null, onDelta?: ((delta: string) => void | Promise<void>) | null, maxTokens?: number }} [options]
      */
-    async ask(prompt, { signal = null } = {}) {
+    async ask(prompt, { signal = null, onDelta = null, maxTokens = 512 } = {}) {
       refresh();
       if (snapshot.state !== "ready") {
         throw new Error("Ordax Intelligence is not ready");
@@ -60,13 +60,23 @@ export function createIntelligenceClient(input) {
       if (signal !== null && !(signal instanceof AbortSignal)) {
         throw new TypeError("Intelligence client signal must be an AbortSignal");
       }
+      if (onDelta !== null && typeof onDelta !== "function") {
+        throw new TypeError("Intelligence client onDelta must be a function");
+      }
       const request = validateIntelligenceRequest({
         intent: "ask",
         prompt,
         context: [],
-        maxTokens: 512,
+        maxTokens,
       });
-      const response = await port.respond(request, { signal });
+      const response = await port.respond(request, {
+        signal,
+        onDelta: onDelta === null ? null : async (delta) => {
+          if (signal?.aborted) return;
+          if (typeof delta !== "string" || !delta) throw new TypeError("Invalid Intelligence delta");
+          await onDelta(delta);
+        },
+      });
       // A provider may ignore AbortSignal and still return a result. Never
       // expose that result to a consumer after the presentation cancelled it.
       if (signal?.aborted) {
