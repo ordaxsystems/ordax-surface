@@ -145,3 +145,14 @@ test("Native Home Aura uses a measured quick-response budget and streamed provis
   assert.match(source, /activeController\?\.abort\(\)/);
   assert.doesNotMatch(source, /fetch\(|llama-server|apiKey|openai\.com|new WebSocket/);
 });
+
+test("Home Aura visibly ends a stuck request at ten seconds and aborts underlying inference", async () => {
+  const source = await read("home-aura-composer.mjs");
+  assert.match(source, /const HOME_AURA_MAX_REQUEST_MS = 10_000;/);
+  assert.match(source, /const watchdog = setTimeout\(\(\) => \{[\s\S]*?deadlineReached = true;\s*controller\.abort\(\);\s*\}, HOME_AURA_MAX_REQUEST_MS\);/);
+  assert.match(source, /if \(destroyed \|\| \(controller\.signal\.aborted && !deadlineReached\)\) return;/);
+  assert.match(source, /clearTimeout\(watchdog\);\s*if \(activeController === controller\)/);
+  assert.match(source, /failed = true;\s*elements\.response\.dataset\.state = "error"/);
+  assert.match(source, /pending = false;\s*render\(\)/);
+  assert.doesNotMatch(source, /fetch\(|new WebSocket|llama-server|cachedGreeting|fakeResponse/);
+});

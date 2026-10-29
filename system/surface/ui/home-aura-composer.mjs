@@ -11,6 +11,7 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 // system prompt. Streaming keeps the first useful text visible while the
 // canonical port validates final completion and authority.
 const HOME_AURA_QUICK_MAX_TOKENS = 128;
+const HOME_AURA_MAX_REQUEST_MS = 10_000;
 const HOME_AURA_MAX_PROVISIONAL_CHARS = 131072;
 
 function assertHomeAura(root) {
@@ -102,6 +103,7 @@ export function mountHomeAuraComposer(rootValue, {
 
     const controller = new AbortController();
     let provisionalText = "";
+    let deadlineReached = false;
     activeController = controller;
     pending = true;
     failed = false;
@@ -109,6 +111,15 @@ export function mountHomeAuraComposer(rootValue, {
     elements.response.dataset.state = "busy";
     elements.responseText.textContent = localization.translate("home.aura.response.working");
     render();
+
+    // The Native transport also bounds generation, but a renderer, OS bridge,
+    // overloaded CPU or stale runtime may fail to settle that Promise. Own the
+    // visible deadline here as well. Never leave "Aura está pensando" forever.
+    const watchdog = setTimeout(() => {
+      if (destroyed || controller.signal.aborted) return;
+      deadlineReached = true;
+      controller.abort();
+    }, HOME_AURA_MAX_REQUEST_MS);
 
     try {
       const response = await intelligencePort.respond({
@@ -138,11 +149,12 @@ export function mountHomeAuraComposer(rootValue, {
       elements.response.dataset.state = "ready";
       elements.input.value = "";
     } catch {
-      if (destroyed || controller.signal.aborted) return;
+      if (destroyed || (controller.signal.aborted && !deadlineReached)) return;
       failed = true;
       elements.response.dataset.state = "error";
       elements.responseText.textContent = localization.translate("home.aura.response.error");
     } finally {
+      clearTimeout(watchdog);
       if (activeController === controller) activeController = null;
       pending = false;
       render();
