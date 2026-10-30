@@ -29,7 +29,7 @@ import {
 import { icon } from "./meridian/icons.mjs";
 import { SYSTEM_TERMS_DOCUMENT, createSystemTermsAcceptance } from "../../contracts/system-terms.mjs";
 import { translateFirstRunText } from "../../services/i18n/first-run.mjs";
-import { FIRST_RUN_STEP_IDS, FIRST_RUN_STEP_LABELS, getFirstRunStepIndex } from "../../services/first-run/journey.mjs";
+import { FIRST_RUN_JOURNEY } from "../../services/first-run/journey.mjs";
 import { deriveFirstRunCapabilities } from "../../services/first-run/capabilities.mjs";
 import { completeFirstRunState, matchesFirstRunIdentitySelection, validateFirstRunState, verifyFirstRunIdentitySession } from "../../services/state/first-run.mjs";
 import {
@@ -38,8 +38,6 @@ import {
   runNetworkManagementAction,
 } from "../../services/network/management-runtime.mjs";
 
-const STEPS = FIRST_RUN_STEP_IDS;
-const STEP_LABELS = FIRST_RUN_STEP_LABELS;
 
 function syncFirstRunDocumentLocale(documentObject, locale) {
   const profile = createLocaleProfile(locale);
@@ -107,6 +105,14 @@ export function mountFirstRunExperience(
   if (!["usb", "native-disk", "desktop"].includes(productMode)) {
     throw new TypeError("Unsupported First Run product mode");
   }
+  // Both presentations consume OS-owned journey metadata. Windows manages
+  // its own connectivity, so the device Wi-Fi setup is not a Desktop step.
+  const journey = productMode === "desktop"
+    ? FIRST_RUN_JOURNEY.filter((step) => step.id !== "network")
+    : FIRST_RUN_JOURNEY;
+  const STEPS = journey.map((step) => step.id);
+  const STEP_LABELS = journey.map((step) => step.label);
+  const stepIndexFor = (id) => journey.findIndex((step) => step.id === id);
   const store = assertFirstRunStateStore(stateStore);
   const preferencePort = assertPreferenceRuntimePort(preferences);
   const networkPort = networkManagement === null ? null : assertNetworkManagementPort(networkManagement);
@@ -176,7 +182,7 @@ export function mountFirstRunExperience(
   documentObject.body.append(overlay);
 
   // The cursor is observed once: locale selection and initial navigation must agree.
-  let stepIndex = getFirstRunStepIndex(resumedStep);
+  let stepIndex = Math.max(0, stepIndexFor(resumedStep));
   let cursorQueue = Promise.resolve();
   let destroyed = false;
   let finishing = false;
@@ -670,10 +676,13 @@ export function mountFirstRunExperience(
         "Verifique sua conexão e tente novamente. Você também pode terminar a configuração sem conta."));
       const retry = action(documentObject, identityAvailabilityPending ? "Verificando conta…" : "Tentar novamente", "account-refresh");
       retry.disabled = identityAvailabilityPending || identityPending !== null;
-      const network = action(documentObject, "Revisar conexão", "account-network");
-      network.disabled = identityPending !== null;
       const recovery = el(documentObject, "div", "ordax-first-run-account-actions");
-      recovery.append(retry, network);
+      recovery.append(retry);
+      if (STEPS.includes("network")) {
+        const network = action(documentObject, "Revisar conexão", "account-network");
+        network.disabled = identityPending !== null;
+        recovery.append(network);
+      }
       body.append(recovery);
     }
     if (!registering) {
@@ -1224,7 +1233,7 @@ export function mountFirstRunExperience(
         if (!identityStillCurrent) {
           draft.accountMode = null;
           selectedIdentitySubjectId = null;
-          stepIndex = getFirstRunStepIndex("account");
+          stepIndex = stepIndexFor("account");
           identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
           finishing = false;
           render();
@@ -1304,7 +1313,7 @@ export function mountFirstRunExperience(
         void connectNetwork(ssid, password);
       }
     } else if (kind === "account-refresh") void refreshIdentityAvailability();
-    else if (kind === "account-network") go(getFirstRunStepIndex("network"));
+    else if (kind === "account-network" && STEPS.includes("network")) go(stepIndexFor("network"));
     else if (kind === "account-switch") void runIdentity("sign-out");
     else if (kind === "account-mode") {
       identityFormMode = identityFormMode === "register" ? "sign-in" : "register";
@@ -1416,7 +1425,7 @@ export function mountFirstRunExperience(
     ) {
       draft.accountMode = null;
       selectedIdentitySubjectId = null;
-      stepIndex = getFirstRunStepIndex("account");
+      stepIndex = stepIndexFor("account");
       identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
     }
     if (sessionSnapshot.state === "signed-in") {
