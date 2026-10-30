@@ -20,6 +20,31 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Aura — estados de carregamento e cancelamento
+
+As apresentações **Aura do Home** e **Aura no aplicativo** consomem a
+mesma porta `ordax.intelligence/1` fornecida pelo OS; esta Surface **não**
+possui motor, credenciais de inferência, cópia de modelo nem adaptador de
+rede próprio. A espera cancelável fica em
+`system/surface/workspace/lib/intelligence/abortable.mjs`, reutilizada
+pelos dois consumidores. Se um backend ignorar `AbortSignal`, o estado
+de apresentação ainda termina; qualquer resultado tardio é descartado
+sem simular uma conclusão. Solicitações já canceladas nunca são enviadas.
+
+O **Home** mantém o orçamento interativo existente de **10 segundos**,
+mostra o erro com finalização explícita do estado ocupado e preserva o
+texto digitado para tentar novamente. A conversa do aplicativo Aura possui
+um limite independente de **120 segundos** para solicitações gerais;
+o prazo é apenas do consumidor UI, não cria um supervisor ou uma política
+de execução no OS. Nenhum desses prazos promete que o modelo físico
+responderá em tempo real: desempenho e prontidão efetiva precisam de
+validação de hardware.
+
+Testes de contrato e comportamento no repositório Surface cobrem
+cancelamento antecipado, providers não cooperativos, rejeições tardias e
+consistência Home/aplicativo. O gate de integração monta a revisão
+candidata sobre `ordax-os/main` sem adicionar segunda fonte visual.
+
 ## Desenvolvimento e testes
 
 1. Trabalhar somente no owner visual, em branch com PR. Não editar espelhos de `ui/` e `workspace/` no `ordax-os`.
