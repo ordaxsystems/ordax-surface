@@ -10,18 +10,18 @@ const deferred = () => {
 };
 
 test("Aura accepts only validated AbortSignal and preserves ordinary completion", async () => {
-  assert.equal(await awaitAbortable(Promise.resolve("answer"), null), "answer");
-  assert.equal(await awaitAbortable(Promise.resolve("answer"), new AbortController().signal), "answer");
-  await assert.rejects(awaitAbortable(Promise.resolve("answer"), {}),
+  assert.equal(await awaitAbortable(() => Promise.resolve("answer"), null), "answer");
+  assert.equal(await awaitAbortable(() => Promise.resolve("answer"), new AbortController().signal), "answer");
+  await assert.rejects(awaitAbortable(() => Promise.resolve("answer"), {}),
     /signal must be an AbortSignal/);
-  await assert.rejects(awaitAbortable(Promise.reject(Error("provider failed")),
+  await assert.rejects(awaitAbortable(() => Promise.reject(Error("provider failed")),
     new AbortController().signal), /provider failed/);
 });
 
 test("Aura cancellation settles immediately even when provider never resolves", async () => {
   const controller = new AbortController();
   const provider = deferred();
-  const pending = awaitAbortable(provider.promise, controller.signal);
+  const pending = awaitAbortable(() => provider.promise, controller.signal);
   controller.abort();
   const outcome = await Promise.race([
     pending.then(() => "unexpected success", error => error.name),
@@ -34,7 +34,7 @@ test("Aura cancellation settles immediately even when provider never resolves", 
 test("Aura ignores late provider rejection after abort without unhandled rejection", async () => {
   const controller = new AbortController();
   const provider = deferred();
-  const pending = awaitAbortable(provider.promise, controller.signal);
+  const pending = awaitAbortable(() => provider.promise, controller.signal);
   controller.abort();
   await assert.rejects(pending, { name: "AbortError" });
   provider.reject(Error("late upstream failure"));
@@ -45,7 +45,9 @@ test("Already cancelled Aura requests reject without waiting on a non-cooperativ
   const controller = new AbortController();
   controller.abort();
   const never = new Promise(() => {});
-  await assert.rejects(awaitAbortable(never, controller.signal), { name: "AbortError" });
+  let starts = 0;
+  await assert.rejects(awaitAbortable(() => { starts++; return never; }, controller.signal), { name: "AbortError" });
+  assert.equal(starts, 0, "aborted UI cannot initiate an external provider call");
 });
 
 test("Aura source consumers share the abort boundary and have explicit presentation deadlines", async () => {
@@ -53,10 +55,10 @@ test("Aura source consumers share the abort boundary and have explicit presentat
   const home = await readFile(new URL("../system/surface/ui/home-aura-composer.mjs", import.meta.url), "utf8");
   const client = await readFile(new URL("../system/surface/workspace/lib/intelligence/client.mjs", import.meta.url), "utf8");
   const app = await readFile(new URL("../system/surface/workspace/components/intelligence/aura-content.tsx", import.meta.url), "utf8");
-  assert.match(home, /await awaitAbortable\(intelligencePort\.respond\(/);
+  assert.match(home, /await awaitAbortable\(\(\) => intelligencePort\.respond\(/);
   assert.ok(home.includes("}), controller.signal);"));
   assert.match(home, /HOME_AURA_MAX_REQUEST_MS = 10_000/);
-  assert.match(client, /await awaitAbortable\(port\.respond\(/);
+  assert.match(client, /await awaitAbortable\(\(\) => port\.respond\(/);
   assert.ok(client.includes("}), signal);"));
   assert.match(app, /AURA_CONVERSATION_DEADLINE_MS = 120_000/);
   assert.match(app, /clearTimeout\(watchdog\)/);
