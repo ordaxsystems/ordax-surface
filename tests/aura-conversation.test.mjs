@@ -66,6 +66,7 @@ test('Aura UI uses the canonical client and never creates another provider/persi
   const client = await readFile(new URL('lib/intelligence/client.mjs', root), 'utf8');
   const provider = await readFile(new URL('components/intelligence/client-context.tsx', root), 'utf8');
   const app = await readFile(new URL('components/intelligence/aura-content.tsx', root), 'utf8');
+  const home = await readFile(new URL('components/central/meridian-home.tsx', root), 'utf8');
   assert.match(client, /context,\s*maxTokens/);
   assert.match(app, /conversation\.record\(normalized, response\)/);
   assert.match(app, /conversation\.context\(\)/);
@@ -74,5 +75,7 @@ test('Aura UI uses the canonical client and never creates another provider/persi
   assert.match(app, /snapshot\.state !== 'degraded'/);
   assert.match(app, /requestGeneration\.current\+\+/);
   assert.match(provider, /createAuraConversationStore\(\)/);
+  assert.match(home, /const inferenceAvailable=intelligence\.inferenceAvailable/);
+  assert.doesNotMatch(home, /inferenceAvailable=!offline/);
   assert.doesNotMatch(client + provider + app, /new WebSocket|localStorage|sessionStorage|llama-server|apiKey/);
 });
