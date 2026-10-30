@@ -27,6 +27,7 @@ import {
   isSupportedRegionalTimeZone,
 } from "../../services/preferences/regional.mjs";
 import { icon } from "./meridian/icons.mjs";
+import { trapFirstRunKeyboardFocus } from "./first-run-keyboard-focus.mjs";
 import { SYSTEM_TERMS_DOCUMENT, createSystemTermsAcceptance } from "../../contracts/system-terms.mjs";
 import { translateFirstRunText } from "../../services/i18n/first-run.mjs";
 import { FIRST_RUN_JOURNEY } from "../../services/first-run/journey.mjs";
@@ -142,6 +143,7 @@ export function mountFirstRunExperience(
   }
 
   const documentObject = root.ownerDocument;
+  const previouslyFocused = documentObject.activeElement;
   let detectedTimeZone = null;
   try {
     detectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -171,6 +173,7 @@ export function mountFirstRunExperience(
   root.setAttribute("aria-hidden", "true");
 
   const overlay = el(documentObject, "section", "ordax-first-run");
+  overlay.tabIndex = -1;
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-labelledby", "ordax-first-run-title");
@@ -259,6 +262,9 @@ export function mountFirstRunExperience(
     overlay.removeEventListener("keydown", onKeyDown);
     overlay.remove();
     restoreRoot();
+    if (previouslyFocused?.isConnected && root.contains(previouslyFocused)) {
+      previouslyFocused.focus?.({ preventScroll: true });
+    }
   };
 
   const heading = (eyebrow, title, detail) => {
@@ -1392,6 +1398,10 @@ export function mountFirstRunExperience(
   };
 
   const onKeyDown = (event) => {
+    if (event.key === "Tab") {
+      trapFirstRunKeyboardFocus(event, overlay, documentObject.activeElement);
+      return;
+    }
     if (event.key !== "Enter") return;
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !overlay.contains(input)) return;
@@ -1468,7 +1478,9 @@ export function mountFirstRunExperience(
   if (sessionSnapshot.state === "signed-out" && capabilitySnapshot.registrationPolicy) {
     void refreshRegistrationPolicy();
   }
-  queueMicrotask(() => overlay.querySelector("button, select, input")?.focus?.());
+  queueMicrotask(() => {
+    if (!destroyed) overlay.querySelector("button, select, input")?.focus?.();
+  });
 
   return Object.freeze({
     shown: true,
