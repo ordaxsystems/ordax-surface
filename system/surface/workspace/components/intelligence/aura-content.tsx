@@ -5,13 +5,18 @@ import { unavailableServices } from '../central/config';
 import { useIntelligenceClient } from './client-context';
 import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
 
+// General consultations may be longer than the Home quick path, but no
+// uncooperative provider may hold a Surface request open indefinitely.
+const AURA_CONVERSATION_DEADLINE_MS = 120_000;
+
 type Props = { initialPrompt?: { text: string } | undefined };
 type ResultState =
   | { state: 'idle' }
   | { state: 'pending'; partial: string }
   | { state: 'ready'; text: string; engineId: string; modelId: string }
   | { state: 'unavailable' }
-  | { state: 'error' };
+  | { state: 'error' }
+  | { state: 'timeout' };
 
 /** Aura is a client of `ordax.intelligence/1`; it never discovers or executes providers itself. */
 export function AuraContent({ initialPrompt }: Props) {
@@ -37,6 +42,11 @@ export function AuraContent({ initialPrompt }: Props) {
     activeRequest.current = controller;
     const generation = ++requestGeneration.current;
     setResult({ state: 'pending', partial: '' });
+    let timedOut = false;
+    const watchdog = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, AURA_CONVERSATION_DEADLINE_MS);
     try {
       const response = await client.ask(normalized, {
         signal: controller.signal,
@@ -50,9 +60,11 @@ export function AuraContent({ initialPrompt }: Props) {
       if (controller.signal.aborted || generation !== requestGeneration.current) return;
       setResult({ state: 'ready', text: response.text, engineId: response.engineId, modelId: response.modelId });
     } catch {
-      if (controller.signal.aborted || generation !== requestGeneration.current) return;
-      setResult(snapshot.state === 'ready' ? { state: 'error' } : { state: 'unavailable' });
+      if (generation !== requestGeneration.current || (controller.signal.aborted && !timedOut)) return;
+      setResult(snapshot.state !== 'ready' ? { state: 'unavailable' }
+        : timedOut ? { state: 'timeout' } : { state: 'error' });
     } finally {
+      clearTimeout(watchdog);
       if (activeRequest.current === controller) activeRequest.current = null;
     }
   }, [client, snapshot.state]);
@@ -82,5 +94,6 @@ export function AuraContent({ initialPrompt }: Props) {
     {result.state === 'ready' && <article aria-label="Resposta da inteligência"><p>{result.text}</p><p className="service-state">{result.engineId} · {result.modelId}</p></article>}
     {result.state === 'unavailable' && <p className="desktop-unconnected" role="status">{unavailableServices.intelligence}</p>}
     {result.state === 'error' && <p className="desktop-unconnected" role="alert">Não foi possível concluir a solicitação. Tente novamente.</p>}
+    {result.state === 'timeout' && <p className="desktop-unconnected" role="alert">A Aura não respondeu dentro do prazo. Tente novamente.</p>}
   </>;
 }
