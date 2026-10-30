@@ -70,7 +70,7 @@ export function createIntelligenceClient(input) {
         context: [],
         maxTokens,
       });
-      const response = await awaitAbortable(port.respond(request, {
+      const response = await awaitAbortable(() => port.respond(request, {
         signal,
         onDelta: onDelta === null ? null : async (delta) => {
           if (signal?.aborted) return;
