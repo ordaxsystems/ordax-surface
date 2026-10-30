@@ -137,7 +137,9 @@ test("Native Home Aura uses a measured quick-response budget and streamed provis
   const source = await read("home-aura-composer.mjs");
   assert.match(source, /const HOME_AURA_QUICK_MAX_TOKENS = 128;/);
   assert.match(source, /maxTokens: HOME_AURA_QUICK_MAX_TOKENS/);
-  assert.match(source, /signal: controller\.signal,\s*\/\/ Streamed tokens are provisional[\s\S]*?onDelta: async \(delta\) =>/);
+  assert.match(source, /createPresentationDeltaGate\(async \(delta\) =>/);
+  assert.match(source, /signal: controller\.signal,\s*\/\/ Streamed tokens are provisional[\s\S]*?onDelta: deltaGate\.onDelta/);
+  assert.match(source, /finally \{\s*deltaGate\.close\(\);/);
   assert.match(source, /HOME_AURA_MAX_PROVISIONAL_CHARS = 131072/);
   assert.match(source, /provisionalText = next;\s*elements\.responseText\.textContent = provisionalText;/);
   assert.match(source, /const validated = validateIntelligenceResponse\(response\);\s*elements\.responseText\.textContent = validated\.text/);

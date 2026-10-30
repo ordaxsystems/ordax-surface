@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { awaitAbortable } from "../system/surface/workspace/lib/intelligence/abortable.mjs";
+import { awaitAbortable, createPresentationDeltaGate } from "../system/surface/workspace/lib/intelligence/abortable.mjs";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const deferred = () => {
@@ -65,4 +65,27 @@ test("Aura source consumers share the abort boundary and have explicit presentat
   assert.match(app, /controller\.signal\.aborted && !timedOut/);
   assert.match(app, /result\.state === 'timeout'/);
   assert.doesNotMatch(home + client + app, /new WebSocket|llama-server|apiKey/);
+});
+
+test("Aura rejects provisional chunks after success, error or cancellation", async () => {
+  const observed = [];
+  const controller = new AbortController();
+  const complete = createPresentationDeltaGate(async value => observed.push(value), controller.signal);
+  await complete.onDelta("partial");
+  complete.close();
+  await complete.onDelta("late after success");
+  complete.close();
+  assert.deepEqual(observed, ["partial"]);
+
+  const failed = createPresentationDeltaGate(async value => observed.push(value));
+  failed.close();
+  await failed.onDelta("late after error");
+  assert.deepEqual(observed, ["partial"]);
+
+  const cancelled = createPresentationDeltaGate(async value => observed.push(value), controller.signal);
+  controller.abort();
+  await cancelled.onDelta("late after cancellation");
+  assert.deepEqual(observed, ["partial"]);
+  assert.throws(() => createPresentationDeltaGate(null), /consumer must be a function/);
+  assert.throws(() => createPresentationDeltaGate(() => {}, {}), /signal must be an AbortSignal/);
 });

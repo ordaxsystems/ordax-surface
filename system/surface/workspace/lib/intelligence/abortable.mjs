@@ -32,3 +32,22 @@ export async function awaitAbortable(start, signal) {
     signal.removeEventListener("abort", onAbort);
   }
 }
+
+// A completed or cancelled presentation must not accept provisional chunks
+// from a provider retaining the streaming callback after settlement.
+export function createPresentationDeltaGate(consume, signal = null) {
+  if (typeof consume !== "function") {
+    throw new TypeError("Provisional delta consumer must be a function");
+  }
+  if (signal !== null && !(signal instanceof AbortSignal)) {
+    throw new TypeError("Provisional delta signal must be an AbortSignal");
+  }
+  let open = true;
+  return Object.freeze({
+    async onDelta(delta) {
+      if (!open || signal?.aborted) return;
+      await consume(delta);
+    },
+    close() { open = false; },
+  });
+}
