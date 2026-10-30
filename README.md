@@ -45,6 +45,14 @@ cancelamento antecipado, providers não cooperativos, rejeições tardias e
 consistência Home/aplicativo. O gate de integração monta a revisão
 candidata sobre `ordax-os/main` sem adicionar segunda fonte visual.
 
+## Aura — conversa, prontidão e continuidade na Surface
+
+A janela Aura usa o destino canônico do OS e a porta ordax.intelligence/1 do Home. A sidebar abre a janela mesmo com o motor indisponível; a UI mostra os estados ready, busy, degraded e error sem presumir prontidão.
+
+O aplicativo conserva somente respostas completas validadas na memória da sessão do cliente Surface: oito trocas visíveis, quatro trocas como contexto de próximas perguntas, com origem explícita e texto limitado. Cancelamento, prazo excedido e texto parcial não entram no histórico confirmado. Interromper a espera ou iniciar nova conversa não concede autoridade nem executa ferramentas.
+
+Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
+
 ## Desenvolvimento e testes
 
 1. Trabalhar somente no owner visual, em branch com PR. Não editar espelhos de `ui/` e `workspace/` no `ordax-os`.

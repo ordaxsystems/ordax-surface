@@ -1,9 +1,10 @@
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { createIntelligenceClient } from '../../lib/intelligence/client.mjs';
+import { createAuraConversationStore } from '../../lib/intelligence/conversation.mjs';
 
 type IntelligenceClient = ReturnType<typeof createIntelligenceClient>;
 type IntelligenceSnapshot = ReturnType<IntelligenceClient['getSnapshot']>;
-type IntelligenceContextValue = { client: IntelligenceClient; snapshot: IntelligenceSnapshot };
+type IntelligenceContextValue = { client: IntelligenceClient; snapshot: IntelligenceSnapshot; conversation: ReturnType<typeof createAuraConversationStore> };
 
 const IntelligenceClientContext = createContext<IntelligenceContextValue | null>(null);
 
@@ -11,7 +12,8 @@ const IntelligenceClientContext = createContext<IntelligenceContextValue | null>
 export function IntelligenceClientProvider({ port, children }: { port: unknown; children: ReactNode }) {
   const client = useMemo(() => createIntelligenceClient(port), [port]);
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
-  const value = useMemo(() => ({ client, snapshot }), [client, snapshot]);
+  const conversation = useMemo(() => createAuraConversationStore(), [client]);
+  const value = useMemo(() => ({ client, snapshot, conversation }), [client, snapshot, conversation]);
   return <IntelligenceClientContext.Provider value={value}>{children}</IntelligenceClientContext.Provider>;
 }
 

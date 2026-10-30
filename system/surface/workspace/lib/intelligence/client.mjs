@@ -51,9 +51,9 @@ export function createIntelligenceClient(input) {
     },
     /**
      * @param {string} prompt
-     * @param {{ signal?: AbortSignal | null, onDelta?: ((delta: string) => void | Promise<void>) | null, maxTokens?: number }} [options]
+     * @param {{ signal?: AbortSignal | null, onDelta?: ((delta: string) => void | Promise<void>) | null, maxTokens?: number, context?: Array<object> }} [options]
      */
-    async ask(prompt, { signal = null, onDelta = null, maxTokens = 512 } = {}) {
+    async ask(prompt, { signal = null, onDelta = null, maxTokens = 512, context = [] } = {}) {
       refresh();
       if (snapshot.state !== "ready") {
         throw new Error("Ordax Intelligence is not ready");
@@ -67,7 +67,7 @@ export function createIntelligenceClient(input) {
       const request = validateIntelligenceRequest({
         intent: "ask",
         prompt,
-        context: [],
+        context,
         maxTokens,
       });
       const response = await awaitAbortable(() => port.respond(request, {

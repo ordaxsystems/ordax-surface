@@ -1,26 +1,23 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { Send, Sparkles, Square, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { unavailableServices } from '../central/config';
 import { useIntelligenceClient } from './client-context';
 import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
+import './aura-content.css';
 
-// General consultations may be longer than the Home quick path, but no
-// uncooperative provider may hold a Surface request open indefinitely.
 const AURA_CONVERSATION_DEADLINE_MS = 120_000;
-
 type Props = { initialPrompt?: { text: string } | undefined };
 type ResultState =
   | { state: 'idle' }
-  | { state: 'pending'; partial: string }
-  | { state: 'ready'; text: string; engineId: string; modelId: string }
+  | { state: 'pending'; prompt: string; partial: string }
   | { state: 'unavailable' }
   | { state: 'error' }
   | { state: 'timeout' };
 
-/** Aura is a client of `ordax.intelligence/1`; it never discovers or executes providers itself. */
+/** Aura consumes the OS Intelligence port; all transcript data stays in Surface memory. */
 export function AuraContent({ initialPrompt }: Props) {
-  const { client, snapshot } = useIntelligenceClient();
+  const { client, snapshot, conversation } = useIntelligenceClient();
+  const turns = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot, conversation.getSnapshot);
   const productName = getSurfaceWindowTitle('intelligence');
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState<ResultState>({ state: 'idle' });
@@ -28,12 +25,38 @@ export function AuraContent({ initialPrompt }: Props) {
   const requestGeneration = useRef(0);
   const consumedInitialPrompt = useRef<Props['initialPrompt']>(undefined);
 
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(() => {
+    setResult({ state: 'idle' });
+    return () => { requestGeneration.current++; activeRequest.current?.abort(); activeRequest.current = null; };
+  }, [client]);
+
+  useEffect(() => {
+    if (snapshot.state !== 'degraded' && snapshot.state !== 'error') return;
+    if (activeRequest.current) {
+      requestGeneration.current++;
+      activeRequest.current.abort();
+      activeRequest.current = null;
+      setResult({ state: 'unavailable' });
+    }
+  }, [snapshot.state]);
+
+  const stop = useCallback(() => {
+    requestGeneration.current++;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setResult({ state: 'idle' });
+  }, []);
+
+  const startNewConversation = () => {
+    stop();
+    conversation.clear();
+    setPrompt('');
+  };
 
   const run = useCallback(async (raw: string) => {
     const normalized = raw.trim();
     if (!normalized) return;
-    if (snapshot.state !== 'ready') {
+    if (snapshot.state !== 'ready' || !snapshot.inferenceAvailable) {
       setResult({ state: 'unavailable' });
       return;
     }
@@ -41,7 +64,8 @@ export function AuraContent({ initialPrompt }: Props) {
     const controller = new AbortController();
     activeRequest.current = controller;
     const generation = ++requestGeneration.current;
-    setResult({ state: 'pending', partial: '' });
+    const context = conversation.context();
+    setResult({ state: 'pending', prompt: normalized, partial: '' });
     let timedOut = false;
     const watchdog = setTimeout(() => {
       timedOut = true;
@@ -49,25 +73,28 @@ export function AuraContent({ initialPrompt }: Props) {
     }, AURA_CONVERSATION_DEADLINE_MS);
     try {
       const response = await client.ask(normalized, {
+        context,
         signal: controller.signal,
         onDelta: (delta: string) => {
           if (controller.signal.aborted || generation !== requestGeneration.current) return;
           setResult(current => current.state === 'pending'
-            ? { state: 'pending', partial: (current.partial + delta).slice(0, 65536) }
+            ? { ...current, partial: (current.partial + delta).slice(0, 65536) }
             : current);
         },
       });
       if (controller.signal.aborted || generation !== requestGeneration.current) return;
-      setResult({ state: 'ready', text: response.text, engineId: response.engineId, modelId: response.modelId });
+      conversation.record(normalized, response);
+      setPrompt('');
+      setResult({ state: 'idle' });
     } catch {
       if (generation !== requestGeneration.current || (controller.signal.aborted && !timedOut)) return;
-      setResult(snapshot.state !== 'ready' ? { state: 'unavailable' }
-        : timedOut ? { state: 'timeout' } : { state: 'error' });
+      setResult(timedOut ? { state: 'timeout' }
+        : client.getSnapshot().state !== 'ready' ? { state: 'unavailable' } : { state: 'error' });
     } finally {
       clearTimeout(watchdog);
       if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, [client, snapshot.state]);
+  }, [client, conversation, snapshot.inferenceAvailable, snapshot.state]);
 
   useEffect(() => {
     if (initialPrompt === undefined || consumedInitialPrompt.current === initialPrompt) return;
@@ -78,22 +105,44 @@ export function AuraContent({ initialPrompt }: Props) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    void run(prompt);
+    if (result.state !== 'pending') void run(prompt);
   }
 
   const pending = result.state === 'pending';
-  return <>
-    <div className="desktop-content-heading"><Sparkles/><h2>{productName}</h2></div>
+  const available = snapshot.state === 'ready' && snapshot.inferenceAvailable;
+  const serviceLabel = snapshot.state === 'ready' ? 'Pronta · ' + snapshot.modelId
+    : snapshot.state === 'busy' ? 'Motor em uso · aguarde a liberação'
+    : snapshot.state === 'error' ? 'Falha no serviço de IA local'
+    : 'Motor de IA não disponível nesta sessão';
+
+  return <section className="aura-experience" aria-label="Conversa com Aura">
+    <header className="aura-toolbar">
+      <div className="desktop-content-heading"><Sparkles aria-hidden="true"/><h2>{productName}</h2></div>
+      <Button type="button" variant="outline" size="sm" onClick={startNewConversation} disabled={!turns.length && !pending && !prompt.trim()}>
+        <Plus aria-hidden="true"/> Nova conversa
+      </Button>
+    </header>
+    <p className="service-state" role="status" data-intelligence-state={snapshot.state}>{serviceLabel}</p>
+    <div className="aura-thread" role="log" aria-label="Mensagens desta conversa" aria-live="polite">
+      {turns.length === 0 && !pending && <p className="aura-thread-empty">Faça uma pergunta para começar. As respostas reais aparecerão aqui quando o motor estiver pronto.</p>}
+      {turns.map(turn => <div key={turn.id} className="aura-exchange">
+        <article className="aura-turn" data-speaker="user"><span className="aura-speaker">Você</span><p>{turn.prompt}</p></article>
+        <article className="aura-turn" data-speaker="aura"><span className="aura-speaker">{productName}</span><p>{turn.answer}</p><p className="service-state">{turn.engineId} · {turn.modelId}</p></article>
+      </div>)}
+      {pending && <div className="aura-exchange" aria-busy="true">
+        <article className="aura-turn" data-speaker="user"><span className="aura-speaker">Você</span><p>{result.prompt}</p></article>
+        <article className="aura-turn" data-speaker="aura"><span className="aura-speaker">{productName} · processando</span><p>{result.partial || 'Aguardando resposta do motor…'}</p></article>
+      </div>}
+    </div>
     <form className="aura-search" onSubmit={submit}>
-      <Sparkles className="aura-star"/>
-      <input aria-label="Pergunta para a inteligência" placeholder="Faça uma pergunta ou descreva uma tarefa..." value={prompt} onChange={event => setPrompt(event.target.value)} disabled={pending}/>
-      <Button type="submit" className="send-button" aria-label="Enviar pergunta" disabled={pending || !prompt.trim()}><Send/></Button>
+      <Sparkles className="aura-star" aria-hidden="true"/>
+      <input aria-label="Pergunta para a Aura" placeholder={available ? 'Pergunte ou continue a conversa…' : 'Aguardando disponibilidade do motor…'} value={prompt} onChange={event => setPrompt(event.target.value)} disabled={pending}/>
+      {pending ? <Button type="button" variant="outline" onClick={stop} aria-label="Interromper espera da resposta"><Square aria-hidden="true"/> Parar</Button>
+        : <Button type="submit" className="send-button" aria-label="Enviar pergunta" disabled={!available || !prompt.trim()}><Send aria-hidden="true"/></Button>}
     </form>
-    {snapshot.state === 'ready' && <p className="service-state" role="status">Modelo disponível: {snapshot.modelId}</p>}
-    {pending && <div role="status" aria-live="polite"><p className="service-state">Processando sua solicitação.</p>{result.state === 'pending' && result.partial && <p>{result.partial}</p>}</div>}
-    {result.state === 'ready' && <article aria-label="Resposta da inteligência"><p>{result.text}</p><p className="service-state">{result.engineId} · {result.modelId}</p></article>}
-    {result.state === 'unavailable' && <p className="desktop-unconnected" role="status">{unavailableServices.intelligence}</p>}
-    {result.state === 'error' && <p className="desktop-unconnected" role="alert">Não foi possível concluir a solicitação. Tente novamente.</p>}
-    {result.state === 'timeout' && <p className="desktop-unconnected" role="alert">A Aura não respondeu dentro do prazo. Tente novamente.</p>}
-  </>;
+    {result.state === 'unavailable' && <p className="desktop-unconnected aura-feedback" role="status">O motor não está pronto. Sua pergunta foi preservada; tente novamente quando estiver disponível.</p>}
+    {result.state === 'error' && <p className="desktop-unconnected aura-feedback" role="alert">Não foi possível concluir a solicitação. A pergunta foi preservada para nova tentativa.</p>}
+    {result.state === 'timeout' && <p className="desktop-unconnected aura-feedback" role="alert">A Aura não respondeu dentro do prazo. A espera foi encerrada; nenhuma resposta foi confirmada.</p>}
+    <p className="aura-footnote">Conversa temporária nesta sessão da Surface. Sem sincronização ou memória persistente; somente respostas confirmadas entram no contexto.</p>
+  </section>;
 }
