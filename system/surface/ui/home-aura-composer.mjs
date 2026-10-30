@@ -12,7 +12,10 @@ import { awaitAbortable, createPresentationDeltaGate } from "../workspace/lib/in
 // system prompt. Streaming keeps the first useful text visible while the
 // canonical port validates final completion and authority.
 const HOME_AURA_QUICK_MAX_TOKENS = 128;
-const HOME_AURA_MAX_REQUEST_MS = 10_000;
+// The Native quick inference has its own 10-second deadline. Give its
+// verified final SSE completion a small margin so the renderer cannot
+// cancel a valid answer at the exact same deadline.
+const HOME_AURA_MAX_REQUEST_MS = 12_000;
 const HOME_AURA_MAX_PROVISIONAL_CHARS = 131072;
 
 function assertHomeAura(root) {
