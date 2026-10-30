@@ -35,6 +35,16 @@ function assertHomeAura(root) {
 }
 
 function statusMessage(snapshot, pending, failed, translate) {
+  // After a transport deadline, never keep showing 'processing' because an
+  // unresponsive provider left its last snapshot in the busy state.
+  if (!pending && failed) {
+    return Object.freeze({
+      label: translate(snapshot.state === "ready" && snapshot.inferenceAvailable
+        ? "home.aura.status.ready" : "home.aura.status.unavailable"),
+      note: translate("home.aura.note.error"),
+      state: "error",
+    });
+  }
   if (pending || snapshot.state === "busy") {
     return Object.freeze({
       label: translate("home.aura.status.busy"),
