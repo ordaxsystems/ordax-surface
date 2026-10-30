@@ -483,6 +483,68 @@
   }
 }
 
+/* The native setup stays one component; compact windows reflow the rail. */
+@media (max-width: 900px) {
+  .ordax-first-run-shell {
+    min-width: 0;
+    width: 100%;
+    height: min(720px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .ordax-first-run-progress {
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--md-rail-border);
+    overflow: hidden;
+  }
+  .ordax-first-run-brand { flex: 0 0 auto; }
+  .ordax-first-run-steps {
+    min-width: 0;
+    display: flex;
+    flex: 1 1 auto;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .ordax-first-run-steps li { flex: 0 0 auto; white-space: nowrap; }
+  .ordax-first-run-guidance { display: none; }
+  .ordax-first-run-card { min-height: 0; }
+}
+
+@media (max-width: 600px) {
+  .ordax-first-run {
+    padding: 0;
+    place-items: stretch;
+  }
+  .ordax-first-run-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .ordax-first-run-progress { padding: 10px 12px; gap: 8px; }
+  .ordax-first-run-brand strong { font-size: 1rem; }
+  .ordax-first-run-brand > span { display: none; }
+  .ordax-first-run-brand-mark img { width: 24px; height: 24px; }
+  .ordax-first-run-steps li { padding: 5px 8px 5px 32px; font-size: .73rem; }
+  .ordax-first-run-body { padding: 20px 16px; }
+  .ordax-first-run-form,
+  .ordax-first-run-account-layout,
+  .ordax-first-run-connect { grid-template-columns: minmax(0, 1fr); }
+  .ordax-first-run-footer { padding: 10px 16px; }
+  .ordax-first-run-footer .ordax-first-run-action { min-height: 44px; }
+  .ordax-first-run-network-list .ordax-first-run-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ordax-first-run *,
   .ordax-first-run *::before,
