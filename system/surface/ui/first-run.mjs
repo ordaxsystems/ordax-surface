@@ -96,12 +96,16 @@ export function mountFirstRunExperience(
     localSession = null,
     deviceProfile = null,
     keyboardLayout = null,
+    productMode = "usb",
     resumeCursor = null,
     hostedSignupBridge = null,
   },
 ) {
   if (!(root instanceof Element)) {
     throw new TypeError("First-run experience requires the Surface root Element");
+  }
+  if (!["usb", "native-disk", "desktop"].includes(productMode)) {
+    throw new TypeError("Unsupported First Run product mode");
   }
   const store = assertFirstRunStateStore(stateStore);
   const preferencePort = assertPreferenceRuntimePort(preferences);
@@ -319,28 +323,16 @@ export function mountFirstRunExperience(
 
   const renderWelcome = (body) => {
     body.append(heading(
-      "Bem-vindo",
-      "Bem-vindo ao OrdaX.",
-      "Leve o OrdaX no pendrive, organize seus projetos em Spaces e use a Aura com o contexto permitido.",
+      "Primeiro uso",
+      "Seu OrdaX começa aqui.",
+      "Escolha o idioma e prepare seu OrdaX para começar.",
     ));
-    const grid = el(documentObject, "div", "ordax-first-run-features");
-    [
-      ["aura", "Intelligence no seu contexto", "Converse com a Aura e trabalhe com o contexto dos seus arquivos, projetos e Spaces, conforme os recursos e permissões disponíveis."],
-      ["spaces", "Um Space para cada mundo", "Separe vida pessoal, projetos e negócios em ambientes com seus próprios aplicativos, ferramentas e contexto."],
-      ["globe", "Mesma conta, dois modos", "Use a mesma Conta OrdaX no USB e na Web. A sincronização de idioma, fuso horário e continuidade entre esses modos ainda está em integração."],
-    ].forEach(([glyph, title, detail]) => {
-      const item = el(documentObject, "article", "ordax-first-run-feature");
-      const mark = el(documentObject, "span", "ordax-first-run-feature-icon");
-      mark.innerHTML = icon(glyph, 24);
-      item.append(mark, el(documentObject, "strong", "", title), el(documentObject, "p", "", detail));
-      grid.append(item);
-    });
     const settings = el(documentObject, "section", "ordax-first-run-welcome-settings");
     settings.setAttribute("aria-label", translateFirstRunText(draft.locale, "Idioma e região"));
     const form = el(documentObject, "div", "ordax-first-run-form");
     form.append(localeField(), timeZoneField());
     settings.append(form);
-    body.append(settings, grid);
+    body.append(settings);
     renderKeyboardStatus(body);
   };
 
@@ -468,7 +460,9 @@ export function mountFirstRunExperience(
     body.append(heading(
       "Segurança local",
       "Proteja seu OrdaX.",
-      "Use um PIN ou senha local para proteger a sessão do OrdaX. A credencial fica neste dispositivo e não criptografa os arquivos do pendrive.",
+      productMode === "desktop"
+        ? "Use um PIN ou senha local para proteger o acesso ao OrdaX Desktop. Isso não criptografa os arquivos do computador."
+        : "Use um PIN ou senha local para proteger a sessão do OrdaX. A credencial fica neste dispositivo e não criptografa os arquivos do pendrive.",
     ));
 
     if (!capabilitySnapshot.localSession || !localSessionSnapshot) {
@@ -525,12 +519,14 @@ export function mountFirstRunExperience(
       "ordax-first-run-note",
       "Use pelo menos 6 caracteres e repita exatamente a mesma credencial.",
     ));
-    body.append(el(
-      documentObject,
-      "p",
-      "ordax-first-run-note",
-      "Para manter a Conta OrdaX conectada após reiniciar o USB, use uma senha local forte com pelo menos 16 caracteres. PIN curto desbloqueia apenas a tela.",
-    ));
+    if (productMode === "usb") {
+      body.append(el(
+        documentObject,
+        "p",
+        "ordax-first-run-note",
+        "Para manter a Conta OrdaX conectada após reiniciar o USB, use uma senha local forte com pelo menos 16 caracteres. PIN curto desbloqueia apenas a tela.",
+      ));
+    }
     body.append(el(
       documentObject,
       "p",
@@ -694,34 +690,7 @@ export function mountFirstRunExperience(
       legal.append(links, el(documentObject, "p", "", "Consulte os documentos da Conta OrdaX. As opções de Memória e privacidade do dispositivo ficam em Ajustes e nos recursos correspondentes."));
       body.append(legal);
     }
-    const layout = el(documentObject, "div", "ordax-first-run-account-layout");
-    const primary = el(documentObject, "section", "ordax-first-run-account-primary");
-    primary.setAttribute("aria-label", translateFirstRunText(draft.locale, "Conta OrdaX"));
-    primary.append(...Array.from(body.children).slice(1));
-    const overview = el(documentObject, "aside", "ordax-first-run-account-overview");
-    overview.setAttribute("aria-label", translateFirstRunText(draft.locale, "Resumo da conta"));
-    overview.append(el(documentObject, "span", "ordax-first-run-eyebrow", "Uma conta. Seu OrdaX."));
-    for (const [title, description] of [
-      ["Perfil e foto", "O nome de exibição vem da sua Conta OrdaX. Foto e país ainda não estão disponíveis nesta integração."],
-      ["Plano e recursos", "O plano desta conta ainda não foi consultado. Nenhuma assinatura ou cobrança é criada nesta configuração."],
-      ["Preferências e sincronização", "Restaurar idioma e preferências da Web está em integração. Suas escolhas feitas no início continuam valendo neste dispositivo."],
-    ]) {
-      const detail = el(documentObject, "details", "ordax-first-run-account-detail");
-      const summary = el(documentObject, "summary");
-      summary.append(el(documentObject, "strong", "", title),
-        el(documentObject, "span", "ordax-first-run-integration-badge", "Em integração"));
-      detail.append(summary, el(documentObject, "p", "", description));
-      overview.append(detail);
-    }
-    if (signedIn) {
-      const manage = el(documentObject, "a", "ordax-first-run-account-link", "Abrir Minha conta na Web");
-      manage.href = "https://ordax.com.br/conta/";
-      manage.target = "_blank";
-      manage.rel = "noopener noreferrer";
-      overview.append(manage);
-    }
-    layout.append(primary, overview);
-    body.append(layout);
+    // First Run asks only for identity. Profile, plan and sync live in Account/Settings.
     if (identityMessage) {
       const status = el(documentObject, "p", "ordax-first-run-status", identityMessage);
       status.setAttribute("role", "status");
@@ -764,7 +733,9 @@ export function mountFirstRunExperience(
     body.append(heading(
       "Tudo pronto",
       "Tudo pronto.",
-      "Confira suas escolhas. Ao concluir, o OrdaX registra a configuração neste pendrive.",
+      productMode === "desktop"
+        ? "Confira suas escolhas para começar a usar o OrdaX Desktop."
+        : "Confira suas escolhas. Ao concluir, o OrdaX registra a configuração neste pendrive.",
     ));
     const summary = el(documentObject, "dl", "ordax-first-run-summary");
     const localeLabel = REGIONAL_LOCALE_OPTIONS.find((entry) => entry.value === draft.locale)?.label ?? draft.locale;
@@ -773,12 +744,25 @@ export function mountFirstRunExperience(
       ["Fuso", draft.timeZone],
       ["Bloqueio", localSessionSnapshot?.credentialConfigured ? "PIN/senha local" : "Não configurado"],
       ["Conta", draft.accountMode === "identity" ? sessionSnapshot.displayName : "Somente local"],
-      ["Dispositivo", deviceProfileSnapshot?.displayName ?? "Nome gerenciado pelo sistema"],
-      ["Execução", "Pendrive USB"],
+      ...(STEPS.includes("name") ? [["Dispositivo", deviceProfileSnapshot?.displayName ?? "Nome gerenciado pelo sistema"]] : []),
+      ["Execução", productMode === "desktop" ? "OrdaX Desktop" : productMode === "native-disk" ? "OrdaX instalado" : "Pendrive USB"],
     ].forEach(([key, value]) => {
       summary.append(el(documentObject, "dt", "", key), el(documentObject, "dd", "", value));
     });
     body.append(summary);
+    if (!STEPS.includes("name") && capabilitySnapshot.deviceProfile && deviceProfilePort && deviceProfileSnapshot) {
+      const field = el(documentObject, "label", "ordax-first-run-field");
+      field.append(el(documentObject, "span", "", "Nome do dispositivo (opcional)"));
+      const input = documentObject.createElement("input");
+      input.type = "text";
+      input.maxLength = 120;
+      input.autocomplete = "off";
+      input.value = deviceNameDraft;
+      input.dataset.firstRunDeviceName = "";
+      input.disabled = finishing;
+      field.append(input);
+      body.append(field);
+    }
     const terms = el(documentObject, "section", "ordax-first-run-system-terms");
     terms.setAttribute("aria-labelledby", "ordax-system-terms-title");
     const title = el(documentObject, "strong", "", "Termos de Uso do OrdaX OS");
@@ -883,7 +867,8 @@ export function mountFirstRunExperience(
     } else {
       const label = step === "ready"
         ? finishing ? "Salvando…" : "Entrar no OrdaX"
-        : step === "welcome" ? "Vamos começar" : "Continuar";
+        : step === "welcome" ? "Vamos começar"
+        : step === "network" && !networkSnapshot?.currentSsid ? "Continuar offline" : "Continuar";
       const next = action(documentObject, label, step === "ready" ? "finish" : "next", true);
       next.disabled = finishing || busy || (step === "ready" && !systemTermsAccepted);
       footer.append(next);
@@ -1240,15 +1225,32 @@ export function mountFirstRunExperience(
           return;
         }
       }
+      // When Device is not a separate step, persist its optional rename before
+      // the completion receipt. A failed rename must never be presented as saved.
+      if (!STEPS.includes("name") && deviceProfilePort && deviceProfileSnapshot) {
+        const nextName = deviceNameDraft.trim().replace(/\\s+/g, " ");
+        if (nextName && nextName !== deviceProfileSnapshot.displayName) {
+          try {
+            deviceProfileSnapshot = await deviceProfilePort.rename(nextName);
+            deviceNameDraft = deviceProfileSnapshot.displayName;
+          } catch {
+            throw new Error("Não foi possível salvar o nome do dispositivo.");
+          }
+        }
+      }
       preferencePort.set(REGIONAL_LOCALE_PREFERENCE_ID, draft.locale);
       preferencePort.set(REGIONAL_TIME_ZONE_PREFERENCE_ID, draft.timeZone);
       draft.systemTerms = createSystemTermsAcceptance(systemTermsAccepted);
       await store.save(completeFirstRunState(draft));
       close();
-    } catch {
+    } catch (error) {
       if (destroyed) return;
       finishing = false;
-      completionError = "Não foi possível confirmar a gravação do primeiro uso no pendrive. O assistente continua aberto para não perder a configuração.";
+      completionError = error?.message === "Não foi possível salvar o nome do dispositivo."
+        ? error.message
+        : productMode === "desktop"
+          ? "Não foi possível salvar a configuração inicial. O assistente continua aberto para tentar novamente."
+          : "Não foi possível confirmar a gravação do primeiro uso no pendrive. O assistente continua aberto para não perder a configuração.";
       render();
     }
   };
