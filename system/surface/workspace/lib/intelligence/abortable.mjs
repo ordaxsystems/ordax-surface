@@ -7,25 +7,27 @@ function abortError() {
   return error;
 }
 
-export async function awaitAbortable(promise, signal) {
-  if (signal == null) return await promise;
-  if (!(signal instanceof AbortSignal))
+export async function awaitAbortable(start, signal) {
+  if (typeof start !== "function")
+    throw new TypeError("Aura request must be a callable operation");
+  if (signal != null && !(signal instanceof AbortSignal))
     throw new TypeError("Aura request signal must be an AbortSignal");
-  // Even if cancellation preceded this call, observe the underlying promise
-  // so a late provider rejection cannot become an unhandled rejection.
-  if (signal.aborted) {
-    void Promise.resolve(promise).catch(() => {});
-    throw abortError();
-  }
+  // No provider work may begin after a cancelled request.
+  if (signal?.aborted) throw abortError();
+  if (signal == null) return await start();
+
   let onAbort;
   const cancelled = new Promise((_, reject) => {
     onAbort = () => reject(abortError());
     signal.addEventListener("abort", onAbort, { once: true });
   });
   try {
-    // A rejected/never-settled provider must not control the presentation's
-    // cancellation latency. Promise.race also observes late rejections.
-    return await Promise.race([promise, cancelled]);
+    // Start after installing the listener, and observe late rejections even
+    // if this presentation has already finished due to cancellation.
+    const result = start();
+    const answer = await Promise.race([result, cancelled]);
+    if (signal.aborted) throw abortError();
+    return answer;
   } finally {
     signal.removeEventListener("abort", onAbort);
   }
