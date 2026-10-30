@@ -125,7 +125,7 @@ export function mountHomeAuraComposer(rootValue, {
 
     // The Native transport also bounds generation, but a renderer, OS bridge,
     // overloaded CPU or stale runtime may fail to settle that Promise. Own the
-    // visible deadline here as well. Never leave "Aura está pensando" forever.
+    // Keep a bounded busy indicator: the visible state must always terminate.
     const watchdog = setTimeout(() => {
       if (destroyed || controller.signal.aborted) return;
       deadlineReached = true;
