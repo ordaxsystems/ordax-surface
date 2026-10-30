@@ -166,6 +166,7 @@ test("Aura client streams through the canonical Intelligence port and validates 
   assert.match(client, /signal\?\.aborted/);
   assert.match(view, /onDelta: \(delta: string\)/);
   assert.match(view, /generation !== requestGeneration\.current/);
-  assert.match(view, /state: 'pending', partial:/);
-  assert.match(view, /state: 'ready', text: response\.text/);
+  assert.match(view, /state: 'pending', prompt: normalized, partial:/);
+  assert.match(view, /conversation\.record\(normalized, response\)/);
+  assert.match(view, /conversation\.context\(\)/);
 });
