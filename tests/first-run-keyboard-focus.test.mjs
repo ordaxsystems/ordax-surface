@@ -94,6 +94,6 @@ test("First Run does not treat IME candidate confirmation as form submission", (
 test("First Run wired keydown handler uses IME-safe Enter boundary", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../system/surface/ui/first-run.mjs", import.meta.url), "utf8");
-  assert.match(source, /if \(!shouldSubmitFirstRunEnter\(event\)\) return;/);
+  assert.match(source, /if \(!shouldSubmitTextInputOnEnter\(event\)\) return;/);
   assert.match(source, /trapFirstRunKeyboardFocus\(event, overlay, documentObject\.activeElement\)/);
 });
