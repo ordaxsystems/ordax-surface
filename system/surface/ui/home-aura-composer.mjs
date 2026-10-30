@@ -4,6 +4,7 @@ import {
   validateIntelligenceSnapshot,
 } from "../../contracts/intelligence.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { awaitAbortable } from "../workspace/lib/intelligence/abortable.mjs";
 
 // The Home composer is a quick consultation, not the full conversation app.
 // Physical Windows CPU evidence: the 512-token request exceeded the bounded
@@ -122,7 +123,7 @@ export function mountHomeAuraComposer(rootValue, {
     }, HOME_AURA_MAX_REQUEST_MS);
 
     try {
-      const response = await intelligencePort.respond({
+      const response = await awaitAbortable(intelligencePort.respond({
         intent: "ask",
         prompt,
         context: [],
@@ -142,7 +143,7 @@ export function mountHomeAuraComposer(rootValue, {
           provisionalText = next;
           elements.responseText.textContent = provisionalText;
         },
-      });
+      }), controller.signal);
       if (destroyed || controller.signal.aborted) return;
       const validated = validateIntelligenceResponse(response);
       elements.responseText.textContent = validated.text;
