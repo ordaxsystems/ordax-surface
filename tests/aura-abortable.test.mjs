@@ -54,10 +54,10 @@ test("Aura source consumers share the abort boundary and have explicit presentat
   const client = await readFile(new URL("../system/surface/workspace/lib/intelligence/client.mjs", import.meta.url), "utf8");
   const app = await readFile(new URL("../system/surface/workspace/components/intelligence/aura-content.tsx", import.meta.url), "utf8");
   assert.match(home, /await awaitAbortable\(intelligencePort\.respond\(/);
-  assert.match(home, /\}\), controller\.signal\);/);
+  assert.ok(home.includes("}), controller.signal);"));
   assert.match(home, /HOME_AURA_MAX_REQUEST_MS = 10_000/);
   assert.match(client, /await awaitAbortable\(port\.respond\(/);
-  assert.match(client, /\}\), signal\);/);
+  assert.ok(client.includes("}), signal);"));
   assert.match(app, /AURA_CONVERSATION_DEADLINE_MS = 120_000/);
   assert.match(app, /clearTimeout\(watchdog\)/);
   assert.match(app, /controller\.signal\.aborted && !timedOut/);
