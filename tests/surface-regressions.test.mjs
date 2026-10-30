@@ -163,7 +163,9 @@ test("Home Aura visibly ends a stuck request at ten seconds and aborts underlyin
 test("Aura client streams through the canonical Intelligence port and validates completion", async () => {
   const client = await readFile(new URL("../system/surface/workspace/lib/intelligence/client.mjs", import.meta.url), "utf8");
   const view = await readFile(new URL("../system/surface/workspace/components/intelligence/aura-content.tsx", import.meta.url), "utf8");
-  assert.match(client, /onDelta: onDelta === null \? null : async/);
+  assert.match(client, /createPresentationDeltaGate\(async \(delta\) =>/);
+  assert.match(client, /onDelta: deltaGate\?\.onDelta \?\? null/);
+  assert.match(client, /finally \{\s*deltaGate\?\.close\(\);/);
   assert.match(client, /validateIntelligenceResponse\(response\)/);
   assert.match(client, /signal\?\.aborted/);
   assert.match(view, /onDelta: \(delta: string\)/);
