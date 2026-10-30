@@ -32,3 +32,9 @@ export function trapFirstRunKeyboardFocus(event, overlay, activeElement) {
   target.focus({ preventScroll: true });
   return true;
 }
+
+// Intentionally intercept Enter only after the input method commits its text.
+ // During IME composition, Enter belongs to the candidate picker, not to setup.
+export function shouldSubmitFirstRunEnter(event) {
+  return event?.key === "Enter" && event.isComposing !== true && event.keyCode !== 229;
+}
