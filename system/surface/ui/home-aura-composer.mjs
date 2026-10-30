@@ -123,7 +123,7 @@ export function mountHomeAuraComposer(rootValue, {
     }, HOME_AURA_MAX_REQUEST_MS);
 
     try {
-      const response = await awaitAbortable(intelligencePort.respond({
+      const response = await awaitAbortable(() => intelligencePort.respond({
         intent: "ask",
         prompt,
         context: [],
