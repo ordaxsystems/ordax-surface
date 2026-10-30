@@ -4,7 +4,7 @@ import {
   validateIntelligenceResponse,
   validateIntelligenceSnapshot,
 } from "../../../../contracts/intelligence.mjs";
-import { awaitAbortable } from "./abortable.mjs";
+import { awaitAbortable, createPresentationDeltaGate } from "./abortable.mjs";
 
 function sameSnapshot(left, right) {
   return left.schema === right.schema
@@ -70,14 +70,19 @@ export function createIntelligenceClient(input) {
         context,
         maxTokens,
       });
-      const response = await awaitAbortable(() => port.respond(request, {
-        signal,
-        onDelta: onDelta === null ? null : async (delta) => {
-          if (signal?.aborted) return;
-          if (typeof delta !== "string" || !delta) throw new TypeError("Invalid Intelligence delta");
-          await onDelta(delta);
-        },
-      }), signal);
+      const deltaGate = onDelta === null ? null : createPresentationDeltaGate(async (delta) => {
+        if (typeof delta !== "string" || !delta) throw new TypeError("Invalid Intelligence delta");
+        await onDelta(delta);
+      }, signal);
+      let response;
+      try {
+        response = await awaitAbortable(() => port.respond(request, {
+          signal,
+          onDelta: deltaGate?.onDelta ?? null,
+        }), signal);
+      } finally {
+        deltaGate?.close();
+      }
       // A provider may ignore AbortSignal and still return a result. Never
       // expose that result to a consumer after the presentation cancelled it.
       if (signal?.aborted) {

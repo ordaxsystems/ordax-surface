@@ -4,7 +4,7 @@ import {
   validateIntelligenceSnapshot,
 } from "../../contracts/intelligence.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
-import { awaitAbortable } from "../workspace/lib/intelligence/abortable.mjs";
+import { awaitAbortable, createPresentationDeltaGate } from "../workspace/lib/intelligence/abortable.mjs";
 
 // The Home composer is a quick consultation, not the full conversation app.
 // Physical Windows CPU evidence: the 512-token request exceeded the bounded
@@ -115,6 +115,18 @@ export function mountHomeAuraComposer(rootValue, {
     const controller = new AbortController();
     let provisionalText = "";
     let deadlineReached = false;
+    const deltaGate = createPresentationDeltaGate(async (delta) => {
+      if (destroyed) return;
+      if (typeof delta !== "string" || !delta || delta.includes("\0")) {
+        throw new TypeError("Invalid Aura response delta");
+      }
+      const next = provisionalText + delta;
+      if (next.length > HOME_AURA_MAX_PROVISIONAL_CHARS) {
+        throw new RangeError("Aura streaming response exceeded limit");
+      }
+      provisionalText = next;
+      elements.responseText.textContent = provisionalText;
+    }, controller.signal);
     activeController = controller;
     pending = true;
     failed = false;
@@ -141,18 +153,7 @@ export function mountHomeAuraComposer(rootValue, {
       }, {
         signal: controller.signal,
         // Streamed tokens are provisional, not a validated final answer.
-        onDelta: async (delta) => {
-          if (destroyed || controller.signal.aborted) return;
-          if (typeof delta !== "string" || !delta || delta.includes("\0")) {
-            throw new TypeError("Invalid Aura response delta");
-          }
-          const next = provisionalText + delta;
-          if (next.length > HOME_AURA_MAX_PROVISIONAL_CHARS) {
-            throw new RangeError("Aura streaming response exceeded limit");
-          }
-          provisionalText = next;
-          elements.responseText.textContent = provisionalText;
-        },
+        onDelta: deltaGate.onDelta,
       }), controller.signal);
       if (destroyed || controller.signal.aborted) return;
       const validated = validateIntelligenceResponse(response);
@@ -165,6 +166,7 @@ export function mountHomeAuraComposer(rootValue, {
       elements.response.dataset.state = "error";
       elements.responseText.textContent = localization.translate("home.aura.response.error");
     } finally {
+      deltaGate.close();
       clearTimeout(watchdog);
       if (activeController === controller) activeController = null;
       pending = false;
