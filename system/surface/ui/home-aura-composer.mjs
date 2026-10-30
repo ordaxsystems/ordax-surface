@@ -55,8 +55,8 @@ function statusMessage(snapshot, pending, failed, translate) {
   if (snapshot.state === "ready" && snapshot.inferenceAvailable) {
     return Object.freeze({
       label: translate("home.aura.status.ready"),
-      note: translate(failed ? "home.aura.note.error" : "home.aura.note.ready"),
-      state: failed ? "error" : "ready",
+      note: translate("home.aura.note.ready"),
+      state: "ready",
     });
   }
   if (snapshot.state === "degraded") {
@@ -68,7 +68,7 @@ function statusMessage(snapshot, pending, failed, translate) {
   }
   return Object.freeze({
     label: translate("home.aura.status.unavailable"),
-    note: translate(failed ? "home.aura.note.error" : "home.aura.note.unavailable"),
+    note: translate("home.aura.note.unavailable"),
     state: "unavailable",
   });
 }
