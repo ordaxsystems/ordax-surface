@@ -4,6 +4,7 @@ import {
   validateIntelligenceSnapshot,
 } from "../../contracts/intelligence.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { awaitAbortable } from "../workspace/lib/intelligence/abortable.mjs";
 
 // The Home composer is a quick consultation, not the full conversation app.
 // Physical Windows CPU evidence: the 512-token request exceeded the bounded
@@ -34,6 +35,16 @@ function assertHomeAura(root) {
 }
 
 function statusMessage(snapshot, pending, failed, translate) {
+  // After a transport deadline, never keep showing 'processing' because an
+  // unresponsive provider left its last snapshot in the busy state.
+  if (!pending && failed) {
+    return Object.freeze({
+      label: translate(snapshot.state === "ready" && snapshot.inferenceAvailable
+        ? "home.aura.status.ready" : "home.aura.status.unavailable"),
+      note: translate("home.aura.note.error"),
+      state: "error",
+    });
+  }
   if (pending || snapshot.state === "busy") {
     return Object.freeze({
       label: translate("home.aura.status.busy"),
@@ -44,8 +55,8 @@ function statusMessage(snapshot, pending, failed, translate) {
   if (snapshot.state === "ready" && snapshot.inferenceAvailable) {
     return Object.freeze({
       label: translate("home.aura.status.ready"),
-      note: translate(failed ? "home.aura.note.error" : "home.aura.note.ready"),
-      state: failed ? "error" : "ready",
+      note: translate("home.aura.note.ready"),
+      state: "ready",
     });
   }
   if (snapshot.state === "degraded") {
@@ -57,7 +68,7 @@ function statusMessage(snapshot, pending, failed, translate) {
   }
   return Object.freeze({
     label: translate("home.aura.status.unavailable"),
-    note: translate(failed ? "home.aura.note.error" : "home.aura.note.unavailable"),
+    note: translate("home.aura.note.unavailable"),
     state: "unavailable",
   });
 }
@@ -122,7 +133,7 @@ export function mountHomeAuraComposer(rootValue, {
     }, HOME_AURA_MAX_REQUEST_MS);
 
     try {
-      const response = await intelligencePort.respond({
+      const response = await awaitAbortable(() => intelligencePort.respond({
         intent: "ask",
         prompt,
         context: [],
@@ -142,7 +153,7 @@ export function mountHomeAuraComposer(rootValue, {
           provisionalText = next;
           elements.responseText.textContent = provisionalText;
         },
-      });
+      }), controller.signal);
       if (destroyed || controller.signal.aborted) return;
       const validated = validateIntelligenceResponse(response);
       elements.responseText.textContent = validated.text;
