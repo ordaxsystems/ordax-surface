@@ -189,3 +189,20 @@ test("First Run reflows as one accessible Native wizard on narrow viewports", as
   assert.doesNotMatch(css, /@media\s*\(max-width:/);
   assert.doesNotMatch(css, /@media\s+\(max-width:\s*\d+px\)[\s\S]*?position:\s*fixed;\s*inset:/);
 });
+
+test("Store starts with authoritative catalog state and never silently opens demonstration", async () => {
+  const store = await read("store-experience.mjs");
+  const catalog = await read("store-overview-controls.mjs");
+  // Startup must not substitute a fixture because a real catalog is loading,
+  // unavailable or empty. The existing overview renders those live states.
+  assert.match(store, /let mode = 'official';/);
+  assert.doesNotMatch(store, /let mode = catalogPort\.getSnapshot\(\)\.state/);
+  assert.match(store, /mountStoreOverviewControls\(host, catalogPort, surfaceLifecycle/);
+  assert.match(catalog, /snapshot\.state !== "ready"/);
+  assert.match(catalog, /catalog\.subscribe\(\(next\) => \{/);
+  // Loading the static preview must remain behind an intentional switch.
+  assert.match(store, /if \(mode === 'planned'\) void loadPreview\(\);/);
+  assert.match(store, /const onSwitch = \(\) => \{mode = mode === 'official' \? 'planned' : 'official';renderContext\(\);\};/);
+  assert.match(store, /toggle\.addEventListener\('click', onSwitch\)/);
+  assert.doesNotMatch(store, /catalogPort\.getSnapshot\(\)\.state === 'ready' \? 'official' : 'planned'/);
+});
