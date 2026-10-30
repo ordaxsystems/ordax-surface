@@ -32,7 +32,10 @@ export function mountStoreExperience(host, {
   const documentObject = host.ownerDocument;
   const abort = new AbortController();
   let destroyed = false, preview = null, loading = false;
-  let mode = catalogPort.getSnapshot().state === 'ready' ? 'official' : 'planned';
+  // Capability availability belongs to the official catalog. A slow or
+  // unavailable catalog must never silently switch the user to demo content.
+  // The planned preview is explicitly opt-in via the existing window toggle.
+  let mode = 'official';
   host.classList.add('ordax-store-experience');
   host.setAttribute('data-meridian', '');
   host.dataset.material = material;
