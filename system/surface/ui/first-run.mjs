@@ -567,6 +567,12 @@ export function mountFirstRunExperience(
       }
       state.append(avatar, identity);
       body.append(state);
+      // Keep account management accessible without a second setup dashboard.
+      const manage = el(documentObject, "a", "ordax-first-run-account-link", "Abrir Minha conta na Web");
+      manage.href = "https://ordax.com.br/conta/";
+      manage.target = "_blank";
+      manage.rel = "noopener noreferrer";
+      body.append(manage);
       body.append(el(documentObject, "p", "ordax-first-run-account-help",
         "Sua conta está identificada. A seguir, você configura a proteção local e o nome deste OrdaX."));
       if (isIdentityActionSupported(actionsSnapshot, "sign-out")) {
@@ -1228,7 +1234,7 @@ export function mountFirstRunExperience(
       // When Device is not a separate step, persist its optional rename before
       // the completion receipt. A failed rename must never be presented as saved.
       if (!STEPS.includes("name") && deviceProfilePort && deviceProfileSnapshot) {
-        const nextName = deviceNameDraft.trim().replace(/\\s+/g, " ");
+        const nextName = deviceNameDraft.trim().replace(/\s+/g, " ");
         if (nextName && nextName !== deviceProfileSnapshot.displayName) {
           try {
             deviceProfileSnapshot = await deviceProfilePort.rename(nextName);
