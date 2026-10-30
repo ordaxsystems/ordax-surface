@@ -1,3 +1,5 @@
+import { shouldSubmitTextInputOnEnter } from "./keyboard-submit.mjs";
+
 // Native Home chrome; service-owned data is rendered by its dedicated mounts.
 export function homeConceptSections(t, icons) {
   const rows = [
@@ -13,7 +15,7 @@ export function homeConceptSections(t, icons) {
 }
 
 export function handleHomeConceptKeyDown(event, root) {
-  if (event.key !== "Enter" || event.isComposing || !event.target.matches?.("[data-native-aura-prompt]")) {
+  if (!shouldSubmitTextInputOnEnter(event) || !event.target.matches?.("[data-native-aura-prompt]")) {
     return false;
   }
   event.preventDefault();
