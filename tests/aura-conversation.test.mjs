@@ -44,11 +44,18 @@ test('Aura context is bounded; invalid and unconfirmed answers never enter histo
   assert.ok(Object.isFrozen(session.getSnapshot()));
 });
 
-test('Aura transcripts are isolated per client and can be reset', () => {
+test('Aura transcripts are isolated per client and clear on account or Space change', () => {
   const first = createAuraConversationStore(), second = createAuraConversationStore();
   first.record('Confidencial', response('Resposta local'));
   assert.equal(second.getSnapshot().length, 0);
   assert.equal(second.context().length, 0);
+  first.bindScope('identity-a:space-1');
+  first.record('Scoped', response('Context for A'));
+  first.bindScope('identity-a:space-2');
+  assert.equal(first.getSnapshot().length, 0);
+  first.record('Another scope', response('Context for B'));
+  first.bindScope('identity-b:space-2');
+  assert.equal(first.context().length, 0);
   first.clear();
   assert.equal(first.context().length, 0);
 });

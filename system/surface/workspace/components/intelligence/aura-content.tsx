@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Fo
 import { Send, Sparkles, Square, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIntelligenceClient } from './client-context';
+import { useWebAccount } from '../central/account-context';
 import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
 import './aura-content.css';
 
@@ -18,12 +19,28 @@ type ResultState =
 export function AuraContent({ initialPrompt }: Props) {
   const { client, snapshot, conversation } = useIntelligenceClient();
   const turns = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot, conversation.getSnapshot);
+  const { identity, authorized } = useWebAccount();
+  const scopeKey = JSON.stringify([identity.state, identity.subjectId, authorized.activeSpace?.id ?? null]);
+  const scoped = conversation.getScope() === scopeKey;
+  const visibleTurns = scoped ? turns : [];
   const productName = getSurfaceWindowTitle('intelligence');
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState<ResultState>({ state: 'idle' });
   const activeRequest = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
   const consumedInitialPrompt = useRef<Props['initialPrompt']>(undefined);
+
+  // Scope is presentation isolation, never authorization; Native still checks
+  // Identity and Space itself. Hide stale data before the effect can run.
+  useEffect(() => {
+    if (conversation.getScope() === scopeKey) return;
+    requestGeneration.current++;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    conversation.bindScope(scopeKey);
+    setResult({ state: 'idle' });
+    setPrompt('');
+  }, [conversation, scopeKey]);
 
   useEffect(() => {
     setResult({ state: 'idle' });
@@ -55,7 +72,7 @@ export function AuraContent({ initialPrompt }: Props) {
 
   const run = useCallback(async (raw: string) => {
     const normalized = raw.trim();
-    if (!normalized) return;
+    if (!normalized || conversation.getScope() !== scopeKey) return;
     if (snapshot.state !== 'ready' || !snapshot.inferenceAvailable) {
       setResult({ state: 'unavailable' });
       return;
@@ -94,7 +111,7 @@ export function AuraContent({ initialPrompt }: Props) {
       clearTimeout(watchdog);
       if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, [client, conversation, snapshot.inferenceAvailable, snapshot.state]);
+  }, [client, conversation, scopeKey, snapshot.inferenceAvailable, snapshot.state]);
 
   useEffect(() => {
     if (initialPrompt === undefined || consumedInitialPrompt.current === initialPrompt) return;
@@ -108,7 +125,7 @@ export function AuraContent({ initialPrompt }: Props) {
     if (result.state !== 'pending') void run(prompt);
   }
 
-  const pending = result.state === 'pending';
+  const pending = scoped && result.state === 'pending';
   const available = snapshot.state === 'ready' && snapshot.inferenceAvailable;
   const serviceLabel = snapshot.state === 'ready' ? 'Pronta · ' + snapshot.modelId
     : snapshot.state === 'busy' ? 'Motor em uso · aguarde a liberação'
@@ -118,14 +135,14 @@ export function AuraContent({ initialPrompt }: Props) {
   return <section className="aura-experience" aria-label="Conversa com Aura">
     <header className="aura-toolbar">
       <div className="desktop-content-heading"><Sparkles aria-hidden="true"/><h2>{productName}</h2></div>
-      <Button type="button" variant="outline" size="sm" onClick={startNewConversation} disabled={!turns.length && !pending && !prompt.trim()}>
+      <Button type="button" variant="outline" size="sm" onClick={startNewConversation} disabled={!visibleTurns.length && !pending && !prompt.trim()}>
         <Plus aria-hidden="true"/> Nova conversa
       </Button>
     </header>
     <p className="service-state" role="status" data-intelligence-state={snapshot.state}>{serviceLabel}</p>
     <div className="aura-thread" role="log" aria-label="Mensagens desta conversa" aria-live="polite">
-      {turns.length === 0 && !pending && <p className="aura-thread-empty">Faça uma pergunta para começar. As respostas reais aparecerão aqui quando o motor estiver pronto.</p>}
-      {turns.map(turn => <div key={turn.id} className="aura-exchange">
+      {visibleTurns.length === 0 && !pending && <p className="aura-thread-empty">Faça uma pergunta para começar. As respostas reais aparecerão aqui quando o motor estiver pronto.</p>}
+      {visibleTurns.map(turn => <div key={turn.id} className="aura-exchange">
         <article className="aura-turn" data-speaker="user"><span className="aura-speaker">Você</span><p>{turn.prompt}</p></article>
         <article className="aura-turn" data-speaker="aura"><span className="aura-speaker">{productName}</span><p>{turn.answer}</p><p className="service-state">{turn.engineId} · {turn.modelId}</p></article>
       </div>)}
@@ -136,13 +153,13 @@ export function AuraContent({ initialPrompt }: Props) {
     </div>
     <form className="aura-search" onSubmit={submit}>
       <Sparkles className="aura-star" aria-hidden="true"/>
-      <input aria-label="Pergunta para a Aura" placeholder={available ? 'Pergunte ou continue a conversa…' : 'Aguardando disponibilidade do motor…'} value={prompt} onChange={event => setPrompt(event.target.value)} disabled={pending}/>
+      <input aria-label="Pergunta para a Aura" placeholder={available ? 'Pergunte ou continue a conversa…' : 'Aguardando disponibilidade do motor…'} value={scoped ? prompt : ''} onChange={event => setPrompt(event.target.value)} disabled={pending || !scoped}/>
       {pending ? <Button type="button" variant="outline" onClick={stop} aria-label="Interromper espera da resposta"><Square aria-hidden="true"/> Parar</Button>
-        : <Button type="submit" className="send-button" aria-label="Enviar pergunta" disabled={!available || !prompt.trim()}><Send aria-hidden="true"/></Button>}
+        : <Button type="submit" className="send-button" aria-label="Enviar pergunta" disabled={!available || !scoped || !prompt.trim()}><Send aria-hidden="true"/></Button>}
     </form>
-    {result.state === 'unavailable' && <p className="desktop-unconnected aura-feedback" role="status">O motor não está pronto. Sua pergunta foi preservada; tente novamente quando estiver disponível.</p>}
-    {result.state === 'error' && <p className="desktop-unconnected aura-feedback" role="alert">Não foi possível concluir a solicitação. A pergunta foi preservada para nova tentativa.</p>}
-    {result.state === 'timeout' && <p className="desktop-unconnected aura-feedback" role="alert">A Aura não respondeu dentro do prazo. A espera foi encerrada; nenhuma resposta foi confirmada.</p>}
+    {scoped && result.state === 'unavailable' && <p className="desktop-unconnected aura-feedback" role="status">O motor não está pronto. Sua pergunta foi preservada; tente novamente quando estiver disponível.</p>}
+    {scoped && result.state === 'error' && <p className="desktop-unconnected aura-feedback" role="alert">Não foi possível concluir a solicitação. A pergunta foi preservada para nova tentativa.</p>}
+    {scoped && result.state === 'timeout' && <p className="desktop-unconnected aura-feedback" role="alert">A Aura não respondeu dentro do prazo. A espera foi encerrada; nenhuma resposta foi confirmada.</p>}
     <p className="aura-footnote">Conversa temporária nesta sessão da Surface. Sem sincronização ou memória persistente; somente respostas confirmadas entram no contexto.</p>
   </section>;
 }

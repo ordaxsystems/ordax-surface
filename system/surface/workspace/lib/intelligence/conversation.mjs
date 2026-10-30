@@ -9,10 +9,19 @@ function requireText(value, name) {
 export function createAuraConversationStore() {
   let turns = Object.freeze([]);
   let nextId = 0;
+  let scopeKey = null;
   const listeners = new Set();
   const publish = () => { for (const listener of [...listeners]) listener(); };
   return Object.freeze({
     getSnapshot() { return turns; },
+    getScope() { return scopeKey; },
+    bindScope(nextScope) {
+      if (typeof nextScope !== 'string' || !nextScope) throw new TypeError('Aura conversation scope is required');
+      if (scopeKey === nextScope) return;
+      scopeKey = nextScope;
+      turns = Object.freeze([]);
+      publish();
+    },
     subscribe(listener) {
       if (typeof listener !== "function") throw new TypeError("Aura conversation listener must be a function");
       listeners.add(listener);
