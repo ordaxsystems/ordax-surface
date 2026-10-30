@@ -174,12 +174,14 @@ test("Aura client streams through the canonical Intelligence port and validates 
 
 test("First Run reflows as one accessible Native wizard on narrow viewports", async () => {
   const css = await read("first-run.css");
-  assert.match(css, /@media \(max-width: 900px\)/);
-  assert.match(css, /@media \(max-width: 600px\)/);
+  assert.match(css, /@container \(max-width: 900px\)/);
+  assert.match(css, /@container \(max-width: 600px\)/);
   assert.match(css, /\.ordax-first-run-shell \{[^}]*min-width: 0;[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*grid-template-rows: auto minmax\(0, 1fr\);/s);
   assert.match(css, /\.ordax-first-run-steps \{[^}]*overflow-x: auto;/s);
   assert.match(css, /\.ordax-first-run-body \{[^}]*padding: 20px 16px;/s);
   assert.match(css, /\.ordax-first-run-footer \.ordax-first-run-action \{ min-height: 44px; \}/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(css, /container-type: inline-size;/);
+  assert.doesNotMatch(css, /@media\s*\(max-width:/);
   assert.doesNotMatch(css, /@media\s+\(max-width:\s*\d+px\)[\s\S]*?position:\s*fixed;\s*inset:/);
 });

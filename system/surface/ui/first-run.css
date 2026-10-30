@@ -1,5 +1,6 @@
 /* Canonical Meridian First Run, shared unchanged by Native/USB and emulator. */
 .ordax-first-run {
+  container-type: inline-size;
   position:fixed; inset:0; z-index:10001; display:grid; place-items:safe center;
   padding:clamp(12px,2vw,32px); overflow:auto;
   background:var(--md-canvas); color:var(--md-ink); font-family:var(--md-font);
@@ -483,8 +484,8 @@
   }
 }
 
-/* The native setup stays one component; compact windows reflow the rail. */
-@media (max-width: 900px) {
+/* The one Native setup reflows within its viewport-sized container; the OS shell is unchanged. */
+@container (max-width: 900px) {
   .ordax-first-run-shell {
     min-width: 0;
     width: 100%;
@@ -518,16 +519,10 @@
   .ordax-first-run-card { min-height: 0; }
 }
 
-@media (max-width: 600px) {
-  .ordax-first-run {
-    padding: 0;
-    place-items: stretch;
-  }
+@container (max-width: 600px) {
   .ordax-first-run-shell {
-    height: 100dvh;
-    max-height: 100dvh;
-    border: 0;
-    border-radius: 0;
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
   }
   .ordax-first-run-progress { padding: 10px 12px; gap: 8px; }
   .ordax-first-run-brand strong { font-size: 1rem; }
