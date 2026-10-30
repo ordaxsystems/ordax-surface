@@ -19,6 +19,7 @@ import {
   validateUpdateStatusSnapshot,
 } from "../../contracts/update-status.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { readHomeStatusWithDeadline } from "./home-status-read.mjs";
 
 const GIBIBYTE = 1024 ** 3;
 const MEBIBYTE = 1024 ** 2;
@@ -183,6 +184,7 @@ export function mountHomeStatus(rootValue, {
   };
   let destroyed = false;
   let refreshing = false;
+  let refreshQueued = false;
 
   const render = () => {
     if (destroyed) return;
@@ -236,7 +238,13 @@ export function mountHomeStatus(rootValue, {
   };
 
   const refreshReadPorts = async () => {
-    if (destroyed || refreshing) return;
+    if (destroyed) return;
+    // A connectivity/focus event during a pending read requires a fresh
+    // snapshot after that read finishes; do not silently discard the event.
+    if (refreshing) {
+      refreshQueued = true;
+      return;
+    }
     refreshing = true;
     const reads = [
       ["network", networkPort, validateNetworkStatusSnapshot],
@@ -244,7 +252,7 @@ export function mountHomeStatus(rootValue, {
     ].filter(([, port]) => port !== null);
     await Promise.all(reads.map(async ([key, port, validate]) => {
       try {
-        const snapshot = validate(await port.read());
+        const snapshot = await readHomeStatusWithDeadline(port, validate);
         if (destroyed) return;
         state[key] = snapshot;
         sourceState[key] = "ready";
@@ -252,10 +260,17 @@ export function mountHomeStatus(rootValue, {
         if (destroyed) return;
         state[key] = null;
         sourceState[key] = "unavailable";
+      } finally {
+        // Independent readouts can settle separately: do not hold network
+        // feedback behind a slow storage provider (or the reverse).
+        render();
       }
     }));
     refreshing = false;
-    render();
+    if (refreshQueued && !destroyed) {
+      refreshQueued = false;
+      void refreshReadPorts();
+    }
   };
 
   const unsubscribeIdentity = identityPort?.subscribe((snapshot) => {
