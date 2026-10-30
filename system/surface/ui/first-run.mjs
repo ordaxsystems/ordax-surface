@@ -27,7 +27,8 @@ import {
   isSupportedRegionalTimeZone,
 } from "../../services/preferences/regional.mjs";
 import { icon } from "./meridian/icons.mjs";
-import { trapFirstRunKeyboardFocus, shouldSubmitFirstRunEnter } from "./first-run-keyboard-focus.mjs";
+import { trapFirstRunKeyboardFocus } from "./first-run-keyboard-focus.mjs";
+import { shouldSubmitTextInputOnEnter } from "./keyboard-submit.mjs";
 import { SYSTEM_TERMS_DOCUMENT, createSystemTermsAcceptance } from "../../contracts/system-terms.mjs";
 import { translateFirstRunText } from "../../services/i18n/first-run.mjs";
 import { FIRST_RUN_JOURNEY } from "../../services/first-run/journey.mjs";
@@ -1402,7 +1403,7 @@ export function mountFirstRunExperience(
       trapFirstRunKeyboardFocus(event, overlay, documentObject.activeElement);
       return;
     }
-    if (!shouldSubmitFirstRunEnter(event)) return;
+    if (!shouldSubmitTextInputOnEnter(event)) return;
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !overlay.contains(input)) return;
     if (input.matches("[data-first-run-wifi-password]")) {

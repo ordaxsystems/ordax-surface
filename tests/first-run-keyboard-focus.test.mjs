@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { trapFirstRunKeyboardFocus, shouldSubmitFirstRunEnter } from "../system/surface/ui/first-run-keyboard-focus.mjs";
+import { trapFirstRunKeyboardFocus } from "../system/surface/ui/first-run-keyboard-focus.mjs";
+import { shouldSubmitTextInputOnEnter } from "../system/surface/ui/keyboard-submit.mjs";
 
 function setup() {
   let current = null;
@@ -81,18 +82,18 @@ test("First Run ignores keys other than Tab", () => {
 });
 
 test("First Run does not treat IME candidate confirmation as form submission", () => {
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Enter", isComposing: true }), false);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Enter", isComposing: false, keyCode: 229 }), false);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Process", isComposing: true, keyCode: 229 }), false);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Enter", isComposing: false, keyCode: 13 }), true);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Enter" }), true);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Tab" }), false);
-  assert.equal(shouldSubmitFirstRunEnter({ key: "Escape" }), false);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Enter", isComposing: true }), false);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Enter", isComposing: false, keyCode: 229 }), false);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Process", isComposing: true, keyCode: 229 }), false);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Enter", isComposing: false, keyCode: 13 }), true);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Enter" }), true);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Tab" }), false);
+  assert.equal(shouldSubmitTextInputOnEnter({ key: "Escape" }), false);
 });
 
 test("First Run wired keydown handler uses IME-safe Enter boundary", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../system/surface/ui/first-run.mjs", import.meta.url), "utf8");
-  assert.match(source, /if \(!shouldSubmitFirstRunEnter\(event\)\) return;/);
+  assert.match(source, /if \(!shouldSubmitTextInputOnEnter\(event\)\) return;/);
   assert.match(source, /trapFirstRunKeyboardFocus\(event, overlay, documentObject\.activeElement\)/);
 });
