@@ -51,7 +51,7 @@ export function createIntelligenceClient(input) {
     },
     /**
      * @param {string} prompt
-     * @param {{ signal?: AbortSignal | null, onDelta?: ((delta: string) => void | Promise<void>) | null, maxTokens?: number, context?: Array<object> }} [options]
+     * @param {{ signal?: AbortSignal | null, onDelta?: ((delta: string) => void | Promise<void>) | null, maxTokens?: number, context?: ReadonlyArray<object> }} [options]
      */
     async ask(prompt, { signal = null, onDelta = null, maxTokens = 512, context = [] } = {}) {
       refresh();
