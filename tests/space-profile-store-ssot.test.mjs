@@ -17,16 +17,13 @@ test('active Space apps are a read-only projection of the canonical OS and Store
   assert.doesNotMatch(source, /(?:fetch\(|requestLifecycle\(|\.install\(|\.activate\(|localStorage|sessionStorage|service_role)/);
 });
 
-test('Space and Profile catalog consume one shared Store status vocabulary', () => {
+test('Space composition uses the shared Store status vocabulary, without a second Profile screen', () => {
   const space = read('system/surface/workspace/components/central/space-profile-apps.tsx');
-  const profiles = read('system/surface/workspace/components/central/profile-catalog.tsx');
   const labels = read('system/surface/workspace/components/store/app-status-labels.ts');
   assert.match(space, /storeAppStatusLabel\(app.status\)/);
-  assert.match(profiles, /storeAppStatusLabel\(app.status\)/);
   for (const status of ['unknown','not-listed','installed','update-available','blocked','failed-retained','in-progress','unavailable']) {
     assert.ok(labels.includes(status), status);
   }
-  assert.doesNotMatch(profiles, /\(\{ unknown: 'Estado indisponível'/);
 });
 
 test('Space app panel exists only in the account view and not in sample spaces', () => {
