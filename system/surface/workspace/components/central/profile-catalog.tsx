@@ -5,6 +5,8 @@ import { useStoreCatalog } from '../store/catalog-context';
 import { storeAppStatusLabel } from '../store/app-status-labels';
 import { projectProfileStoreAppStatus } from '../../../../services/profile-packs/store-app-status.mjs';
 
+// Read-only design-preview consumer; not a user-facing destination.
+// Space composition for live users is owned by SpaceProfileAppsPanel.
 export function ProfileCatalogPanel() {
   const readCatalog = useProfileCatalogReader();
   const storeSnapshot = useStoreCatalog();

@@ -1,6 +1,5 @@
 import { ServiceOverview } from './service-overview';
 import { SpacesExperience } from './spaces-experience';
-import { ProfileCatalogPanel } from './profile-catalog';
 import { FavoriteShortcutsPanel } from './favorite-shortcuts';
 import { WebNotificationCenter } from './notifications';
 import { lazy, Suspense, useState, type Dispatch } from 'react';
@@ -47,7 +46,6 @@ export function Desktop({ onCentral, dispatch }: Props) {
 }
 export function DesktopContent({ title, open }: PresentationProps & { initialPrompt?: { text: string }; title: string; open: (title: string) => void }) {
   if (title === 'Loja') return <Suspense fallback={<p className="service-state" role="status">Carregando Loja…</p>}><Store/></Suspense>;
-  if (title === 'Perfis profissionais') return <ProfileCatalogPanel/>;
   if (title === 'Minha conta') return <AccountPanel onOpen={open}/>;
   if (title === 'Projetos' || title === 'Arquivos') return <ServiceOverview area={title === 'Projetos' ? 'projects' : 'files'} onOpen={open}/>;
   if (title === 'Aplicativos') return <FavoriteShortcutsPanel onOpen={open} showHelp className="meridian-service-page meridian-apps-page"/>;
