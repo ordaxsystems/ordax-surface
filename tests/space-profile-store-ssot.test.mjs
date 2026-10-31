@@ -44,7 +44,9 @@ test("Spaces is the sole user-facing destination for Profile composition in Nati
   assert.doesNotMatch(account, /id: "profiles", messageId:/);
   assert.match(account, /const initialTarget = lifecycle.getAppTarget\("account"\)/);
   assert.match(account, /renderProfiles\(advanced\)/);
-  assert.match(account, /createDesktopSpaceCreatePort\(desktopWindow, sessionPort\)/);
+  assert.match(account, /spaceCreate = null/);
+  assert.match(account, /assertSpaceCreatePort\(spaceCreate\)/);
+  assert.doesNotMatch(account, /adapters\/desktop\/space-create/);
   assert.match(account, /spaceCreatePort\.create\(intent\)/);
   assert.match(account, /await spacesPort\.refresh\(\)/);
   assert.match(account, /authorized\.visibleSpaces\.find\(space =>/);
