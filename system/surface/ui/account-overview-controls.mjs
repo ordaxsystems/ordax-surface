@@ -676,9 +676,9 @@ export function mountAccountOverviewControls(
       const form = node(documentObject, "form", "ordax-account-section ordax-account-space-create-form");
       form.dataset.accountSpaceCreate = "";
       form.append(
-        node(documentObject, "h5", "ordax-account-section-title", "Criar Space"),
+        node(documentObject, "h5", "ordax-account-section-title", t("account.spaces.create.title")),
         node(documentObject, "p", "ordax-account-subtitle",
-          "Escolha o tipo de trabalho. A composição profissional será verificada separadamente."),
+          t("account.spaces.create.description")),
       );
       const nameField = node(documentObject, "label", "ordax-account-field");
       const nameInput = documentObject.createElement("input");
@@ -688,7 +688,7 @@ export function mountAccountOverviewControls(
       nameInput.value = createNameDraft;
       nameInput.autocomplete = "off";
       nameInput.dataset.accountSpaceCreateName = "";
-      nameField.append(node(documentObject, "span", "", "Nome do Space"), nameInput);
+      nameField.append(node(documentObject, "span", "", t("account.spaces.create.name")), nameInput);
       const typeField = node(documentObject, "label", "ordax-account-field");
       const typeInput = documentObject.createElement("select");
       typeInput.dataset.accountSpaceCreateType = "";
@@ -700,9 +700,9 @@ export function mountAccountOverviewControls(
         typeInput.append(option);
       }
       typeInput.value = createTypeDraft;
-      typeField.append(node(documentObject, "span", "", "Tipo do Space"), typeInput);
+      typeField.append(node(documentObject, "span", "", t("account.spaces.create.type")), typeInput);
       const submit = node(documentObject, "button", "ordax-account-action ordax-account-action-primary",
-        createPending ? "Criando Space…" : "Criar Space");
+        createPending ? t("account.spaces.create.pending") : t("account.spaces.create.title"));
       submit.type = "submit";
       submit.disabled = createPending || createNameDraft.trim().length === 0;
       nameInput.disabled = createPending;
@@ -710,7 +710,7 @@ export function mountAccountOverviewControls(
       section.append(form);
     } else if (!spaceCreatePort) {
       section.append(node(documentObject, "p", "ordax-account-message",
-        "Criação de Spaces indisponível neste ambiente. A consulta dos seus Spaces continua ativa."));
+        t("account.spaces.create.unavailable")));
     }
     if (createMessage) {
       const status = node(documentObject, "p", "ordax-account-message", createMessage);
@@ -819,7 +819,7 @@ export function mountAccountOverviewControls(
       const advanced = node(documentObject, "details", "ordax-account-section");
       advanced.dataset.spaceProfileDetails = "";
       advanced.append(node(documentObject, "summary", "ordax-account-section-title",
-        "Composição profissional deste Space"));
+        t("account.spaces.create.advanced")));
       renderProfiles(advanced);
       section.append(advanced);
     }
@@ -1508,7 +1508,7 @@ export function mountAccountOverviewControls(
     const crypto = desktopWindow?.crypto;
     if (!createIdempotencyKey) {
       if (typeof crypto?.randomUUID !== "function") {
-        createMessage = "Identificador seguro de criação indisponível.";
+        createMessage = t("account.spaces.create.secureIdUnavailable");
         replaceView();
         return;
       }
@@ -1539,13 +1539,13 @@ export function mountAccountOverviewControls(
           space.id === receipt.space.id && space.ownerId === subjectId && space.state === "active");
         if (!match) throw new Error("Space not visible in refreshed authorized catalog");
         if (spaceSelectionPort) spaceSelectionPort.select(match.id);
-        createMessage = "Space criado e confirmado na sua Conta. A composição profissional está pendente de validação e ativação.";
+        createMessage = t("account.spaces.create.createdPending");
         createNameDraft = "";
         createIdempotencyKey = null;
       } catch {
         if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
         // Uncertain HTTP and stale catalog must retry with the SAME UUID.
-        createMessage = "Não foi possível confirmar a criação e a seleção. Tente novamente: a solicitação será retomada sem duplicar o Space.";
+        createMessage = t("account.spaces.create.retryUnconfirmed");
       } finally {
         if (!destroyed && ordinal === createOrdinal) {
           createPending = false;
