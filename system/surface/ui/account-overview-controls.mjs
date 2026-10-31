@@ -4,7 +4,6 @@ import { readRememberedLoginEmail } from "../../services/account/remembered-logi
 import { HOSTED_ACCOUNT_SIGNUP_URL, isHostedSignupEnabled, requestNativeHostedSignup } from "../../services/account/hosted-signup.mjs";
 import { describeSpacePresentation } from "../../services/spaces/presentation.mjs";
 import { SPACE_TYPE_CATALOG, getSpaceType } from "../../services/spaces/type-catalog.mjs";
-import { createDesktopSpaceCreatePort } from "../../adapters/desktop/space-create.mjs";
 import { assertSpaceCreatePort } from "../../contracts/space-create-port.mjs";
 import {
   assertIdentityActionsPort,
@@ -134,21 +133,17 @@ export function mountAccountOverviewControls(
   profileTaxonomy = null,
   spaceExperience = null,
   hostedSignupBridge = null,
+  spaceCreate = null,
 ) {
   if (!(root instanceof Element)) {
     throw new TypeError("Account overview controls require a Surface root Element");
   }
 
   const sessionPort = assertIdentitySessionPort(identitySession);
+  // The OS composition is the only platform adapter owner. The Surface only
+  // consumes an injected contract; absent authority is explicitly read-only.
   const desktopWindow = root.ownerDocument.defaultView;
-  // One OS command adapter, owned by this mounted Account view; the Web and
-  // Linux presentation remain read-only until they have their own host.
-  const desktopSpaceHost = desktopWindow?.location?.protocol === "http:"
-    && desktopWindow.location.hostname === "127.0.0.1"
-    && typeof desktopWindow.ordaxDesktopBrowser?.postMessage === "function";
-  const spaceCreatePort = desktopSpaceHost
-    ? assertSpaceCreatePort(createDesktopSpaceCreatePort(desktopWindow, sessionPort))
-    : null;
+  const spaceCreatePort = spaceCreate === null ? null : assertSpaceCreatePort(spaceCreate);
   const actionsPort = assertIdentityActionsPort(identityActions);
   const credentialsPort = identityCredentials === null
     ? null
