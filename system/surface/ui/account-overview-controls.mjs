@@ -3,6 +3,9 @@ import { deriveAuthorizedSpaces } from "../../services/spaces/authorized-view.mj
 import { readRememberedLoginEmail } from "../../services/account/remembered-login-email.mjs";
 import { HOSTED_ACCOUNT_SIGNUP_URL, isHostedSignupEnabled, requestNativeHostedSignup } from "../../services/account/hosted-signup.mjs";
 import { describeSpacePresentation } from "../../services/spaces/presentation.mjs";
+import { SPACE_TYPE_CATALOG, getSpaceType } from "../../services/spaces/type-catalog.mjs";
+import { createDesktopSpaceCreatePort } from "../../adapters/desktop/space-create.mjs";
+import { assertSpaceCreatePort } from "../../contracts/space-create-port.mjs";
 import {
   assertIdentityActionsPort,
   isIdentityActionSupported,
@@ -52,11 +55,12 @@ import { MEMORY_CONFLICT_REVIEW_SCHEMA } from "../../services/sync/memory-confli
 
 const ACCOUNT_WINDOW_SELECTOR = '[data-window-id="account"]';
 const ACCOUNT_EXTENSION_SELECTOR = '[data-app-extension="account-overview"]';
+const CREATABLE_SPACE_TYPES = SPACE_TYPE_CATALOG.types.filter(type =>
+  type.lifecycle === "mvp-foundation" && type.creationDefaultProfile !== null);
 
 const ACCOUNT_SECTIONS = Object.freeze([
   Object.freeze({ id: "overview", messageId: "account.section.overview" }),
   Object.freeze({ id: "spaces", messageId: "account.section.spaces" }),
-  Object.freeze({ id: "profiles", messageId: "account.section.profiles" }),
   Object.freeze({ id: "memory", messageId: "account.section.memory" }),
   Object.freeze({ id: "sync", messageId: "account.section.sync" }),
 ]);
@@ -136,6 +140,15 @@ export function mountAccountOverviewControls(
   }
 
   const sessionPort = assertIdentitySessionPort(identitySession);
+  const desktopWindow = root.ownerDocument.defaultView;
+  // One OS command adapter, owned by this mounted Account view; the Web and
+  // Linux presentation remain read-only until they have their own host.
+  const desktopSpaceHost = desktopWindow?.location?.protocol === "http:"
+    && desktopWindow.location.hostname === "127.0.0.1"
+    && typeof desktopWindow.ordaxDesktopBrowser?.postMessage === "function";
+  const spaceCreatePort = desktopSpaceHost
+    ? assertSpaceCreatePort(createDesktopSpaceCreatePort(desktopWindow, sessionPort))
+    : null;
   const actionsPort = assertIdentityActionsPort(identityActions);
   const credentialsPort = identityCredentials === null
     ? null
@@ -211,6 +224,12 @@ export function mountAccountOverviewControls(
   let actionMessage = "";
   let spaceMessage = "";
   let profileMessage = "";
+  let createNameDraft = "";
+  let createTypeDraft = CREATABLE_SPACE_TYPES[0]?.key ?? "";
+  let createIdempotencyKey = null;
+  let createMessage = "";
+  let createPending = false;
+  let createOrdinal = 0;
   let memoryConflictMessage = "";
   let pendingMemoryConflict = null;
   let credentialEmailDraft = readRememberedLoginEmail(documentObject.defaultView);
@@ -225,9 +244,10 @@ export function mountAccountOverviewControls(
   let closeMessage = "";
   let actionOrdinal = 0;
   let closeOrdinal = 0;
-  let activeSection = validAccountSection(lifecycle.getAppTarget("account"))
-    ? lifecycle.getAppTarget("account")
-    : "overview";
+  // Historic destinations to Profiles become the existing Spaces destination.
+  const initialTarget = lifecycle.getAppTarget("account");
+  let activeSection = initialTarget === "profiles" ? "spaces"
+    : validAccountSection(initialTarget) ? initialTarget : "overview";
   let destroyed = false;
   let mountedSlot = null;
   let memoryReviewControls = null;
@@ -276,6 +296,7 @@ export function mountAccountOverviewControls(
       windowScrollTop: windowBody?.scrollTop ?? 0,
       windowScrollLeft: windowBody?.scrollLeft ?? 0,
       focus: activeInside ? focusIdentity(activeElement) : null,
+      advancedOpen: slot.querySelector("[data-space-profile-details]")?.open === true,
     });
   };
 
@@ -289,6 +310,8 @@ export function mountAccountOverviewControls(
       windowBody.scrollLeft = snapshot.windowScrollLeft;
     }
 
+    const advanced = slot.querySelector("[data-space-profile-details]");
+    if (advanced) advanced.open = snapshot.advancedOpen;
     const target = findFocusTarget(slot, snapshot.focus);
     if (!target || target.disabled) return;
     target.focus({ preventScroll: true });
@@ -654,6 +677,52 @@ export function mountAccountOverviewControls(
     actions.append(refresh);
     section.append(actions);
 
+    if (spaceCreatePort && CREATABLE_SPACE_TYPES.length > 0 && spacesSnapshot.state === "ready") {
+      const form = node(documentObject, "form", "ordax-account-section ordax-account-space-create-form");
+      form.dataset.accountSpaceCreate = "";
+      form.append(
+        node(documentObject, "h5", "ordax-account-section-title", "Criar Space"),
+        node(documentObject, "p", "ordax-account-subtitle",
+          "Escolha o tipo de trabalho. A composição profissional será verificada separadamente."),
+      );
+      const nameField = node(documentObject, "label", "ordax-account-field");
+      const nameInput = documentObject.createElement("input");
+      nameInput.type = "text";
+      nameInput.required = true;
+      nameInput.maxLength = 120;
+      nameInput.value = createNameDraft;
+      nameInput.autocomplete = "off";
+      nameInput.dataset.accountSpaceCreateName = "";
+      nameField.append(node(documentObject, "span", "", "Nome do Space"), nameInput);
+      const typeField = node(documentObject, "label", "ordax-account-field");
+      const typeInput = documentObject.createElement("select");
+      typeInput.dataset.accountSpaceCreateType = "";
+      typeInput.required = true;
+      typeInput.disabled = createPending;
+      for (const type of CREATABLE_SPACE_TYPES) {
+        const option = node(documentObject, "option", "", t(type.labelId));
+        option.value = type.key;
+        typeInput.append(option);
+      }
+      typeInput.value = createTypeDraft;
+      typeField.append(node(documentObject, "span", "", "Tipo do Space"), typeInput);
+      const submit = node(documentObject, "button", "ordax-account-action ordax-account-action-primary",
+        createPending ? "Criando Space…" : "Criar Space");
+      submit.type = "submit";
+      submit.disabled = createPending || createNameDraft.trim().length === 0;
+      nameInput.disabled = createPending;
+      form.append(nameField, typeField, submit);
+      section.append(form);
+    } else if (!spaceCreatePort) {
+      section.append(node(documentObject, "p", "ordax-account-message",
+        "Criação de Spaces indisponível neste ambiente. A consulta dos seus Spaces continua ativa."));
+    }
+    if (createMessage) {
+      const status = node(documentObject, "p", "ordax-account-message", createMessage);
+      status.setAttribute("role", "status");
+      section.append(status);
+    }
+
     if (spacesSnapshot.state === "loading" || spacesSnapshot.state === "idle") {
       section.append(node(documentObject, "p", "ordax-account-message", t("account.spaces.loading")));
       view.append(section);
@@ -749,6 +818,16 @@ export function mountAccountOverviewControls(
     if (spaceMessage) {
       section.append(node(documentObject, "p", "ordax-account-message", spaceMessage));
     }
+    // A Profile Pack is a technical composition of the selected Space, not a
+    // separately navigable product or a second account section.
+    if (spaceContext.activeSpace && profileProvisioningPort) {
+      const advanced = node(documentObject, "details", "ordax-account-section");
+      advanced.dataset.spaceProfileDetails = "";
+      advanced.append(node(documentObject, "summary", "ordax-account-section-title",
+        "Composição profissional deste Space"));
+      renderProfiles(advanced);
+      section.append(advanced);
+    }
     view.append(section);
   };
 
@@ -777,6 +856,8 @@ export function mountAccountOverviewControls(
 
     const selectedSpace = authorizedSpaces().activeSpace;
     const activeProfile = currentProfileForSpace(profileActivationSnapshot, selectedSpace);
+    const selectedType = selectedSpace?.domain && selectedSpace?.subtype
+      ? getSpaceType(selectedSpace.domain, selectedSpace.subtype) : null;
 
     if (selectedSpace === null) {
       section.append(
@@ -804,7 +885,9 @@ export function mountAccountOverviewControls(
           taxonomy: profileTaxonomy.taxonomy,
           language: localization.getLocale().startsWith("pt") ? "ptBR" : "en",
         });
-    let visiblePlans = profilePlans;
+    // Never offer a Profile from another Space type as an activation choice.
+    let visiblePlans = profilePlans.filter(plan => selectedType?.profileBindings.includes(
+      `${plan.profile.slug}@${plan.profile.version}`) === true);
     if (categoryView !== null) {
       const controls = node(documentObject, "div", "ordax-account-actions");
       const chooser = node(documentObject, "select", "ordax-account-action");
@@ -827,7 +910,7 @@ export function mountAccountOverviewControls(
       chooser.value = selectedProfileCategory ?? "";
       controls.append(chooser);
       section.append(controls);
-      visiblePlans = profilePlans.filter((plan) => {
+      visiblePlans = visiblePlans.filter((plan) => {
         const published = profileCategoryCatalog.get(plan.profile.slug, plan.profile.version);
         if (published === null) return false; // never promote a draft by listing it
         if (selectedProfileCategory === null) return true;
@@ -1197,8 +1280,6 @@ export function mountAccountOverviewControls(
       renderIdentity(view);
     } else if (activeSection === "spaces") {
       renderSpaces(view);
-    } else if (activeSection === "profiles") {
-      renderProfiles(view);
     } else if (activeSection === "memory") {
       renderMemory(view);
     } else if (activeSection === "sync") {
@@ -1358,6 +1439,15 @@ export function mountAccountOverviewControls(
 
   const onChange = (event) => {
     const control = event.target;
+    if (control instanceof HTMLSelectElement && root.contains(control)
+        && control.matches("[data-account-space-create-type]") && !createPending) {
+      if (CREATABLE_SPACE_TYPES.some(type => type.key === control.value)) {
+        createTypeDraft = control.value;
+        createIdempotencyKey = null;
+        createMessage = "";
+      }
+      return;
+    }
     if (!(control instanceof HTMLSelectElement)
         || !root.contains(control)
         || !control.matches("[data-account-profile-category]")
@@ -1376,7 +1466,13 @@ export function mountAccountOverviewControls(
   const onInput = (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !root.contains(input)) return;
-    if (input.matches("[data-account-credential-email]")) {
+    if (input.matches("[data-account-space-create-name]") && !createPending) {
+      createNameDraft = input.value;
+      createIdempotencyKey = null;
+      createMessage = "";
+      const submit = root.querySelector("[data-account-space-create] button[type=submit]");
+      if (submit) submit.disabled = createNameDraft.trim().length === 0;
+    } else if (input.matches("[data-account-credential-email]")) {
       credentialEmailDraft = input.value;
     } else if (input.matches("[data-account-credential-password]")) {
       credentialPasswordDraft = input.value;
@@ -1404,6 +1500,64 @@ export function mountAccountOverviewControls(
         );
       }
     }
+  };
+
+  const onSubmit = (event) => {
+    const form = event.target;
+    if (!form?.matches?.("[data-account-space-create]") || !root.contains(form)) return;
+    event.preventDefault();
+    if (!spaceCreatePort || createPending || destroyed || sessionSnapshot.state !== "signed-in") return;
+    const selectedType = CREATABLE_SPACE_TYPES.find(type => type.key === createTypeDraft);
+    const name = createNameDraft.trim();
+    if (!selectedType || name.length === 0 || name.length > 120) return;
+    const crypto = desktopWindow?.crypto;
+    if (!createIdempotencyKey) {
+      if (typeof crypto?.randomUUID !== "function") {
+        createMessage = "Identificador seguro de criação indisponível.";
+        replaceView();
+        return;
+      }
+      createIdempotencyKey = crypto.randomUUID();
+    }
+    const subjectId = sessionSnapshot.subjectId;
+    const intent = {
+      name,
+      domain: selectedType.domain,
+      subtype: selectedType.subtype,
+      idempotencyKey: createIdempotencyKey,
+    };
+    const ordinal = ++createOrdinal;
+    createPending = true;
+    createMessage = "";
+    replaceView();
+    void (async () => {
+      try {
+        const receipt = await spaceCreatePort.create(intent);
+        if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
+        // The mutation receipt is not catalog visibility or permission to select.
+        await spacesPort.refresh();
+        if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
+        const fresh = validateSpacesSnapshot(spacesPort.getSnapshot());
+        const authorized = deriveAuthorizedSpaces(
+          sessionPort.getSnapshot(), fresh, spaceSelectionPort?.getSnapshot() ?? null);
+        const match = authorized.ready && authorized.visibleSpaces.find(space =>
+          space.id === receipt.space.id && space.ownerId === subjectId && space.state === "active");
+        if (!match) throw new Error("Space not visible in refreshed authorized catalog");
+        if (spaceSelectionPort) spaceSelectionPort.select(match.id);
+        createMessage = "Space criado e confirmado na sua Conta. A composição profissional está pendente de validação e ativação.";
+        createNameDraft = "";
+        createIdempotencyKey = null;
+      } catch {
+        if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
+        // Uncertain HTTP and stale catalog must retry with the SAME UUID.
+        createMessage = "Não foi possível confirmar a criação e a seleção. Tente novamente: a solicitação será retomada sem duplicar o Space.";
+      } finally {
+        if (!destroyed && ordinal === createOrdinal) {
+          createPending = false;
+          replaceView();
+        }
+      }
+    })();
   };
 
   const onClick = (event) => {
@@ -1568,12 +1722,14 @@ export function mountAccountOverviewControls(
     }
   };
 
+  root.addEventListener("submit", onSubmit);
   root.addEventListener("click", onClick);
   root.addEventListener("input", onInput);
   root.addEventListener("change", onChange);
   const unsubscribeRender = lifecycle.subscribeRender(() => {
     const persistedTarget = lifecycle.getAppTarget("account");
-    const nextSection = validAccountSection(persistedTarget) ? persistedTarget : "overview";
+    const nextSection = persistedTarget === "profiles" ? "spaces"
+      : validAccountSection(persistedTarget) ? persistedTarget : "overview";
     if (nextSection !== activeSection) {
       actionMessage = "";
       spaceMessage = "";
@@ -1605,6 +1761,11 @@ export function mountAccountOverviewControls(
     if (priorSubject !== currentSubject || sessionSnapshot.state !== "signed-in") {
       // Invalidate all in-flight catalog reads before painting the new account.
       spacesPort?.reset();
+      createOrdinal += 1;
+      createPending = false;
+      createIdempotencyKey = null;
+      createNameDraft = "";
+      createMessage = "";
       spaceMessage = "";
       profileMessage = "";
     }
@@ -1668,7 +1829,7 @@ export function mountAccountOverviewControls(
   });
   const unsubscribeProfileActivation = profileActivationPort?.subscribe?.((snapshot) => {
     profileActivationSnapshot = validateProfileActivationState(snapshot);
-    if (activeSection === "profiles") replaceView();
+    if (activeSection === "spaces") replaceView();
   });
   const unsubscribePreferences = preferencePort?.subscribe((snapshot) => {
     preferenceSnapshot = snapshot;
@@ -1709,6 +1870,9 @@ export function mountAccountOverviewControls(
       root.removeEventListener("input", onInput);
       root.removeEventListener("change", onChange);
       root.removeEventListener("click", onClick);
+      root.removeEventListener("submit", onSubmit);
+      spaceCreatePort?.dispose();
+      createOrdinal += 1;
       const slot = findSlot();
       if (slot?.dataset.ordaxAccountOverviewView !== undefined) {
         slot.replaceChildren();
