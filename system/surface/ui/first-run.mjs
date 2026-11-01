@@ -1239,21 +1239,6 @@ export function mountFirstRunExperience(
     completionError = "";
     render();
     try {
-      if (draft.accountMode === "identity") {
-        // Recheck the live authority before persisting an identity-mode first run.
-        // A cached or unavailable session must never become an authenticated receipt.
-        const identityStillCurrent = await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId);
-        if (destroyed) return;
-        if (!identityStillCurrent) {
-          draft.accountMode = null;
-          selectedIdentitySubjectId = null;
-          stepIndex = stepIndexFor("account");
-          identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
-          finishing = false;
-          render();
-          return;
-        }
-      }
       // When Device is not a separate step, persist its optional rename before
       // the completion receipt. A failed rename must never be presented as saved.
       if (!STEPS.includes("name") && deviceProfilePort && deviceProfileSnapshot) {
@@ -1265,6 +1250,23 @@ export function mountFirstRunExperience(
           } catch {
             throw new Error("Não foi possível salvar o nome do dispositivo.");
           }
+        }
+      }
+      if (draft.accountMode === "identity") {
+        // An optional device rename may wait on the Native host while the user
+        // changes accounts. Verify the selected identity only AFTER all prior
+        // awaited work and immediately before the completion receipt; an earlier
+        // check cannot authorize a later persisted identity-mode First Run.
+        const identityStillCurrent = await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId);
+        if (destroyed) return;
+        if (!identityStillCurrent) {
+          draft.accountMode = null;
+          selectedIdentitySubjectId = null;
+          stepIndex = stepIndexFor("account");
+          identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
+          finishing = false;
+          render();
+          return;
         }
       }
       preferencePort.set(REGIONAL_LOCALE_PREFERENCE_ID, draft.locale);
