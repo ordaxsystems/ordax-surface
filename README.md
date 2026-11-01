@@ -20,6 +20,17 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Conta — isolamento de sessões
+
+A apresentação de autenticação, encerramento de conta e consulta da política
+de cadastro é vinculada à sessão que iniciou cada operação. Se o estado ou
+o sujeito autenticado mudar durante uma resposta assíncrona, a Surface descarta
+as conclusões antigas, limpa credenciais transitórias e libera os controles
+visuais. Uma política de cadastro atrasada não substitui a leitura de uma
+nova sessão; o encerramento de um usuário não atualiza a sessão de outro.
+A autoridade de identidade, permissões e mutações continua exclusivamente
+nos ports e serviços canônicos do OS/Platform.
+
 ## Home Native — horários e preferência regional
 
 As atividades recentes de projetos e arquivos são projeções dos ports canônicos
