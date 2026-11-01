@@ -20,6 +20,18 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Primeiro uso — ações de Conta vinculadas à sessão
+
+O First Run considera as ações de entrar e sair da Conta como tentativas
+transitórias da apresentação, sem autoridade independente. Quando o port
+canônico informa outro sujeito autenticado ou fica indisponível, respostas
+antigas não podem atualizar mensagens, executar refresh de sessão nem concluir
+o fluxo `Continuar sem conta` iniciado pelo usuário anterior. O estado de
+espera é liberado para a nova sessão. No logout normal
+`signed-in → signed-out`, a tentativa continua válida para concluir a
+transição explícita ao modo local. Credenciais e permissões permanecem sob
+autoridade do OS/Platform, sem cópias persistidas pela Surface.
+
 ## Primeiro uso — confirmação final de identidade
 
 Quando a configuração inicial termina em modo Conta, o First Run usa a

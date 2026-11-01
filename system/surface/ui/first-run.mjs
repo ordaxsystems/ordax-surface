@@ -199,6 +199,7 @@ export function mountFirstRunExperience(
   let sessionSnapshot = sessionPort.getSnapshot();
   let actionsSnapshot = actionsPort.getSnapshot();
   let identityPending = null;
+  let identityActionOrdinal = 0;
   let identityAvailabilityPending = false;
   let identityMessage = "";
   let identityEmailDraft = readRememberedLoginEmail(documentObject.defaultView);
@@ -251,6 +252,7 @@ export function mountFirstRunExperience(
     networkOrdinal += 1;
     keyboardLayoutOrdinal += 1;
     registrationPolicyOrdinal += 1;
+    identityActionOrdinal += 1;
     passwordDraft = "";
     identityPasswordDraft = "";
     selectedIdentitySubjectId = null;
@@ -1180,6 +1182,7 @@ export function mountFirstRunExperience(
       : null;
     identityPasswordDraft = "";
     passwordVisible = false;
+    const ordinal = ++identityActionOrdinal;
     identityPending = kind;
     identityMessage = "";
     render();
@@ -1189,13 +1192,16 @@ export function mountFirstRunExperience(
         result = kind === "sign-in"
           ? await credentialsPort.signIn(credentialInput)
           : await credentialsPort.register(credentialInput);
+        // A newer authenticated subject can arrive while credentials are
+        // in flight. Never refresh or annotate that subject for an old action.
+        if (destroyed || ordinal !== identityActionOrdinal) return;
         if (typeof sessionPort.refresh === "function") {
           await sessionPort.refresh();
         }
       } else {
         await actionsPort.execute(kind);
       }
-      if (destroyed) return;
+      if (destroyed || ordinal !== identityActionOrdinal) return;
       sessionSnapshot = sessionPort.getSnapshot();
       actionsSnapshot = actionsPort.getSnapshot();
       identityMessage = kind === "sign-out"
@@ -1208,9 +1214,11 @@ export function mountFirstRunExperience(
             ? "Não foi possível confirmar a sessão da Conta OrdaX. Verifique internet e horário e tente novamente."
             : "A autenticação não foi confirmada. O uso local continua disponível.";
     } catch {
-      if (!destroyed) identityMessage = "A ação de conta não pôde ser concluída. O uso local continua disponível.";
+      if (!destroyed && ordinal === identityActionOrdinal) {
+        identityMessage = "A ação de conta não pôde ser concluída. O uso local continua disponível.";
+      }
     } finally {
-      if (!destroyed) {
+      if (!destroyed && ordinal === identityActionOrdinal) {
         identityPending = null;
         if (kind === "sign-out" && sessionSnapshot.state === "signed-out") {
           identityFormMode = "sign-in";
@@ -1438,7 +1446,25 @@ export function mountFirstRunExperience(
 
   unsubscribeSession = sessionPort.subscribe((snapshot) => {
     const previousSessionState = sessionSnapshot.state;
+    const previousSubjectId = previousSessionState === "signed-in"
+      ? sessionSnapshot.subjectId : null;
     sessionSnapshot = snapshot;
+    const currentSubjectId = sessionSnapshot.state === "signed-in"
+      ? sessionSnapshot.subjectId : null;
+    if (identityPending !== null && (
+      (currentSubjectId !== null && currentSubjectId !== previousSubjectId)
+      || (previousSessionState !== "unavailable" && sessionSnapshot.state === "unavailable")
+    )) {
+      // A new authenticated subject (or unavailable authority) supersedes
+      // the old visual action. A normal sign-out A -> signed-out is NOT
+      // revoked: it must still be able to finish the local-only handoff.
+      identityActionOrdinal += 1;
+      identityPending = null;
+      accountLocalRequested = false;
+      identityMessage = "";
+      identityPasswordDraft = "";
+      passwordVisible = false;
+    }
     if (previousSessionState !== sessionSnapshot.state) {
       // Re-entering signed-out after a login is a NEW policy-read context.
       // Do not let a slow response from a prior visit overwrite the new terms
