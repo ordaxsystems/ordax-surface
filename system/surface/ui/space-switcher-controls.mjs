@@ -13,13 +13,14 @@ import { describeSpacePresentation } from "../../services/spaces/presentation.mj
 // One presentation for the existing Account-owned Spaces catalog and selection.
 // Selecting a Space is navigation context, never a permission grant.
 export function deriveSpaceSwitcherView(identity, catalog, selection, activation = null) {
-  const { visibleSpaces, activeSpace: active } = deriveAuthorizedSpaces(
+  const { ready, visibleSpaces, activeSpace: active } = deriveAuthorizedSpaces(
     identity, catalog, selection,
   );
   // Device-scoped activation is only displayable inside the authenticated
   // user's current catalog. Never render a profile from a stale/foreign Space.
   const profileFor = (space) => currentProfileForSpace(activation, space);
   return Object.freeze({
+    ready,
     visibleSpaces,
     active,
     activeProfile: profileFor(active),
@@ -89,7 +90,7 @@ export function mountSpaceSwitcherControls(
     const identity = identityPort.getSnapshot();
     const catalog = spacesPort.getSnapshot();
     const selected = selectionPort?.getSnapshot() ?? null;
-    const { active, visibleSpaces: spacesVisible, activeProfile, profilesBySpace } =
+    const { ready, active, visibleSpaces: spacesVisible, activeProfile, profilesBySpace } =
       deriveSpaceSwitcherView(identity, catalog, selected, profilePort?.getSnapshot() ?? null);
     const profileLabel = (profile) => profile
       ? t(`account.profiles.name.${profile.slug}`) : null;
@@ -154,11 +155,7 @@ export function mountSpaceSwitcherControls(
       list.append(element("p", "ordax-space-switcher-empty", t("account.spaces.loading")));
     } else if (error || catalog.state === "error") {
       list.append(element("p", "ordax-space-switcher-empty", t("account.spaces.error")));
-    } else if (
-      catalog.state !== "ready"
-      || selected?.state === "unavailable"
-      || (selected !== null && selected.subjectId !== identity.subjectId)
-    ) {
+    } else if (!ready) {
       list.append(element("p", "ordax-space-switcher-empty", t("account.spaces.unavailable.detail")));
     } else if (spacesVisible.length === 0) {
       list.append(element("p", "ordax-space-switcher-empty", t("account.spaces.empty")));
@@ -253,13 +250,12 @@ export function mountSpaceSwitcherControls(
     const identity = identityPort.getSnapshot();
     const catalog = spacesPort.getSnapshot();
     const selection = selectionPort.getSnapshot();
-    if (
-      identity.state !== "signed-in"
-      || catalog.state !== "ready"
-      || selection.state === "unavailable"
-      || selection.subjectId !== identity.subjectId
-    ) return;
-    const match = catalog.spaces.find((space) => space.id === action.dataset.spaceSwitcherSelect);
+    // The picker and Account consume the same OS-owned authorization view.
+    // Never reimplement identity/catalog/selection gates against raw snapshots.
+    const authorized = deriveAuthorizedSpaces(identity, catalog, selection);
+    if (!authorized.ready) return;
+    const match = authorized.visibleSpaces.find((space) =>
+      space.id === action.dataset.spaceSwitcherSelect);
     if (!match || match.state !== "active") return;
     try {
       selectionPort.select(match.id);
