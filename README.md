@@ -37,6 +37,26 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home, Conta e Spaces — continuidade de teclado após mudança de sessão
+
+O seletor nativo de Space usa a mesma rotina `focus-recovery.mjs`
+já aplicada às coleções da Home. Antes de atualizar as opções, conserva
+somente a identidade do controle focado, sem reter permissões ou catálogos.
+Se a opção continuar disponível, mantém o foco nela; se desaparecer,
+ficar desabilitada, ocorrer mudança real de sujeito ou o menu fechar,
+o foco volta ao **botão estável de seleção de Space**. Nunca transfere
+foco para outra opção por posição, não abre outra tela e não
+reabilita uma seleção revogada.
+
+A mudança de conta continua usando `identityPresentationContextChanged`
+para invalidar leituras pendentes e fechar o menu; heartbeat,
+renovação de token e alteração de nome da mesma conta não são tratados
+como troca de sujeito. A seleção e autorização continuam exclusivamente
+em `deriveAuthorizedSpaces` e nos ports do OS. O helper genérico
+de foco não lê sessão, não acessa rede nem armazena dados. A Home
+segue usando o controle estável de busca como seu fallback próprio.
+Nenhum token de design, serviço ou renderer alternativo foi criado.
+
 ## Home após autenticação — identidade e recuperação de foco
 
 A Home Native mantém a apresentação de Conta ligada ao port público

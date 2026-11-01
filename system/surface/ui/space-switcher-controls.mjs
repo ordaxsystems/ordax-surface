@@ -9,6 +9,7 @@ import { assertSpacesPort } from "../../contracts/spaces.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
 import { deriveAuthorizedSpaces } from "../../services/spaces/authorized-view.mjs";
 import { describeSpacePresentation } from "../../services/spaces/presentation.mjs";
+import { restoreTransientActionFocus } from "./focus-recovery.mjs";
 
 // A session heartbeat or refresh is not a new user. Only actual identity
 // transitions revoke the switcher's transient navigation/read context.
@@ -95,6 +96,14 @@ export function mountSpaceSwitcherControls(
 
   const render = () => {
     if (destroyed) return;
+    // Capture the original focus before menu visibility or children change.
+    // Session revocation can close a menu while its now-hidden option is focused.
+    const focusedElement = doc.activeElement;
+    const hadMenuFocus = menu.contains(focusedElement);
+    const focusedSpaceId = hadMenuFocus
+      ? focusedElement?.dataset?.spaceSwitcherSelect ?? null : null;
+    const hadManageFocus = hadMenuFocus
+      && focusedElement?.hasAttribute?.("data-space-switcher-manage");
     const identity = identityPort.getSnapshot();
     const catalog = spacesPort.getSnapshot();
     const selected = selectionPort?.getSnapshot() ?? null;
@@ -139,13 +148,12 @@ export function mountSpaceSwitcherControls(
     trigger.setAttribute("aria-expanded", String(open));
     menu.setAttribute("aria-label", t("account.spaces.switcher.title"));
     menu.hidden = !open;
-    if (!open) return;
+    if (!open) {
+      // Revoke focus from hidden/closed options only if focus was in the menu.
+      restoreTransientActionFocus(hadMenuFocus, null, trigger);
+      return;
+    }
 
-    // Replacing catalog children must not steal focus during an async update.
-    const focusedSpaceId = menu.contains(doc.activeElement)
-      ? doc.activeElement?.dataset?.spaceSwitcherSelect ?? null : null;
-    const hadManageFocus = menu.contains(doc.activeElement)
-      && doc.activeElement?.hasAttribute?.("data-space-switcher-manage");
     menu.replaceChildren();
     const head = element("div", "ordax-space-switcher-head");
     head.append(
@@ -208,13 +216,16 @@ export function mountSpaceSwitcherControls(
     const manage = button("ordax-space-switcher-manage", t("account.spaces.switcher.manage"));
     manage.dataset.spaceSwitcherManage = "";
     menu.append(manage);
-    if (focusedSpaceId !== null) {
-      [...list.querySelectorAll("[data-space-switcher-select]")].find((item) =>
-        item.dataset.spaceSwitcherSelect === focusedSpaceId && !item.disabled
-      )?.focus();
-    } else if (hadManageFocus) {
-      manage.focus();
-    }
+    // Preserve only an option that is still present and enabled. Loading,
+    // session changes or a revoked Space return keyboard focus to the
+    // stable trigger; they never focus a different Space or run select().
+    const previousOption = focusedSpaceId !== null
+      ? [...list.querySelectorAll("[data-space-switcher-select]")].find((item) =>
+          item.dataset.spaceSwitcherSelect === focusedSpaceId) ?? null
+      : null;
+    const focusTarget = focusedSpaceId !== null ? previousOption
+      : hadManageFocus ? manage : null;
+    restoreTransientActionFocus(hadMenuFocus, focusTarget, trigger);
   };
 
   const close = (restoreFocus = false) => {
