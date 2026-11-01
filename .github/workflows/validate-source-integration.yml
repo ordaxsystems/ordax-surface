@@ -215,6 +215,8 @@ jobs:
           python3 -m unittest \
             tests.test_surface_ui_contract \
             tests.test_surface_async_lifecycle \
+            tests.test_first_run_contract \
+            tests.test_first_run_credential_policy \
             tests.test_space_selection_surface_contract \
             tests.test_surface_visual_identity \
             tests.test_surface_boot_screen \
@@ -225,12 +227,14 @@ jobs:
             tests.test_store_update_all_ui_contract \
             tests.test_diagnostic_system_view_contract -v
 
-      - name: Verify shared Surface, lock security, regional network, Spaces, Store batch and Native audio
+      - name: Verify shared Surface, First Run, lock security, regional network, Spaces, Store and Native audio
         working-directory: os
         run: |
           node --test \
             tests/test_surface_workspace.mjs \
             tests/test_surface_localization.mjs \
+            tests/test_first_run_capabilities.mjs \
+            tests/test_first_run_i18n.mjs \
             tests/test_sidebar_layout.mjs \
             tests/test_audio_output_controls.mjs \
             tests/test_store_update_request_batch.mjs \

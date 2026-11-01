@@ -690,3 +690,99 @@ test("Native lock rejects late unlock completions after a new lock cycle", async
   assert.match(source, /render\(\{ preserveSecret: true \}\)/, "locale-only repaint keeps transient secret when safe");
   assert.doesNotMatch(source, /localStorage|sessionStorage/);
 });
+
+
+test("First Run rejects stale registration policy responses after sign-in and sign-out", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("first-run.mjs");
+  const refreshStart = source.indexOf("  const refreshRegistrationPolicy = async () => {");
+  const refreshEnd = source.indexOf("  const runIdentity = async (kind) => {", refreshStart);
+  const sessionStart = source.indexOf("  unsubscribeSession = sessionPort.subscribe((snapshot) => {");
+  const sessionEnd = source.indexOf("  unsubscribeActions = actionsPort.subscribe(", sessionStart);
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
+  assert.ok(sessionStart >= 0 && sessionEnd > sessionStart);
+
+  const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  };
+
+  for (const oldCompletion of ["success-before-new", "failure-after-new"]) {
+    const first = deferred();
+    const second = deferred();
+    const pendingResponses = [first, second];
+    const script = [
+      'let destroyed = false;',
+      'let sessionSnapshot = { state: "signed-out" };',
+      'let registrationPolicy = null;',
+      'let registrationLegalAccepted = false;',
+      'let registrationPolicyPending = false;',
+      'let registrationPolicyOrdinal = 0;',
+      'let hostedSignupAllowed = false;',
+      'let draft = { accountMode: null };',
+      'let finishing = false;',
+      'let selectedIdentitySubjectId = null;',
+      'let identityMessage = "";',
+      'let stepIndex = 0;',
+      'const STEPS = ["account", "ready"];',
+      'const stepIndexFor = () => 0;',
+      'const capabilitySnapshot = { registrationPolicy: true, identityRegister: true };',
+      'const sameRegistrationLegalPolicy = () => false;',
+      'const isHostedSignupEnabled = policy => policy.hostedSignup === true;',
+      'const matchesFirstRunIdentitySelection = () => true;',
+      'const credentialsPort = { registrationPolicy: () => nextPolicy() };',
+      'let renderCount = 0;',
+      'const render = () => { renderCount += 1; };',
+      'const sessionPort = { subscribe(callback) { this.notify = callback; return () => {}; } };',
+      'let unsubscribeSession = null;',
+      source.slice(refreshStart, refreshEnd),
+      source.slice(sessionStart, sessionEnd),
+      '({',
+      'refreshRegistrationPolicy,',
+      'publish(state) { sessionPort.notify({ state }); },',
+      'setAccepted(value) { registrationLegalAccepted = value; },',
+      'current() { return { registrationPolicy, registrationLegalAccepted, registrationPolicyPending, registrationPolicyOrdinal, hostedSignupAllowed, renderCount }; }',
+      '});',
+    ].join("\n");
+    const harness = runInNewContext(script, {
+      nextPolicy: () => pendingResponses.shift().promise,
+    });
+
+    const oldRead = harness.refreshRegistrationPolicy();
+    assert.equal(harness.current().registrationPolicyPending, true);
+    harness.publish("signed-in");
+    assert.equal(harness.current().registrationPolicyPending, false, "login invalidates stale policy wait");
+    harness.publish("signed-out");
+    assert.equal(harness.current().registrationPolicyPending, true, "new signed-out context can immediately query policy");
+    const activeOrdinal = harness.current().registrationPolicyOrdinal;
+    harness.setAccepted(true);
+    harness.publish("signed-out");
+    assert.equal(harness.current().registrationPolicyOrdinal, activeOrdinal, "duplicate signed-out notifications do not revoke new query");
+    assert.equal(harness.current().registrationLegalAccepted, true, "unchanged session preserves consent draft");
+
+    if (oldCompletion === "success-before-new") {
+      first.resolve({ policyId: "outdated", registrationEnabled: true, hostedSignup: false });
+      await oldRead;
+      assert.equal(harness.current().registrationPolicyPending, true, "old success cannot release newer request");
+      assert.equal(harness.current().registrationPolicy, null, "old success cannot reintroduce an outdated policy");
+    }
+    second.resolve({ policyId: "current", registrationEnabled: true, hostedSignup: true });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(harness.current().registrationPolicy?.policyId, "current");
+    assert.equal(harness.current().registrationPolicyPending, false);
+    assert.equal(harness.current().hostedSignupAllowed, true);
+    if (oldCompletion === "failure-after-new") {
+      first.reject(new Error("stale policy transport failure"));
+      await oldRead;
+      assert.equal(harness.current().registrationPolicy?.policyId, "current", "old error cannot erase new terms");
+      assert.equal(harness.current().hostedSignupAllowed, true, "old error cannot hide a current hosted-signup link");
+      assert.equal(harness.current().registrationPolicyPending, false);
+    }
+    assert.equal(harness.current().registrationPolicyOrdinal, activeOrdinal);
+  }
+
+  assert.match(source, /if \(previousSessionState !== sessionSnapshot\.state\) \{[\s\S]*?registrationPolicyOrdinal \+= 1;/);
+  assert.match(source, /if \(destroyed \|\| ordinal !== registrationPolicyOrdinal\s*\|\| sessionSnapshot\.state !== "signed-out"/);
+  assert.match(source, /if \(!destroyed && ordinal === registrationPolicyOrdinal\) \{\s*registrationPolicyPending = false;/);
+});

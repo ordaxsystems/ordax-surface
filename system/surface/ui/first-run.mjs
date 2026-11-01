@@ -211,6 +211,7 @@ export function mountFirstRunExperience(
   let hostedSignupAllowed = false;
   let registrationLegalAccepted = false;
   let registrationPolicyPending = false;
+  let registrationPolicyOrdinal = 0;
   let localSessionSnapshot = localSessionPort === null
     ? null
     : validateLocalSessionSnapshot(localSessionPort.getSnapshot());
@@ -249,6 +250,7 @@ export function mountFirstRunExperience(
     destroyed = true;
     networkOrdinal += 1;
     keyboardLayoutOrdinal += 1;
+    registrationPolicyOrdinal += 1;
     passwordDraft = "";
     identityPasswordDraft = "";
     selectedIdentitySubjectId = null;
@@ -1127,10 +1129,12 @@ export function mountFirstRunExperience(
       }
       return;
     }
+    const ordinal = ++registrationPolicyOrdinal;
     registrationPolicyPending = true;
     try {
       const policy = await credentialsPort.registrationPolicy();
-      if (destroyed || sessionSnapshot.state !== "signed-out") return;
+      if (destroyed || ordinal !== registrationPolicyOrdinal
+          || sessionSnapshot.state !== "signed-out" || !capabilitySnapshot.registrationPolicy) return;
       hostedSignupAllowed = isHostedSignupEnabled(policy);
       const nextPolicy = (
         policy.registrationEnabled === true
@@ -1141,14 +1145,17 @@ export function mountFirstRunExperience(
       }
       registrationPolicy = nextPolicy;
     } catch {
-      if (!destroyed) {
+      if (!destroyed && ordinal === registrationPolicyOrdinal
+          && sessionSnapshot.state === "signed-out") {
         registrationPolicy = null;
         registrationLegalAccepted = false;
         hostedSignupAllowed = false;
       }
     } finally {
-      registrationPolicyPending = false;
-      if (!destroyed && STEPS[stepIndex] === "account") render();
+      if (!destroyed && ordinal === registrationPolicyOrdinal) {
+        registrationPolicyPending = false;
+        if (STEPS[stepIndex] === "account") render();
+      }
     }
   };
 
@@ -1428,7 +1435,18 @@ export function mountFirstRunExperience(
   overlay.addEventListener("keydown", onKeyDown);
 
   unsubscribeSession = sessionPort.subscribe((snapshot) => {
+    const previousSessionState = sessionSnapshot.state;
     sessionSnapshot = snapshot;
+    if (previousSessionState !== sessionSnapshot.state) {
+      // Re-entering signed-out after a login is a NEW policy-read context.
+      // Do not let a slow response from a prior visit overwrite the new terms
+      // or keep the new registration controls blocked indefinitely.
+      registrationPolicyOrdinal += 1;
+      registrationPolicyPending = false;
+      registrationPolicy = null;
+      registrationLegalAccepted = false;
+      hostedSignupAllowed = false;
+    }
     if (
       draft.accountMode === "identity"
       && !finishing
