@@ -243,3 +243,29 @@ test("Web and Native Store share the canonical official renderer; legacy paralle
     assert.equal(existsSync(new URL("../" + legacy, import.meta.url)), false, legacy + " must not return");
   }
 });
+
+
+test("Store retries an uncertain lifecycle request without minting a second identity", async () => {
+  const store = await read("store-overview-controls.mjs");
+  assert.match(store, /const uncertainRequestIds = new Map\(\)/);
+  const handler = store.slice(
+    store.indexOf('const button = event.target.closest?.("[data-store-operation][data-store-app-id]")'),
+    store.indexOf("  const onKeyDown =", store.indexOf("  const onClick =")),
+  );
+  assert.ok(handler.length > 0, "The Store must retain its canonical lifecycle request handler");
+  assert.match(handler, /const retryScope = JSON\.stringify\(\[appId, operation\]\)/);
+  assert.match(handler, /const retainedRequestId = uncertainRequestIds\.get\(retryScope\)/);
+  assert.match(handler, /if \(retainedRequestId === undefined\) requestOrdinal \+= 1/);
+  assert.match(handler, /requestId: retainedRequestId \?\? "store:" \+ operation \+ ":" \+ appId \+ ":" \+ requestSessionId \+ ":" \+ requestOrdinal/);
+  assert.match(handler, /const request = validateAppLifecycleRequest\(/);
+  assert.match(handler, /return lifecycleRequests\.requestLifecycle\(request\)/);
+  const decision = handler.indexOf("validateAppLifecycleRequestResultForRequest(rawResult, request)");
+  const release = handler.indexOf("uncertainRequestIds.delete(retryScope)");
+  assert.ok(decision !== -1 && release > decision, "Only a validated terminal response releases a retry identity");
+  assert.match(handler, /if \(!isCurrentRequest\(\)\) return;\s*\/\/ No authoritative outcome arrived; preserve the original requestId\.\s*uncertainRequestIds\.set\(retryScope, request\.requestId\)/);
+  assert.doesNotMatch(handler.slice(handler.indexOf(".catch(() => {")), /uncertainRequestIds\.delete\(retryScope\)/);
+  assert.match(store, /if \(fingerprint !== catalogFingerprint\) \{[\s\S]*?uncertainRequestIds\.clear\(\)/);
+  assert.match(store, /catalogGeneration === requestGeneration/);
+  assert.match(store, /pendingRequest\?\.requestId === request\.requestId/);
+  assert.match(store, /if \(destroyed\) return;\s*destroyed = true;/);
+});
