@@ -826,7 +826,10 @@ export function mountSettingsOverviewControls(
       secret.minLength = 6;
       secret.maxLength = 128;
       secret.placeholder = t("settings.security.placeholder.new");
+      secret.setAttribute("aria-label", t("settings.security.placeholder.new"));
       secret.dataset.settingsLocalSessionSecret = "";
+      if (localSessionMessageId) secret.setAttribute("aria-describedby", "ordax-settings-local-session-feedback");
+      if (localSessionMessageId === "settings.security.message.validation") secret.setAttribute("aria-invalid", "true");
       secret.disabled = localSessionPending;
       const confirm = documentObject.createElement("input");
       confirm.type = "password";
@@ -834,7 +837,10 @@ export function mountSettingsOverviewControls(
       confirm.minLength = 6;
       confirm.maxLength = 128;
       confirm.placeholder = t("settings.security.placeholder.confirm");
+      confirm.setAttribute("aria-label", t("settings.security.placeholder.confirm"));
       confirm.dataset.settingsLocalSessionConfirm = "";
+      if (localSessionMessageId) confirm.setAttribute("aria-describedby", "ordax-settings-local-session-feedback");
+      if (localSessionMessageId === "settings.security.message.validation") confirm.setAttribute("aria-invalid", "true");
       confirm.disabled = localSessionPending;
       const configure = node(
         documentObject,
@@ -864,7 +870,12 @@ export function mountSettingsOverviewControls(
       current.minLength = 6;
       current.maxLength = 128;
       current.placeholder = t("settings.security.placeholder.current");
+      current.setAttribute("aria-label", t("settings.security.placeholder.current"));
       current.dataset.settingsLocalSessionCurrent = "";
+      if (localSessionMessageId) current.setAttribute("aria-describedby", "ordax-settings-local-session-feedback");
+      if (["settings.security.message.currentRequired", "settings.security.message.incorrect"].includes(localSessionMessageId)) {
+        current.setAttribute("aria-invalid", "true");
+      }
       current.disabled = localSessionPending;
       const remove = node(
         documentObject,
@@ -886,6 +897,7 @@ export function mountSettingsOverviewControls(
         "ordax-settings-section-copy",
         t(localSessionMessageId),
       );
+      message.id = "ordax-settings-local-session-feedback";
       section.append(markSurfaceFeedback(message));
     }
     view.append(section);
@@ -1083,6 +1095,7 @@ export function mountSettingsOverviewControls(
         "ordax-settings-network-message",
         t(networkManagementMessageId),
       );
+      message.id = "ordax-settings-network-feedback";
       panel.append(markSurfaceFeedback(message));
     }
 
@@ -1187,6 +1200,10 @@ export function mountSettingsOverviewControls(
       input.disabled = networkManagementPending || networkManagementReadFailed;
       input.dataset.settingsWifiPassword = "";
       input.dataset.settingsWifiPasswordFor = selected.ssid;
+      if (networkManagementMessageId) {
+        input.setAttribute("aria-describedby", "ordax-settings-network-feedback");
+        if (networkManagementMessageId === "network.quick.passwordRequired") input.setAttribute("aria-invalid", "true");
+      }
       input.setAttribute(
         "aria-label",
         t("network.quick.passwordLabel", { ssid: selected.ssid }),

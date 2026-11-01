@@ -191,6 +191,25 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Formulários Native — foco, validação e janelas compactas
+
+Em Conta, campos de credenciais, confirmação legal e encerramento agora
+restauram a identidade de foco depois de atualizações da UI. Campos de senha
+e nome do Space também restauram a posição do cursor sem manter cópias das
+senhas nos snapshots visuais. Limpeza de segredos e invalidação de operações
+na mudança de sessão continuam com os contratos existentes. O formulário
+de credenciais, criação de Space e encerramento compartilham campos e botões
+Meridian com alvos mínimos de 44 px; o container `account-viewport`
+adapta cada formulário à largura real da janela.
+
+Em Ajustes, campos de senha de sessão local recebem nomes acessíveis,
+`aria-describedby` associado ao feedback OS já existente, e
+`aria-invalid` somente quando o próprio fluxo indica validação
+ou credencial incorreta. O mesmo vínculo se aplica à senha Wi-Fi quando
+falta uma senha. Controles de sessão e conexão passam a uma coluna em
+janelas compactas via container existente `settings-viewport`.
+Nenhuma credencial é persistida ou enviada por outra rota.
+
 ## Conta, Ajustes e Sistema — feedback Native sem duplicação
 
 O renderer Native de Conta, Ajustes e Sistema compartilha

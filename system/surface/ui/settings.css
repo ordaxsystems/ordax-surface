@@ -859,7 +859,7 @@
 .ordax-settings-wifi-password {
   width: 100%;
   min-width: 0;
-  height: 36px;
+  height: 44px;
   padding: 0 10px;
   border: 1px solid var(--ordax-border);
   border-radius: var(--ordax-radius-sm);
@@ -894,7 +894,7 @@
 
 .ordax-settings-security-form input {
   min-width: 0;
-  height: 36px;
+  height: 44px;
   padding: 0 10px;
   border: 1px solid var(--ordax-border);
   border-radius: var(--ordax-radius-sm);
@@ -908,6 +908,12 @@
   outline: 2px solid var(--ordax-focus);
   outline-offset: 1px;
 }
+.ordax-settings-security-form input[aria-invalid="true"],
+.ordax-settings-wifi-password[aria-invalid="true"] {
+  border-color: var(--ordax-warning);
+  background: var(--ordax-warning-bg);
+}
+.ordax-settings-security-form input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Intelligence settings only inspect canonical runtime state; no model install
    authority or parallel preferences subsystem is exposed by this button. */
@@ -963,4 +969,15 @@
   .ordax-settings-option-marker { grid-column: 2; text-align: left; }
   .ordax-settings-preference-option { grid-template-columns: minmax(0,1fr) auto; }
   .ordax-settings-preference-option .ordax-settings-option-marker { grid-column: auto; }
+}
+
+@container settings-viewport (max-width: 540px) {
+  .ordax-settings-security-form,
+  .ordax-settings-wifi-connect { grid-template-columns: minmax(0, 1fr); }
+  .ordax-settings-security-form > button,
+  .ordax-settings-wifi-connect > button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
 }
