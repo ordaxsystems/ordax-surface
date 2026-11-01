@@ -224,6 +224,8 @@ export function mountAccountOverviewControls(
   let createIdempotencyKey = null;
   let createMessage = "";
   let createPending = false;
+  // An ambiguous create must retry its original idempotent intent, never a new one.
+  let createUnconfirmed = false;
   let createOrdinal = 0;
   let memoryConflictMessage = "";
   let pendingMemoryConflict = null;
@@ -693,7 +695,7 @@ export function mountAccountOverviewControls(
       const typeInput = documentObject.createElement("select");
       typeInput.dataset.accountSpaceCreateType = "";
       typeInput.required = true;
-      typeInput.disabled = createPending;
+      typeInput.disabled = createPending || createUnconfirmed;
       for (const type of CREATABLE_SPACE_TYPES) {
         const option = node(documentObject, "option", "", t(type.labelId));
         option.value = type.key;
@@ -705,7 +707,7 @@ export function mountAccountOverviewControls(
         createPending ? t("account.spaces.create.pending") : t("account.spaces.create.title"));
       submit.type = "submit";
       submit.disabled = createPending || createNameDraft.trim().length === 0;
-      nameInput.disabled = createPending;
+      nameInput.disabled = createPending || createUnconfirmed;
       form.append(nameField, typeField, submit);
       section.append(form);
     } else if (!spaceCreatePort) {
@@ -1435,7 +1437,7 @@ export function mountAccountOverviewControls(
   const onChange = (event) => {
     const control = event.target;
     if (control instanceof HTMLSelectElement && root.contains(control)
-        && control.matches("[data-account-space-create-type]") && !createPending) {
+        && control.matches("[data-account-space-create-type]") && !createPending && !createUnconfirmed) {
       if (CREATABLE_SPACE_TYPES.some(type => type.key === control.value)) {
         createTypeDraft = control.value;
         createIdempotencyKey = null;
@@ -1461,7 +1463,7 @@ export function mountAccountOverviewControls(
   const onInput = (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !root.contains(input)) return;
-    if (input.matches("[data-account-space-create-name]") && !createPending) {
+    if (input.matches("[data-account-space-create-name]") && !createPending && !createUnconfirmed) {
       createNameDraft = input.value;
       createIdempotencyKey = null;
       createMessage = "";
@@ -1540,11 +1542,13 @@ export function mountAccountOverviewControls(
         if (!match) throw new Error("Space not visible in refreshed authorized catalog");
         if (spaceSelectionPort) spaceSelectionPort.select(match.id);
         createMessage = t("account.spaces.create.createdPending");
+        createUnconfirmed = false;
         createNameDraft = "";
         createIdempotencyKey = null;
       } catch {
         if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
-        // Uncertain HTTP and stale catalog must retry with the SAME UUID.
+        // Keep the original fields and UUID fixed until a canonical confirmation.
+        createUnconfirmed = true;
         createMessage = t("account.spaces.create.retryUnconfirmed");
       } finally {
         if (!destroyed && ordinal === createOrdinal) {
@@ -1759,6 +1763,7 @@ export function mountAccountOverviewControls(
       createOrdinal += 1;
       createPending = false;
       createIdempotencyKey = null;
+      createUnconfirmed = false;
       createNameDraft = "";
       createMessage = "";
       spaceMessage = "";
