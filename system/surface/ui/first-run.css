@@ -396,6 +396,17 @@
   color: var(--md-danger);
 }
 
+/* Reuse the semantic feedback metadata already used by Account/Settings. */
+.ordax-first-run-status[data-surface-feedback-tone="attention"] {
+  border-color: color-mix(in srgb, var(--md-danger) 50%, var(--md-border));
+  background: var(--md-danger-soft);
+  color: var(--md-danger);
+}
+.ordax-first-run-field input[aria-invalid="true"] {
+  border-color: var(--md-danger);
+  background: var(--md-danger-soft);
+}
+
 .ordax-first-run-summary {
   display: grid;
   grid-template-columns: minmax(110px, 0.4fr) 1fr;

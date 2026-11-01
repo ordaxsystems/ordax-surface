@@ -191,6 +191,25 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Primeiro uso — recuperação acessível de erros
+
+Os campos de e-mail e senha de Conta, senha de Wi-Fi e PIN/senha de
+bloqueio local referenciam por `aria-describedby` a mensagem concreta
+renderizada no First Run. As mensagens reutilizam
+`markSurfaceFeedback`, compartilhado com Conta, Ajustes e Sistema,
+para `role=status`, `aria-live=polite` e `aria-atomic=true`.
+`aria-invalid` aparece somente quando a **validação local do
+campo** falhou, nunca por falha de rede/serviço nem como prova de
+senha incorreta. Erros conhecidos retornam foco ao campo relevante.
+
+Quando o usuário começa a corrigir uma entrada inválida, a marcação
+e o aviso antigos são limpos sem reconstruir a etapa e perder o cursor.
+Confirmação de cadastro é informativa, não equivale a autenticação.
+O fluxo segue permitindo configuração offline e mantém a proteção
+existente contra conclusões assíncronas de outra sessão.
+Não há novas autoridades, tokens, armazenamento de credenciais
+ou fluxo paralelo de autenticação.
+
 ## Primeiro uso — continuidade de navegação durante atualização
 
 O diálogo único de primeiro uso preserva o foco durante atualizações
