@@ -1,5 +1,5 @@
 import { UsersRound } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { createScopedMemberActionAttempts } from '../../../../services/spaces/member-action-attempts.mjs';
 import { createMemberPageAnchors } from '../../../../services/spaces/member-page-anchors.mjs';
@@ -36,7 +36,9 @@ export function SpaceMembersPanel() {
   const subjectId = identity.state === 'signed-in' ? identity.subjectId : null;
   const spaceId = authorized.activeSpace?.id ?? null;
   const activeSpaceName = authorized.activeSpace?.name ?? null;
-  const currentSpace = useRef<string | null>(spaceId);
+  // A committed view context, not a second membership or capability cache.
+  // Layout effects invalidate old async completions before the next view paints.
+  const currentContext = useRef({ subjectId, spaceId, offline, members, actorCapability, membershipActions });
   const membersReadGeneration = useRef(0);
   const membersReadInFlight = useRef<{ spaceId: string; cursor: string | null; append: boolean } | null>(null);
   const capabilityReadGeneration = useRef(0);
@@ -59,34 +61,50 @@ export function SpaceMembersPanel() {
     const pending = membersReadInFlight.current;
     if (pending?.spaceId === targetSpaceId && pending.cursor === cursor && pending.append === append) return;
     const generation = ++membersReadGeneration.current;
+    const isCurrent = () => {
+      const current = currentContext.current;
+      return current.subjectId === subjectId
+        && current.spaceId === targetSpaceId
+        && !current.offline
+        && current.members === members
+        && membersReadGeneration.current === generation;
+    };
     membersReadInFlight.current = { spaceId: targetSpaceId, cursor, append };
     setLoadState('loading');
     try {
       const page = await members.list({ spaceId: targetSpaceId, cursor });
-      if (currentSpace.current !== targetSpaceId || membersReadGeneration.current !== generation) return;
+      if (!isCurrent()) return;
       pageAnchors.current.record({ cursor, members: page.members, append });
       setItems(previous => append ? [...previous, ...page.members] : page.members);
       setNextCursor(page.nextCursor);
       setLoadState('ready');
     } catch {
-      if (currentSpace.current !== targetSpaceId || membersReadGeneration.current !== generation) return;
+      if (!isCurrent()) return;
       setLoadState('error');
     } finally {
-      if (membersReadGeneration.current === generation) membersReadInFlight.current = null;
+      if (isCurrent()) membersReadInFlight.current = null;
     }
   }
 
   async function readCapability(targetSpaceId: string) {
     const generation = ++capabilityReadGeneration.current;
+    const isCurrent = () => {
+      const current = currentContext.current;
+      return current.subjectId === subjectId
+        && current.spaceId === targetSpaceId
+        && !current.offline
+        && current.actorCapability === actorCapability
+        && capabilityReadGeneration.current === generation;
+    };
     setCapabilityState('loading');
     setCapability(null);
     try {
       const value = await actorCapability.read({ spaceId: targetSpaceId });
-      if (currentSpace.current !== targetSpaceId || capabilityReadGeneration.current !== generation) return;
+      if (!isCurrent()) return;
       setCapability(value);
       setCapabilityState('ready');
     } catch {
-      if (currentSpace.current !== targetSpaceId || capabilityReadGeneration.current !== generation) return;
+      if (!isCurrent()) return;
       setCapabilityState('error');
     }
   }
@@ -108,7 +126,14 @@ export function SpaceMembersPanel() {
   async function runAction(action: ActionKind, member: SpaceMember, role?: ActionRole) {
     if (spaceId === null || subjectId === null || offline || !capability?.canManageMembers || pendingAction.current || actionPending !== null || !isProjectedActionAllowed(member, action, role)) return;
     const generation = actionGeneration.current;
-    const isCurrent = () => currentSpace.current === spaceId && actionGeneration.current === generation;
+    const isCurrent = () => {
+      const current = currentContext.current;
+      return current.subjectId === subjectId
+        && current.spaceId === spaceId
+        && !current.offline
+        && current.membershipActions === membershipActions
+        && actionGeneration.current === generation;
+    };
     const returnCursor = pageAnchors.current.cursorFor(member.userId);
     const attempt = attempts.current.begin({ subjectId, spaceId, action, targetUserId: member.userId, role: role ?? null });
     const key = [action, member.userId, role ?? null].join(':');
@@ -141,7 +166,7 @@ export function SpaceMembersPanel() {
 
   // A lost connection is not a sign-out: retain uncertain retry keys in memory.
   // Forget keys on an explicit sign-out or a confirmed account change only.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (identity.state === 'signed-out'
       || (subjectId !== null && lastKnownSubject.current !== null && lastKnownSubject.current !== subjectId)) {
       attempts.current.clear();
@@ -149,8 +174,8 @@ export function SpaceMembersPanel() {
     if (identity.state === 'signed-out') lastKnownSubject.current = null;
     else if (subjectId !== null) lastKnownSubject.current = subjectId;
   }, [identity.state, subjectId]);
-  useEffect(() => {
-    currentSpace.current = spaceId;
+  useLayoutEffect(() => {
+    currentContext.current = { subjectId, spaceId, offline, members, actorCapability, membershipActions };
     membersReadGeneration.current += 1;
     membersReadInFlight.current = null;
     pageAnchors.current.reset();
@@ -173,7 +198,7 @@ export function SpaceMembersPanel() {
       readPage(spaceId, null, false),
       readCapability(spaceId),
     ]);
-  }, [spaceId, subjectId, offline, members, actorCapability]);
+  }, [spaceId, subjectId, offline, members, actorCapability, membershipActions]);
 
   if (spaceId === null) return null;
 
