@@ -441,3 +441,113 @@ test("Native network, Settings, System and Diagnostics timestamps use the region
   assert.equal(settingsTime(null, "pt-BR", zones[0]), null);
   assert.equal(overviewTimes.formatOverviewTimestamp("unknown", "pt-BR", zones[0]), null);
 });
+
+
+test("Account keeps only the current signed-out session registration policy", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("account-overview-controls.mjs");
+  const start = source.indexOf("  const refreshRegistrationPolicy = async () => {");
+  const end = source.indexOf("  const invoke = async (action) => {", start);
+  assert.ok(start !== -1 && end > start);
+
+  const makeDeferred = () => {
+    let resolve;
+    const promise = new Promise((done) => { resolve = done; });
+    return { promise, resolve };
+  };
+  const first = makeDeferred();
+  const second = makeDeferred();
+  const queue = [first, second];
+  const script = [
+    'let destroyed = false;',
+    'let sessionSnapshot = { state: "signed-out" };',
+    'let registrationPolicy = null;',
+    'let registrationPolicyPending = false;',
+    'let registrationPolicyOrdinal = 0;',
+    'let registrationLegalAccepted = false;',
+    'let hostedSignupAllowed = false;',
+    'const credentialsPort = { registrationPolicy: () => nextPolicy() };',
+    'const actionsSnapshot = {};',
+    'const isIdentityActionSupported = () => true;',
+    'const isHostedSignupEnabled = () => true;',
+    'const replaceView = () => {};',
+    source.slice(start, end),
+    '({',
+    'refreshRegistrationPolicy,',
+    'switchIdentity(state) { sessionSnapshot = { state }; registrationPolicyOrdinal += 1; registrationPolicyPending = false; registrationPolicy = null; },',
+    'current() { return { registrationPolicy, registrationPolicyPending, hostedSignupAllowed }; }',
+    '});',
+  ].join("\n");
+  const harness = runInNewContext(script, { nextPolicy: () => queue.shift().promise });
+  const firstRead = harness.refreshRegistrationPolicy();
+  assert.equal(harness.current().registrationPolicyPending, true);
+  harness.switchIdentity("signed-in");
+  harness.switchIdentity("signed-out");
+  const secondRead = harness.refreshRegistrationPolicy();
+  second.resolve({ registrationEnabled: true, nonce: "new-policy" });
+  await secondRead;
+  first.resolve({ registrationEnabled: false, nonce: "old-policy" });
+  await firstRead;
+  assert.equal(harness.current().registrationPolicy.nonce, "new-policy");
+  assert.equal(harness.current().registrationPolicyPending, false);
+  assert.equal(harness.current().hostedSignupAllowed, true);
+
+  const subscription = source.slice(
+    source.indexOf("  const unsubscribeSession = sessionPort.subscribe("),
+    source.indexOf("  const unsubscribeAccountLifecycle =", source.indexOf("  const unsubscribeSession =")),
+  );
+  assert.match(subscription, /if \(priorState !== sessionSnapshot\.state \|\| priorSubject !== currentSubject\) \{/);
+  for (const guard of [
+    "actionOrdinal += 1;", "pendingAction = null;",
+    "closeOrdinal += 1;", "pendingClose = false;",
+    "registrationPolicyOrdinal += 1;", "registrationPolicyPending = false;",
+    "registrationPolicy = null;", 'credentialPasswordDraft = "";', 'closePasswordDraft = "";',
+  ]) assert.ok(subscription.includes(guard), "missing session fence: " + guard);
+});
+
+test("Account close completion never refreshes or notifies a different subject", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("account-overview-controls.mjs");
+  const start = source.indexOf("  const closeAccount = async () => {");
+  const end = source.indexOf("  const onChange = (event) => {", start);
+  assert.ok(start !== -1 && end > start);
+  let finishClose;
+  const response = new Promise((resolve) => { finishClose = resolve; });
+  const script = [
+    'let destroyed = false;',
+    'let pendingClose = false;',
+    'let closePasswordDraft = "do-not-preserve";',
+    'let closeConfirmationChecked = true;',
+    'let closeMessage = "";',
+    'let closeOrdinal = 0;',
+    'let sessionSnapshot = { state: "signed-in", subjectId: "subject-a" };',
+    'const accountLifecyclePort = { closeAccount: () => closeResponse() };',
+    'const accountLifecycleSnapshot = {};',
+    'const isAccountLifecycleActionSupported = () => true;',
+    'const t = (id) => id;',
+    'const replaceView = () => {};',
+    'let refreshCount = 0;',
+    'const sessionPort = { refresh: async () => { refreshCount += 1; } };',
+    source.slice(start, end),
+    '({ closeAccount,',
+    'switchIdentity() { sessionSnapshot = { state: "signed-in", subjectId: "subject-b" }; closeOrdinal += 1; pendingClose = false; closeMessage = ""; },',
+    'state() { return { pendingClose, closeMessage, refreshCount, closePasswordDraft }; }',
+    '});',
+  ].join("\n");
+  const harness = runInNewContext(script, { closeResponse: () => response });
+  const action = harness.closeAccount();
+  assert.equal(harness.state().pendingClose, true);
+  harness.switchIdentity();
+  finishClose({ closed: true });
+  await action;
+  assert.equal(harness.state().pendingClose, false);
+  assert.equal(harness.state().closeMessage, "");
+  assert.equal(harness.state().refreshCount, 0, "stale closure must not refresh subject-b");
+  assert.equal(harness.state().closePasswordDraft, "");
+
+  const invoke = source.slice(
+    source.indexOf("  const invoke = async (action) => {"),
+    source.indexOf("  const closeAccount = async () => {"),
+  );
+  assert.match(invoke, /if \(destroyed \|\| ordinal !== actionOrdinal\) return;\s*if \(typeof sessionPort\.refresh === "function"\)/);
+});
