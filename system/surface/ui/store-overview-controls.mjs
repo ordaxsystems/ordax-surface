@@ -12,13 +12,14 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { assertSystemMetricsPort } from "../../contracts/system-metrics.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
+import { STORE_OPERATIONS, storeEntryVisualState } from "./store-entry-presentation.mjs";
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
 import { listFirstRunDefaultAppIds } from "../../services/apps/first-run-selection.mjs";
 
 const STORE_WINDOW_SELECTOR = '[data-window-id="store"]';
 const STORE_EXTENSION_SELECTOR = '[data-app-extension="store-overview"]';
-const OPERATIONS = new Set(["install", "update", "remove"]);
+const OPERATIONS = new Set(STORE_OPERATIONS);
 const VIEWS = Object.freeze(["discover", "essentials", "installed", "updates", "models"]);
 const ESSENTIAL_APP_IDS = new Set(listFirstRunDefaultAppIds());
 
@@ -127,22 +128,6 @@ export function createStoreRequestSessionId(cryptoProvider = globalThis.crypto) 
   } catch {
     return null;
   }
-}
-
-// A read-only presentation of OS-declared state and in-memory request phases.
-// This neither authorizes operations nor owns the installed app inventory.
-export function storeEntryVisualState(entry, pendingRequest = null) {
-  const localRequest = pendingRequest?.appId === entry.appId
-    && OPERATIONS.has(pendingRequest.operation)
-    && ["requesting", "accepted"].includes(pendingRequest.phase)
-    ? pendingRequest : null;
-  return Object.freeze({
-    state: entry.state,
-    updateAvailable: entry.state === "installed" && entry.updatable === true,
-    blockedReason: entry.state === "blocked" ? entry.blockedReason : null,
-    requestPhase: localRequest?.phase ?? null,
-    requestOperation: localRequest?.operation ?? null,
-  });
 }
 
 function appendAction(documentObject, target, entry, operation, lifecycleRequests, pendingRequest, t, requestIdentityReady) {

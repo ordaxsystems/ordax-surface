@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { storeEntryVisualState } from "../system/surface/ui/store-overview-controls.mjs";
+import { storeEntryVisualState } from "../system/surface/ui/store-entry-presentation.mjs";
 
 const fixture=(state,extra={})=>({
   appId:"com.example.tool",title:"Ferramenta",state,installedVersion:"1.0.0",
@@ -40,6 +40,7 @@ test("Accepted lifecycle request cannot turn available into installed",()=>{
 test("One Store renderer uses localized statuses and existing Meridian tokens",async()=>{
   const s=await readFile(new URL("../system/surface/ui/store-overview-controls.mjs",import.meta.url),"utf8");
   const css=await readFile(new URL("../system/surface/ui/store.css",import.meta.url),"utf8");
+  assert.match(s,/import \{ STORE_OPERATIONS, storeEntryVisualState \} from "\.\/store-entry-presentation\.mjs"/);
   assert.match(s,/appendStatus\(documentObject, footer, entry, pendingRequest, t\)/);
   assert.match(s,/appendStatus\(documentObject, state, entry, pendingRequest, t\)/);
   assert.match(s,/t\("store\.section\.updates"\)/);
