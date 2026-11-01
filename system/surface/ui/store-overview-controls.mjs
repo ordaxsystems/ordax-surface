@@ -462,6 +462,53 @@ export function mountStoreOverviewControls(
     );
     header.append(copy);
     main.append(header);
+    // Keep actionable Store feedback near its controls, not below up to
+    // 256 app cards. Request acceptance never means an OS installation.
+    if (requestMessageId !== null) {
+      const messageText = t(requestMessageId) + (
+        requestReason === null ? "" : " " + t("store.request.reason", { reason: requestReason })
+      );
+      const message = node(documentObject, "p", "ordax-store-request-status", messageText);
+      message.dataset.storeRequestMessage = "true";
+      message.dataset.storeFeedbackState = /\.(rejected|failed)$/.test(requestMessageId)
+        ? "attention" : "information";
+      message.setAttribute("role", "status");
+      message.setAttribute("aria-live", "polite");
+      message.setAttribute("aria-atomic", "true");
+      main.append(message);
+    }
+    if (activeView === "updates" && snapshot.state === "ready") {
+      const explanation = node(documentObject, "p", "ordax-store-detail-note",
+        t("store.updateAll.explanation"));
+      main.append(explanation);
+      if (batchInFlight || batchReport !== null) {
+        const report = batchReport;
+        const state = batchInFlight ? "queued" : report?.state ?? "failed";
+        const status = node(documentObject, "p", "ordax-store-request-status",
+          t("store.updateAll.status." + state, {
+            accepted: String(report?.acceptedRequests ?? 0),
+            rejected: String(report?.rejectedRequests ?? 0),
+            skipped: String(report?.skippedRequests ?? 0),
+          }));
+        status.dataset.storeUpdateAllStatus = state;
+        status.dataset.storeFeedbackState = ["catalog-unavailable", "failed"].includes(state)
+          ? "attention" : "information";
+        status.setAttribute("role", "status");
+        status.setAttribute("aria-live", "polite");
+        status.setAttribute("aria-atomic", "true");
+        main.append(status);
+      }
+    }
+    // The catalog is authoritative, but some hosts intentionally cannot
+    // delegate lifecycle requests. Explain disabled buttons in plain view.
+    if (snapshot.state === "ready" && activeView !== "models"
+        && (lifecycleRequests === null || requestSessionId === null)) {
+      const unavailable = node(documentObject, "p", "ordax-store-action-unavailable",
+        t("store.action.unavailable"));
+      unavailable.dataset.storeFeedbackState = "attention";
+      unavailable.setAttribute("role", "status");
+      main.append(unavailable);
+    }
 
     if (activeView === "models") {
       appendStoreLocalAiModels(documentObject, main, {
@@ -568,32 +615,6 @@ export function mountStoreOverviewControls(
     const security = node(documentObject, "p", "ordax-store-security", t("store.security.note"));
     security.dataset.storeAuthority = "none";
     main.append(security);
-    if (requestMessageId !== null) {
-      const messageText = t(requestMessageId) + (
-        requestReason === null ? "" : " " + t("store.request.reason", { reason: requestReason })
-      );
-      const message = node(documentObject, "p", "ordax-store-request-status", messageText);
-      message.setAttribute("role", "status");
-      main.append(message);
-    }
-    if (activeView === "updates" && snapshot.state === "ready") {
-      const explanation = node(documentObject, "p", "ordax-store-detail-note",
-        t("store.updateAll.explanation"));
-      main.append(explanation);
-      if (batchInFlight || batchReport !== null) {
-        const report = batchReport;
-        const state = batchInFlight ? "queued" : report?.state ?? "failed";
-        const status = node(documentObject, "p", "ordax-store-request-status",
-          t("store.updateAll.status." + state, {
-            accepted: String(report?.acceptedRequests ?? 0),
-            rejected: String(report?.rejectedRequests ?? 0),
-            skipped: String(report?.skippedRequests ?? 0),
-          }));
-        status.dataset.storeUpdateAllStatus = state;
-        status.setAttribute("role", "status");
-        main.append(status);
-      }
-    }
     layout.append(sidebar, main);
     slot.append(layout);
     restoreSectionNavigationScroll(slot, previousNavigationScroll, previousActiveView === activeView);

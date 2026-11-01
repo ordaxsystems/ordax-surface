@@ -590,12 +590,24 @@
   font-size: 0.78rem;
 }
 
-.ordax-store-request-status {
+.ordax-store-request-status,
+.ordax-store-action-unavailable {
   margin: 0;
-  padding: var(--ordax-space-3);
+  min-width: 0;
+  padding: var(--ordax-space-3) var(--ordax-space-4);
   border: 1px solid var(--ordax-border-soft);
   border-radius: var(--ordax-radius-sm);
   color: var(--ordax-text);
+  background: var(--ordax-panel);
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.ordax-store-request-status[data-store-feedback-state="attention"],
+.ordax-store-action-unavailable[data-store-feedback-state="attention"] {
+  border-color: color-mix(in srgb, var(--ordax-warning) 40%, var(--ordax-border));
+  color: var(--ordax-warning);
+  background: var(--ordax-warning-bg);
 }
 
 .ordax-store-card[hidden],
