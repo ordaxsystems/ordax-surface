@@ -37,6 +37,31 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home — carregamento real de serviços e sincronização
+
+A Home só mostra **Sem conta** no estado de sincronização quando o
+port de identidade do OS confirma `signed-out`. Um runtime Sync
+temporariamente sem continuidade ativa, mesmo com transporte
+disponível, não comprova logout: a UI apresenta **Indisponível**;
+se o host de sincronização for necessário, usa a mensagem já
+existente **Aguardando serviço**. Quando a sessão verificada
+e a continuidade ativa coincidem, **Sem pendências** é válido.
+Itens realmente pendentes continuam aparecendo, inclusive
+durante transições de rede e conta, sem ocultar a fila local.
+
+O componente Home relê os snapshots atuais dos ports de
+identidade e Sync a cada renderização; notificações atrasadas
+são apenas sinais para atualizar e não podem reintroduzir uma
+sessão ou estado antigo. Ao iniciar uma nova leitura nativa de
+rede e armazenamento (inclusive após online/offline/retorno
+à janela), a interface retorna a **Carregando** e retira do DOM
+indicadores anteriores de sucesso. Se uma nova consulta for
+solicitada enquanto a anterior ainda estiver pendente, resultados
+antigos não são promovidos para a tela; a consulta posterior
+é mantida pelo mecanismo de fila já existente. Falhas e timeouts
+continuam fail-closed em **Indisponível**. Nenhum serviço,
+mensagem localizada, identidade ou autoridade foi duplicado.
+
 ## Reconexão de Conta — identidade não é conectividade
 
 A projeção de Conta na barra lateral mantém **logout, transporte

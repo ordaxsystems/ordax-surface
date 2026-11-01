@@ -25,7 +25,7 @@ test("Sidebar projects status without treating network transport as an identity 
 });
 test("Home account status names a verified session without claiming network connectivity",async()=>{
   const s=await readFile(new URL("../system/surface/ui/home-status.mjs",import.meta.url),"utf8");
-  const from=s.indexOf("function accountValue("),end=s.indexOf("function syncValue(",from);
+  const from=s.indexOf("function accountValue("),end=s.indexOf("function storageValue(",from);
   assert.ok(from>=0&&end>from,"current account projection exists");
   const account=s.slice(from,end);
   assert.match(account,/snapshot\.state === "signed-in"/);

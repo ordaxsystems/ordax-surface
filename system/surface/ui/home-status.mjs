@@ -20,6 +20,7 @@ import {
 } from "../../contracts/update-status.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
 import { readHomeStatusWithDeadline } from "./home-status-read.mjs";
+import { projectHomeSyncStatus } from "./home-sync-presentation.mjs";
 
 const GIBIBYTE = 1024 ** 3;
 const MEBIBYTE = 1024 ** 2;
@@ -66,26 +67,6 @@ function accountValue(snapshot, sourceState, translate) {
   return snapshot.state === "signed-in"
     ? message(translate, "sidebar.account.signedIn", "success")
     : message(translate, "home.status.account.signedOut", "neutral");
-}
-
-function syncValue(snapshot, sourceState, translate, locale) {
-  if (sourceState !== "ready" || !snapshot) {
-    return message(translate, sourceState === "loading" ? "home.status.loading" : "home.status.unavailable", sourceState);
-  }
-  if (snapshot.pendingMutationCount > 0) {
-    const count = new Intl.NumberFormat(locale).format(snapshot.pendingMutationCount);
-    const noun = translate(snapshot.pendingMutationCount === 1
-      ? "home.status.sync.pendingOne"
-      : "home.status.sync.pendingMany");
-    return Object.freeze({ text: count + " " + noun, state: "pending" });
-  }
-  if (snapshot.accountContinuity === "active" && snapshot.transport === "available") {
-    return message(translate, "home.status.sync.current", "success");
-  }
-  if (snapshot.transport === "host-required") {
-    return message(translate, "home.status.sync.waiting", "neutral");
-  }
-  return message(translate, "home.status.account.signedOut", "neutral");
 }
 
 function storageValue(snapshot, sourceState, translate, locale) {
@@ -188,12 +169,22 @@ export function mountHomeStatus(rootValue, {
 
   const render = () => {
     if (destroyed) return;
+    // Re-read current authoritative snapshots at render time. Subscription
+    // notifications can be delayed across logout, reconnect and account swap.
+    if (identityPort) {
+      state.account = validateIdentitySessionSnapshot(identityPort.getSnapshot());
+      sourceState.account = state.account.state === "unavailable" ? "unavailable" : "ready";
+    }
+    if (syncPort) {
+      state.sync = validateSyncRuntimeSnapshot(syncPort.getSnapshot());
+      sourceState.sync = "ready";
+    }
     const translate = localization.translate;
     const locale = localization.getLocale();
     const presentation = {
       internet: networkValue(state.network, sourceState.network, translate),
       account: accountValue(state.account, sourceState.account, translate),
-      sync: syncValue(state.sync, sourceState.sync, translate, locale),
+      sync: projectHomeSyncStatus(state.sync, sourceState.sync, state.account, translate, locale),
       storage: storageValue(state.storage, sourceState.storage, translate, locale),
       updates: updateValue(state.updates, sourceState.updates, translate),
     };
@@ -237,8 +228,24 @@ export function mountHomeStatus(rootValue, {
     }
   };
 
+  const markReadPortsLoading = () => {
+    // A new connectivity/read request invalidates old successful indicators.
+    // Do not keep presenting a cached "connected" interface or disk amount
+    // as if the OS confirmed it after the latest reconnect event.
+    if (networkPort) {
+      state.network = null;
+      sourceState.network = "loading";
+    }
+    if (metricsPort) {
+      state.storage = null;
+      sourceState.storage = "loading";
+    }
+    render();
+  };
+
   const refreshReadPorts = async () => {
     if (destroyed) return;
+    markReadPortsLoading();
     // A connectivity/focus event during a pending read requires a fresh
     // snapshot after that read finishes; do not silently discard the event.
     if (refreshing) {
@@ -253,11 +260,11 @@ export function mountHomeStatus(rootValue, {
     await Promise.all(reads.map(async ([key, port, validate]) => {
       try {
         const snapshot = await readHomeStatusWithDeadline(port, validate);
-        if (destroyed) return;
+        if (destroyed || refreshQueued) return;
         state[key] = snapshot;
         sourceState[key] = "ready";
       } catch {
-        if (destroyed) return;
+        if (destroyed || refreshQueued) return;
         state[key] = null;
         sourceState[key] = "unavailable";
       } finally {
@@ -273,14 +280,10 @@ export function mountHomeStatus(rootValue, {
     }
   };
 
-  const unsubscribeIdentity = identityPort?.subscribe((snapshot) => {
-    state.account = validateIdentitySessionSnapshot(snapshot);
-    sourceState.account = state.account.state === "unavailable" ? "unavailable" : "ready";
+  const unsubscribeIdentity = identityPort?.subscribe(() => {
     render();
   });
-  const unsubscribeSync = syncPort?.subscribe((snapshot) => {
-    state.sync = validateSyncRuntimeSnapshot(snapshot);
-    sourceState.sync = "ready";
+  const unsubscribeSync = syncPort?.subscribe(() => {
     render();
   });
   const unsubscribeUpdates = updatePort?.subscribe((snapshot) => {

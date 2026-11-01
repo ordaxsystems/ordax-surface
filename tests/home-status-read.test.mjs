@@ -55,6 +55,7 @@ test("Home status keeps read deadlines finite and on the Surface side only", asy
   );
   const home = await readFile(new URL("../system/surface/ui/home-status.mjs", import.meta.url), "utf8");
   assert.match(home, /readHomeStatusWithDeadline\(port, validate\)/);
+  assert.match(home, /markReadPortsLoading\(\)/);
   assert.match(home, /if \(refreshing\) \{\s*refreshQueued = true;\s*return;/);
   assert.match(home, /if \(refreshQueued && !destroyed\) \{\s*refreshQueued = false;\s*void refreshReadPorts\(\);/);
   assert.match(home, /finally \{[\s\S]*?render\(\);/);
