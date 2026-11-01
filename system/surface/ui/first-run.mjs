@@ -28,6 +28,7 @@ import {
 } from "../../services/preferences/regional.mjs";
 import { icon } from "./meridian/icons.mjs";
 import { trapFirstRunKeyboardFocus } from "./first-run-keyboard-focus.mjs";
+import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import { captureFirstRunFocus, restoreFirstRunFocus,
   captureFirstRunReadingState, restoreFirstRunReadingState } from "./first-run-presentation-state.mjs";
 import { shouldSubmitTextInputOnEnter } from "./keyboard-submit.mjs";
@@ -195,6 +196,8 @@ export function mountFirstRunExperience(
   let networkSnapshot = null;
   let networkPending = false;
   let networkMessage = "";
+  let networkValidationInvalid = false;
+  let networkFeedbackTone = "information";
   let networkOrdinal = 0;
   let selectedSsid = null;
   let passwordDraft = "";
@@ -204,6 +207,7 @@ export function mountFirstRunExperience(
   let identityActionOrdinal = 0;
   let identityAvailabilityPending = false;
   let identityMessage = "";
+  let identityFeedbackTone = "information";
   let identityEmailDraft = readRememberedLoginEmail(documentObject.defaultView);
   let identityPasswordDraft = "";
   let identityFormMode = "sign-in";
@@ -228,6 +232,8 @@ export function mountFirstRunExperience(
   });
   let localSessionPending = false;
   let localSessionMessage = "";
+  let localSessionValidationInvalid = false;
+  let localSessionFeedbackTone = "information";
   let localSessionSecretDraft = "";
   let localSessionConfirmDraft = "";
   let deviceNameDraft = deviceProfileSnapshot?.displayName ?? "";
@@ -426,10 +432,10 @@ export function mountFirstRunExperience(
     body.append(toolbar);
 
     if (networkMessage) {
-      const status = el(documentObject, "p", "ordax-first-run-status", translateFirstRunText(draft.locale, networkMessage));
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-      status.setAttribute("aria-atomic", "true");
+      const status = markSurfaceFeedback(
+        el(documentObject, "p", "ordax-first-run-status", translateFirstRunText(draft.locale, networkMessage)),
+        networkFeedbackTone);
+      status.id = "ordax-first-run-network-feedback";
       body.append(status);
     }
     if (!networkSnapshot) return;
@@ -467,6 +473,8 @@ export function mountFirstRunExperience(
       input.autocomplete = "off";
       input.dataset.firstRunWifiPassword = "";
       input.value = passwordDraft;
+      if (networkMessage) input.setAttribute("aria-describedby", "ordax-first-run-network-feedback");
+      if (networkValidationInvalid) input.setAttribute("aria-invalid", "true");
       input.disabled = networkPending;
       passwordField.append(input);
       const connect = action(documentObject, "Conectar", "network-connect", true);
@@ -516,6 +524,8 @@ export function mountFirstRunExperience(
     secret.value = localSessionSecretDraft;
     secret.placeholder = translateFirstRunText(draft.locale, "PIN ou senha local");
     secret.dataset.firstRunLocalSessionSecret = "";
+    if (localSessionMessage) secret.setAttribute("aria-describedby", "ordax-first-run-local-feedback");
+    if (localSessionValidationInvalid) secret.setAttribute("aria-invalid", "true");
     secret.disabled = localSessionPending;
     secretField.append(secret);
 
@@ -529,6 +539,8 @@ export function mountFirstRunExperience(
     confirm.value = localSessionConfirmDraft;
     confirm.placeholder = translateFirstRunText(draft.locale, "Confirmar PIN ou senha");
     confirm.dataset.firstRunLocalSessionConfirm = "";
+    if (localSessionMessage) confirm.setAttribute("aria-describedby", "ordax-first-run-local-feedback");
+    if (localSessionValidationInvalid) confirm.setAttribute("aria-invalid", "true");
     confirm.disabled = localSessionPending;
     confirmField.append(confirm);
     form.append(secretField, confirmField);
@@ -555,10 +567,9 @@ export function mountFirstRunExperience(
       "Deixe os dois campos vazios para continuar sem bloqueio autenticado. Você poderá configurar depois em Ajustes.",
     ));
     if (localSessionMessage) {
-      const status = el(documentObject, "p", "ordax-first-run-status", localSessionMessage);
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-      status.setAttribute("aria-atomic", "true");
+      const status = markSurfaceFeedback(
+        el(documentObject, "p", "ordax-first-run-status", localSessionMessage), localSessionFeedbackTone);
+      status.id = "ordax-first-run-local-feedback";
       body.append(status);
     }
   };
@@ -616,6 +627,7 @@ export function mountFirstRunExperience(
       email.maxLength = 320;
       email.value = identityEmailDraft;
       email.dataset.firstRunIdentityEmail = "";
+      if (identityMessage) email.setAttribute("aria-describedby", "ordax-first-run-identity-feedback");
       email.disabled = identityPending !== null;
       emailField.append(email);
       const passwordField = el(documentObject, "div", "ordax-first-run-field");
@@ -630,6 +642,7 @@ export function mountFirstRunExperience(
       password.maxLength = 1024;
       password.value = identityPasswordDraft;
       password.dataset.firstRunIdentityPassword = "";
+      if (identityMessage) password.setAttribute("aria-describedby", "ordax-first-run-identity-feedback");
       password.disabled = identityPending !== null;
       const reveal = action(documentObject, passwordVisible ? "Ocultar" : "Mostrar", "account-password");
       reveal.setAttribute("aria-label", translateFirstRunText(draft.locale, passwordVisible ? "Ocultar senha" : "Mostrar senha"));
@@ -729,10 +742,9 @@ export function mountFirstRunExperience(
       body.append(status);
     }
     if (identityMessage) {
-      const status = el(documentObject, "p", "ordax-first-run-status", identityMessage);
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-      status.setAttribute("aria-atomic", "true");
+      const status = markSurfaceFeedback(
+        el(documentObject, "p", "ordax-first-run-status", identityMessage), identityFeedbackTone);
+      status.id = "ordax-first-run-identity-feedback";
       body.append(status);
     }
   };
@@ -964,7 +976,10 @@ export function mountFirstRunExperience(
       preferencePort.set(REGIONAL_LOCALE_PREFERENCE_ID, draft.locale);
       preferencePort.set(REGIONAL_TIME_ZONE_PREFERENCE_ID, draft.timeZone);
     }
-    if (STEPS[stepIndex] === "network") passwordDraft = "";
+    if (STEPS[stepIndex] === "network") {
+      passwordDraft = "";
+      networkValidationInvalid = false;
+    }
     if (STEPS[stepIndex] === "account") {
       identityPasswordDraft = "";
       passwordVisible = false;
@@ -973,6 +988,7 @@ export function mountFirstRunExperience(
       localSessionSecretDraft = "";
       localSessionConfirmDraft = "";
       localSessionMessage = "";
+      localSessionValidationInvalid = false;
     }
     stepIndex = Math.max(0, Math.min(STEPS.length - 1, nextIndex));
     if (cursorPort) {
@@ -998,6 +1014,8 @@ export function mountFirstRunExperience(
     if (!networkPort || destroyed || networkPending) return;
     const ordinal = ++networkOrdinal;
     networkPending = true;
+    networkFeedbackTone = "information";
+    networkValidationInvalid = false;
     networkMessage = scan ? networkManagementActionMessage("scan", 0) : "Lendo estado do Wi-Fi…";
     render();
     try {
@@ -1010,6 +1028,7 @@ export function mountFirstRunExperience(
       }
     } catch (error) {
       if (destroyed || ordinal !== networkOrdinal) return;
+      networkFeedbackTone = "attention";
       networkMessage = scan
         ? networkManagementFailureMessage("scan", error)
         : "O Wi-Fi não pôde ser lido. Você pode continuar offline.";
@@ -1025,6 +1044,8 @@ export function mountFirstRunExperience(
     if (!networkPort || destroyed || networkPending) return;
     const ordinal = ++networkOrdinal;
     networkPending = true;
+    networkFeedbackTone = "information";
+    networkValidationInvalid = false;
     networkMessage = networkManagementActionMessage("connect", 0);
     passwordDraft = "";
     render();
@@ -1035,6 +1056,7 @@ export function mountFirstRunExperience(
       networkMessage = networkManagementActionMessage("connect", 1);
     } catch (error) {
       if (destroyed || ordinal !== networkOrdinal) return;
+      networkFeedbackTone = "attention";
       networkMessage = networkManagementFailureMessage("connect", error);
     } finally {
       if (!destroyed && ordinal === networkOrdinal) {
@@ -1058,14 +1080,21 @@ export function mountFirstRunExperience(
       localSessionSecretDraft.length < 6
       || localSessionSecretDraft !== localSessionConfirmDraft
     ) {
+      localSessionValidationInvalid = true;
+      localSessionFeedbackTone = "attention";
       localSessionMessage = "Use pelo menos 6 caracteres e repita exatamente a mesma credencial.";
       render();
+      overlay.querySelector(localSessionSecretDraft.length < 6
+        ? "[data-first-run-local-session-secret]"
+        : "[data-first-run-local-session-confirm]")?.focus({ preventScroll: true });
       return;
     }
     let secret = localSessionSecretDraft;
     localSessionSecretDraft = "";
     localSessionConfirmDraft = "";
     localSessionPending = true;
+    localSessionValidationInvalid = false;
+    localSessionFeedbackTone = "information";
     localSessionMessage = "Criando credencial local…";
     render();
     const operationSecret = secret;
@@ -1079,6 +1108,7 @@ export function mountFirstRunExperience(
       go(stepIndex + 1);
     } catch {
       if (destroyed) return;
+      localSessionFeedbackTone = "attention";
       localSessionMessage = "Não foi possível criar a credencial local. Nenhuma senha foi salva no First Run.";
       render();
     } finally {
@@ -1195,6 +1225,7 @@ export function mountFirstRunExperience(
     const ordinal = ++identityActionOrdinal;
     identityPending = kind;
     identityMessage = "";
+    identityFeedbackTone = "information";
     render();
     try {
       let result = null;
@@ -1223,9 +1254,11 @@ export function mountFirstRunExperience(
           : result?.authenticated === true
             ? "Não foi possível confirmar a sessão da Conta OrdaX. Verifique internet e horário e tente novamente."
             : "A autenticação não foi confirmada. O uso local continua disponível.";
+      identityFeedbackTone = result?.confirmationRequired === true ? "information" : "attention";
     } catch {
       if (!destroyed && ordinal === identityActionOrdinal) {
         identityMessage = "A ação de conta não pôde ser concluída. O uso local continua disponível.";
+        identityFeedbackTone = "attention";
       }
     } finally {
       if (!destroyed && ordinal === identityActionOrdinal) {
@@ -1324,6 +1357,8 @@ export function mountFirstRunExperience(
       if (ssid !== selectedSsid) passwordDraft = "";
       selectedSsid = ssid;
       networkMessage = "";
+      networkValidationInvalid = false;
+      networkFeedbackTone = "information";
       render();
       overlay.querySelector("[data-first-run-wifi-password]")?.focus();
     } else if (kind === "network-connect") {
@@ -1334,14 +1369,20 @@ export function mountFirstRunExperience(
       input.value = "";
       passwordDraft = "";
       if (!password) {
+        networkValidationInvalid = true;
+        networkFeedbackTone = "attention";
         networkMessage = "Digite a senha da rede Wi-Fi.";
         render();
+        overlay.querySelector("[data-first-run-wifi-password]")?.focus({ preventScroll: true });
       } else {
         try {
           validateWifiCredentials({ ssid, password });
         } catch {
+          networkValidationInvalid = true;
+          networkFeedbackTone = "attention";
           networkMessage = "A senha precisa ter de 8 a 63 bytes UTF-8 e não pode conter caracteres de controle.";
           render();
+          overlay.querySelector("[data-first-run-wifi-password]")?.focus({ preventScroll: true });
           return;
         }
         void connectNetwork(ssid, password);
@@ -1372,6 +1413,7 @@ export function mountFirstRunExperience(
       const currentSession = sessionPort.getSnapshot();
       if (currentSession.state !== "signed-in") {
         identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
+        identityFeedbackTone = "attention";
         render();
         return;
       }
@@ -1395,6 +1437,13 @@ export function mountFirstRunExperience(
     if (!(input instanceof HTMLInputElement) || !overlay.contains(input)) return;
     if (input.matches("[data-first-run-wifi-password]")) {
       passwordDraft = input.value;
+      if (networkValidationInvalid) {
+        networkValidationInvalid = false;
+        networkMessage = "";
+        input.removeAttribute("aria-invalid");
+        input.removeAttribute("aria-describedby");
+        overlay.querySelector("#ordax-first-run-network-feedback")?.remove();
+      }
     } else if (input.matches("[data-first-run-identity-email]")) {
       identityEmailDraft = input.value;
     } else if (input.matches("[data-first-run-identity-password]")) {
@@ -1406,6 +1455,27 @@ export function mountFirstRunExperience(
     } else if (input.matches("[data-first-run-device-name]")) {
       deviceNameDraft = input.value;
       deviceNameMessage = "";
+    }
+    if (input.matches("[data-first-run-local-session-secret], [data-first-run-local-session-confirm]")
+        && localSessionValidationInvalid) {
+      localSessionValidationInvalid = false;
+      localSessionMessage = "";
+      overlay.querySelector("#ordax-first-run-local-feedback")?.remove();
+      for (const field of overlay.querySelectorAll(
+        "[data-first-run-local-session-secret], [data-first-run-local-session-confirm]")) {
+        field.removeAttribute("aria-invalid");
+        field.removeAttribute("aria-describedby");
+      }
+    }
+    if (input.matches("[data-first-run-identity-email], [data-first-run-identity-password]")
+        && identityMessage && identityPending === null) {
+      identityMessage = "";
+      overlay.querySelector("#ordax-first-run-identity-feedback")?.remove();
+      for (const field of overlay.querySelectorAll(".ordax-first-run-credentials input")) {
+        if (field.getAttribute("aria-describedby") === "ordax-first-run-identity-feedback") {
+          field.removeAttribute("aria-describedby");
+        }
+      }
     }
   };
 
