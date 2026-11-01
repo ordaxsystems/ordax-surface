@@ -4,7 +4,7 @@ import { createElement, useEffect, useLayoutEffect, useRef, useState, type Dispa
 import { Bell, Search, LayoutGrid, Monitor, MoreHorizontal, ChevronDown, ChevronRight, Sparkles, WalletCards, Settings, Clock3, ShieldCheck, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { SIDEBAR_LAYOUT, sidebarBrandMarkup, sidebarNavigationCapacity, sidebarIsExpanded } from '../../../ui/sidebar-layout.mjs';
+import { SIDEBAR_LAYOUT, sidebarBrandMarkup, mountNativeSidebarFit, sidebarIsExpanded } from '../../../ui/sidebar-layout.mjs';
 import { sidebarProfileButtonMarkup } from '../../../ui/sidebar-account.mjs';
 import { mountSidebarHints } from '../../../ui/sidebar-hints.mjs';
 import { presentationDestination } from '../../presentation.mjs';
@@ -27,7 +27,6 @@ export function WorkspaceNavigation({state,dispatch,view,onToggleView,onCentral,
   const pinned=favorites.filter(item=>pinnedIds.has(item.id));
   const [startOpen,setStartOpen]=useState(false);
   const [search,setSearch]=useState('');
-  const [visibleCount,setVisibleCount]=useState(6);
   const [expanded,setExpanded]=useState(false);
   const collapseLabel=translateSurfaceMessage(String(snapshot[REGIONAL_LOCALE_PREFERENCE_ID]??'pt-BR'),expanded?'shell.sidebar.collapse':'shell.sidebar.expand');
   const [menuContainer,setMenuContainer]=useState<HTMLElement|null>(null);
@@ -47,8 +46,13 @@ export function WorkspaceNavigation({state,dispatch,view,onToggleView,onCentral,
   useEffect(()=>{if(!hintHost.current||!sidebar.current)return;const hints=mountSidebarHints(hintHost.current,sidebar.current);return()=>hints.destroy();},[]);
   useLayoutEffect(()=>{
     const host=nav.current,rail=sidebar.current;if(!host||!rail)return;
-    const measure=()=>{const expanded=sidebarIsExpanded(rail);setExpanded(expanded);setVisibleCount(sidebarNavigationCapacity(host));};
-    measure();const observer=new ResizeObserver(measure);observer.observe(host);observer.observe(rail);return()=>observer.disconnect();
+    const measure=()=>setExpanded(sidebarIsExpanded(rail));
+    measure();
+    // Native and Web share the measured overflow and keyboard-focus behavior.
+    const fit=mountNativeSidebarFit(host,measure);
+    const observer=new ResizeObserver(measure);
+    observer.observe(rail);
+    return()=>{observer.disconnect();fit.destroy();};
   },[]);
   useLayoutEffect(()=>{
     const host=dock.current;if(!host)return;
@@ -59,13 +63,30 @@ export function WorkspaceNavigation({state,dispatch,view,onToggleView,onCentral,
   const activeWindow=state.windows.find(window=>window.title===state.active&&!window.minimized);
   const active=activeWindow ? getWindowTitle(activeWindow.title) : undefined;
   const railDestinations=navigation.filter(item=>item.rail&&item.name!=='Início');
-  const visible=railDestinations.slice(0,visibleCount>=railDestinations.length?railDestinations.length:Math.max(0,visibleCount-1));
   const menuItems=[...navigation,{name:'Atividades',icon:Clock3},{name:'Continuidade',icon:Clock3},{name:'Minha conta',icon:ShieldCheck},{name:'Notificações',icon:Bell}].filter(item=>item.name!=='Início'&&matchesNavigationQuery(item,search));
   const homeMatch=matchesNavigationQuery({name:'Central Início'},search);
   const dockItems=[...pinned,...state.windows.filter(window=>!pinned.some(item=>getWindowTitle(item.name)===getWindowTitle(window.title))).map(window=>({id:window.title,name:window.title,icon:getWindowIcon(window.title),tone:'green' as const}))];
   function open(title:string){menuNavigated.current=startOpen;setStartOpen(false);dispatch({type:'open',title:getWindowTitle(title)});}
   function home(){menuNavigated.current=startOpen;setStartOpen(false);dispatch({type:'show-desktop'});onCentral();}
-  const items=(<>{visible.map((item,index)=><div className="meridian-nav-destination" key={item.name}>{item.group==='ecossistema'&&visible[index-1]?.group!=='ecossistema'&&<p className="meridian-nav-label">Ecossistema</p>}<Button variant="ghost" className="os-nav-item" aria-label={item.name} title={item.name} aria-current={(item.target??item.name)===active?(view==='central'?'page':'true'):undefined} data-active={(item.target??item.name)===active} onClick={()=>open(item.target??item.name)}><item.icon aria-hidden="true"/><span>{item.name}</span></Button></div>)}{visible.length<railDestinations.length&&<Button variant="ghost" className="os-nav-item" aria-label="Mais destinos" title="Mais destinos" onClick={event=>openMenu(event.currentTarget)}><MoreHorizontal/><span>Mais destinos</span></Button>}</>);
+  const renderRailItem=(item:(typeof railDestinations)[number], index:number)=>(
+    <div className="meridian-nav-destination" key={item.name}>
+      {item.group==='ecossistema'&&index===0&&<p className="meridian-nav-label">Ecossistema</p>}
+      <Button variant="ghost" className="os-nav-item" aria-label={item.name} title={item.name} aria-current={(item.target??item.name)===active?(view==='central'?'page':'true'):undefined} data-active={(item.target??item.name)===active} onClick={()=>open(item.target??item.name)}>
+        <item.icon aria-hidden="true"/><span>{item.name}</span>
+      </Button>
+    </div>
+  );
+  const items=(<>
+    <div className="meridian-native-nav-group" data-nav-group="principal">
+      {railDestinations.filter(item=>item.group!=='ecossistema').map(renderRailItem)}
+    </div>
+    <div className="meridian-native-nav-group" data-nav-group="ecossistema">
+      {railDestinations.filter(item=>item.group==='ecossistema').map(renderRailItem)}
+    </div>
+    <Button variant="ghost" className="os-nav-item meridian-nav-more" data-nav-menu-more hidden aria-label="Mais destinos" title="Mais destinos" onClick={event=>openMenu(event.currentTarget)}>
+      <MoreHorizontal aria-hidden="true"/><span>Mais destinos</span>
+    </Button>
+  </>);
   const slots:Record<string,ReactNode>={
     brand:<button type="button" className="meridian-brand-home" aria-label="OrdaX Central" onClick={home} dangerouslySetInnerHTML={{__html:sidebarBrandMarkup()}}/>,
     home:<><button className="meridian-rail-space" aria-label={`Trocar Space, atual: ${authorized.activeSpace?.name??'nenhum selecionado'}`} title={`Trocar Space: ${authorized.activeSpace?.name??'escolher contexto'}`} onClick={()=>open('Espaços')}><span><WalletCards size={20}/></span><span><small>SEU SPACE</small><strong>{authorized.activeSpace?.name??'Escolher contexto'}</strong></span><ChevronDown size={14}/></button>{view==='central'&&<Button variant="ghost" className="os-nav-item meridian-home-destination" data-window-home aria-label="Início" title="Início" data-active={!activeWindow} aria-current={!activeWindow?'page':undefined} onClick={home}><LayoutGrid/><span>Início</span></Button>}</>,
