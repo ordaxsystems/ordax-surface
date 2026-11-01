@@ -235,6 +235,8 @@ jobs:
             tests/test_surface_localization.mjs \
             tests/test_first_run_capabilities.mjs \
             tests/test_first_run_i18n.mjs \
+            tests/test_first_run_state.mjs \
+            tests/test_first_run_device_name.mjs \
             tests/test_sidebar_layout.mjs \
             tests/test_audio_output_controls.mjs \
             tests/test_store_update_request_batch.mjs \
