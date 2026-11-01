@@ -155,7 +155,10 @@ export function mountAudioOutputControls(root, {
   };
 
   const refresh = async () => {
-    if (destroyed || audioPort === null) return;
+    // A public/manual refresh must not supersede an in-flight Native write.
+    // Its completion would invalidate the write's generation and strand
+    // pending=true, leaving all audio controls disabled indefinitely.
+    if (destroyed || audioPort === null || pending) return;
     const currentOperation = ++operation;
     try {
       const next = validateAudioOutputsSnapshot(await audioPort.read());
@@ -178,8 +181,10 @@ export function mountAudioOutputControls(root, {
     pending = true;
     render();
     try {
-      snapshot = validateAudioOutputsSnapshot(await action(audioPort, selectedOutputId));
+      const result = await action(audioPort, selectedOutputId);
       if (destroyed || currentOperation !== operation) return;
+      // A stale/destroyed control must not accept even a transient readback.
+      snapshot = validateAudioOutputsSnapshot(result);
       selectedOutputId = snapshot.defaultOutputId;
     } catch {
       if (destroyed || currentOperation !== operation) return;
