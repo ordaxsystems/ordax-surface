@@ -28,6 +28,8 @@ import {
 } from "../../services/preferences/regional.mjs";
 import { icon } from "./meridian/icons.mjs";
 import { trapFirstRunKeyboardFocus } from "./first-run-keyboard-focus.mjs";
+import { captureFirstRunFocus, restoreFirstRunFocus,
+  captureFirstRunReadingState, restoreFirstRunReadingState } from "./first-run-presentation-state.mjs";
 import { shouldSubmitTextInputOnEnter } from "./keyboard-submit.mjs";
 import { SYSTEM_TERMS_DOCUMENT, createSystemTermsAcceptance } from "../../contracts/system-terms.mjs";
 import { translateFirstRunText } from "../../services/i18n/first-run.mjs";
@@ -426,6 +428,8 @@ export function mountFirstRunExperience(
     if (networkMessage) {
       const status = el(documentObject, "p", "ordax-first-run-status", translateFirstRunText(draft.locale, networkMessage));
       status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.setAttribute("aria-atomic", "true");
       body.append(status);
     }
     if (!networkSnapshot) return;
@@ -554,6 +558,7 @@ export function mountFirstRunExperience(
       const status = el(documentObject, "p", "ordax-first-run-status", localSessionMessage);
       status.setAttribute("role", "status");
       status.setAttribute("aria-live", "polite");
+      status.setAttribute("aria-atomic", "true");
       body.append(status);
     }
   };
@@ -717,9 +722,17 @@ export function mountFirstRunExperience(
       body.append(legal);
     }
     // First Run asks only for identity. Profile, plan and sync live in Account/Settings.
+    if (identityAvailabilityPending) {
+      const status = el(documentObject, "p", "ordax-first-run-status", "Verificando conta…");
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      body.append(status);
+    }
     if (identityMessage) {
       const status = el(documentObject, "p", "ordax-first-run-status", identityMessage);
       status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.setAttribute("aria-atomic", "true");
       body.append(status);
     }
   };
@@ -842,11 +855,11 @@ export function mountFirstRunExperience(
 
   const render = () => {
     if (destroyed) return;
-    const focused = documentObject.activeElement;
-    const focusKey = focused && overlay.contains(focused)
-      ? [...focused.attributes].find((attribute) => attribute.name.startsWith("data-first-run-"))
-      : null;
-    const focusId = focused && overlay.contains(focused) ? focused.id : null;
+    const sameStep = overlay.dataset.firstRunStep === STEPS[stepIndex];
+    const previousReading = sameStep
+      ? captureFirstRunReadingState(card.querySelector(".ordax-first-run-body")) : null;
+    const previousRailScroll = progress.querySelector(".ordax-first-run-steps")?.scrollLeft ?? 0;
+    const previousFocus = captureFirstRunFocus(overlay, documentObject.activeElement);
     renderProgress();
     card.replaceChildren();
     const body = el(documentObject, "div", "ordax-first-run-body");
@@ -900,13 +913,10 @@ export function mountFirstRunExperience(
       footer.append(next);
     }
     card.append(body, footer);
-    if (focusKey) {
-      const candidate = [...overlay.querySelectorAll(`[${focusKey.name}]`)]
-        .find((node) => node.getAttribute(focusKey.name) === focusKey.value);
-      if (candidate && !candidate.disabled) candidate.focus({ preventScroll: true });
-    } else if (focusId) {
-      documentObject.getElementById(focusId)?.focus({ preventScroll: true });
-    }
+    if (sameStep) restoreFirstRunReadingState(body, previousReading);
+    const rail = progress.querySelector(".ordax-first-run-steps");
+    if (rail) rail.scrollLeft = previousRailScroll;
+    restoreFirstRunFocus(overlay, previousFocus);
   };
 
   const refreshKeyboardLayout = async () => {

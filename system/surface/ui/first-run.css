@@ -340,7 +340,7 @@
 }
 
 .ordax-first-run-action {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--md-border);
   border-radius: var(--md-radius-small);
   padding: 9px 15px;
@@ -643,3 +643,14 @@
 .ordax-first-run-system-terms-choice input { flex:none; width:18px; height:18px; margin:2px 0 0; accent-color:var(--md-accent); }
 .ordax-first-run-system-terms-choice input:focus-visible,
 .ordax-first-run-terms-document summary:focus-visible { outline:2px solid var(--md-focus); outline-offset:4px; }
+
+@container (max-width: 420px) {
+  .ordax-first-run-footer { align-items: stretch; }
+  .ordax-first-run-footer .ordax-first-run-action {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-inline-end: 0;
+  }
+  .ordax-first-run-password-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .ordax-first-run-account-actions .ordax-first-run-action { min-width: 0; }
+}

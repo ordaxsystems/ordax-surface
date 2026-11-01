@@ -191,6 +191,28 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Primeiro uso — continuidade de navegação durante atualização
+
+O diálogo único de primeiro uso preserva o foco durante atualizações
+assíncronas de sessão, Wi-Fi e política de cadastro. O contrato de
+apresentação `first-run-presentation-state.mjs` distingue a ação e
+o SSID: ao atualizar redes, o foco nunca muda para outra rede por
+compartilharem `data-first-run-action`. Ações removidas ou revogadas
+retornam o foco ao título seguro, sem habilitar um botão inválido.
+
+A rolagem de leitura, os documentos expandidos e a navegação por etapas
+continuam estáveis quando apenas os dados da mesma etapa mudam. A
+navegação entre etapas mantém o foco intencional no título. Senhas,
+tokens e permissões **não** são copiados para snapshots de
+apresentação; apenas identidades de controles e seleção de texto
+podem ser restauradas.
+
+O estado de verificação de conta e os retornos de segurança e rede
+são anunciados de modo acessível, sem presumir autenticação ou
+conexão bem-sucedida. Controles têm mínimo de 44 px e rodapé
+compacto adaptado ao próprio container, usando exclusivamente
+tokens Meridian e os contratos originais.
+
 ## Formulários Native — foco, validação e janelas compactas
 
 Em Conta, campos de credenciais, confirmação legal e encerramento agora
