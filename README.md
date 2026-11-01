@@ -191,6 +191,24 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Loja — detalhes, foco e estados vazios
+
+A Loja oficial diferencia três estados de lista vazia sem presumir erros do
+catálogo: catálogo `ready` sem aplicativos, pesquisa sem correspondência e
+categoria sem aplicativos aplicáveis. Quando o port informa indisponibilidade,
+a UI mostra seu estado separado e continua bloqueando operações. Todos os
+textos usam exclusivamente as mensagens localizadas existentes no OS, e
+o contador acessível de resultados anuncia mudanças de filtros.
+
+Ao receber um novo snapshot assinado, o renderer preserva o foco de teclado
+sobre a ação ou navegação correspondente, se ela continuar válida. Quando
+um botão desaparece ou é desabilitado pelo novo estado, o foco retorna para
+Voltar (nos detalhes) ou para a categoria ativa. O comportamento não mantém
+ações autorizadas por estado antigo e não altera o port de lifecycle.
+Detalhes, verificação de identidade e estados de vazio se reorganizam pelo
+**container real** de uma janela estreita (480px), sem novos tokens de cor,
+fonte ou renderer.
+
 ## Loja — estados reais e ações sem sucesso presumido
 
 O catálogo oficial mantém os estados canônicos do OS (disponível, instalado,

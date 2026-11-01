@@ -15,3 +15,24 @@ export function storeEntryVisualState(entry, pendingRequest = null) {
     requestOperation: localRequest?.operation ?? null,
   });
 }
+
+/** Present empty results without inventing catalog health or duplicating translations.
+ *  All message IDs come from the OS-owned Store catalog. */
+export function storeEmptyPresentation(totalEntries, visibleEntries, view, query = "") {
+  if (visibleEntries > 0) return null;
+  if (totalEntries === 0) return Object.freeze({
+    reason: "catalog-empty",
+    titleId: "store.empty.filtered",
+    descriptionId: "store.section.description.discover",
+  });
+  if (query.trim().length > 0) return Object.freeze({
+    reason: "search-empty",
+    titleId: "store.empty.filtered",
+    descriptionId: "store.empty.filteredDescription",
+  });
+  return Object.freeze({
+    reason: "section-empty",
+    titleId: "store.section." + view,
+    descriptionId: "store.section.description." + view,
+  });
+}

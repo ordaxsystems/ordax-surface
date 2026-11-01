@@ -40,7 +40,9 @@ test("Accepted lifecycle request cannot turn available into installed",()=>{
 test("One Store renderer uses localized statuses and existing Meridian tokens",async()=>{
   const s=await readFile(new URL("../system/surface/ui/store-overview-controls.mjs",import.meta.url),"utf8");
   const css=await readFile(new URL("../system/surface/ui/store.css",import.meta.url),"utf8");
-  assert.match(s,/import \{ STORE_OPERATIONS, storeEntryVisualState \} from "\.\/store-entry-presentation\.mjs"/);
+  assert.match(s,/from "\.\/store-entry-presentation\.mjs"/);
+  assert.match(s,/\bstoreEntryVisualState\b/);
+  assert.match(s,/\bstoreEmptyPresentation\b/);
   assert.match(s,/appendStatus\(documentObject, footer, entry, pendingRequest, t\)/);
   assert.match(s,/appendStatus\(documentObject, state, entry, pendingRequest, t\)/);
   assert.match(s,/t\("store\.section\.updates"\)/);

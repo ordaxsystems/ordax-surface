@@ -657,6 +657,29 @@
   .ordax-store-detail-fact dd {
     text-align: left;
   }
+
+  .ordax-store-detail-header {
+    padding: var(--ordax-space-4);
+  }
+
+  .ordax-store-app-icon-large {
+    width: 64px;
+    height: 64px;
+  }
+
+  .ordax-store-detail-technical,
+  .ordax-store-empty,
+  .ordax-store-filter-empty {
+    padding: var(--ordax-space-4);
+  }
+
+  .ordax-store-detail-state .ordax-store-actions {
+    width: 100%;
+  }
+
+  .ordax-store-detail-state .ordax-store-action {
+    flex: 1 1 auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
