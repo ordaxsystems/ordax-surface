@@ -37,6 +37,26 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home — Space atual sem reexibir snapshots antigos
+
+A Home Native exibe o Space por meio do **único port de seleção
+canônico do OS**. Esse runtime reconcilia a sessão, o catálogo de
+Spaces e o sujeito; a Surface não reproduz essas regras, não consulta
+armazenamento diretamente e não considera um nome em cache como
+autorização. O `mountHomeSpaceCard` relê e valida
+`spaceSelection.getSnapshot()` em **cada renderização**, incluindo
+mudanças de idioma e notificações de assinatura. O payload de eventos
+é apenas um sinal de atualização: uma entrega atrasada não pode
+restaurar visualmente o Space de uma conta anterior.
+
+A projeção visual isolada em `home-space-card-presentation.mjs`
+apresenta três estados exclusivos usando as mesmas mensagens
+e tokens existentes: selecionado, não selecionado e indisponível.
+Nas transições para indisponível, nome, tipo e status são
+substituídos juntos na atualização do DOM; nenhum dado anterior
+fica exibido como placeholder. Não há nova autoridade nem nova
+dependência exigida da composição Native do OS.
+
 ## Home, Conta e Spaces — continuidade de teclado após mudança de sessão
 
 O seletor nativo de Space usa a mesma rotina `focus-recovery.mjs`
