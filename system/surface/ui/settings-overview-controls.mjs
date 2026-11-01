@@ -37,6 +37,7 @@ import {
 import { KEYBOARD_LAYOUT_OPTIONS } from "../../services/input/keyboard-layout.mjs";
 import { COLOR_THEME_OPTIONS, resolveColorAppearance, selectColorTheme } from "../../services/preferences/color-palette.mjs";
 import { listPreferenceDefinitions } from "../../services/preferences/catalog.mjs";
+import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
 import { assertProductConnectorPort } from "../../contracts/product-connector.mjs";
 import { assertDisplayOutputsPort } from "../../contracts/display-outputs.mjs";
@@ -70,10 +71,10 @@ function node(documentObject, tag, className, text) {
   return element;
 }
 
-function formatReceivedAt(value, locale) {
+function formatReceivedAt(value, locale, timeZone) {
   if (!Number.isFinite(value)) return null;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "America/Bahia",
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -1100,7 +1101,8 @@ export function mountSettingsOverviewControls(
 
     if (networkManagementReadFailed && networkManagementSnapshot !== null) {
       const receivedAt =
-        formatReceivedAt(networkManagementLastSuccessAt, localization.getLocale())
+        formatReceivedAt(networkManagementLastSuccessAt, localization.getLocale(),
+          resolveRegionalTimeZone(preferenceSnapshot))
         ?? t("network.time.unknown");
       panel.append(
         node(
@@ -1254,7 +1256,8 @@ export function mountSettingsOverviewControls(
       } else {
         if (networkReadFailed && networkSnapshot !== null) {
           const receivedAt =
-            formatReceivedAt(networkLastSuccessAt, localization.getLocale())
+            formatReceivedAt(networkLastSuccessAt, localization.getLocale(),
+              resolveRegionalTimeZone(preferenceSnapshot))
             ?? t("network.time.unknown");
           section.append(
             node(

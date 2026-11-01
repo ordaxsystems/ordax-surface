@@ -4,6 +4,8 @@ import {
 } from "../../services/diagnostics/controller.mjs";
 import { assertLocalizationPort } from "../../contracts/localization.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { assertPreferenceRuntimePort } from "../../contracts/preference-runtime.mjs";
+import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
 
 const CONTROLLER_PHASES = new Set(["idle", "preparing", "ready", "copying", "exporting"]);
 
@@ -132,12 +134,12 @@ function displayLocale(localization) {
   return localization.getLocale() === "en-US" ? "en-US" : "pt-BR";
 }
 
-function formatTimestamp(value, localization) {
+function formatTimestamp(value, localization, timeZone) {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
     return localization.translate("system.diagnostics.review.time.unknown");
   }
   return new Intl.DateTimeFormat(displayLocale(localization), {
-    timeZone: "America/Bahia",
+    timeZone,
     dateStyle: "short",
     timeStyle: "medium",
   }).format(new Date(value));
@@ -303,12 +305,12 @@ function actionPresentation(snapshot, localization) {
   });
 }
 
-function eventPresentation(event, localization) {
+function eventPresentation(event, localization, timeZone) {
   const messageId = SEVERITY_MESSAGE_IDS[event.severity];
   return freeze({
     severity: event.severity,
     severityLabel: messageId ? localization.translate(messageId) : event.severity,
-    occurredAt: formatTimestamp(event.occurredAt, localization),
+    occurredAt: formatTimestamp(event.occurredAt, localization, timeZone),
     component: event.component,
     eventCode: event.eventCode,
     correlationKey: event.correlationKey,
@@ -316,7 +318,9 @@ function eventPresentation(event, localization) {
   });
 }
 
-export function createDiagnosticReviewPresentation(snapshotValue, localizationValue) {
+export function createDiagnosticReviewPresentation(
+  snapshotValue, localizationValue, timeZone = resolveRegionalTimeZone(),
+) {
   const snapshot = requireControllerState(snapshotValue);
   const localization = assertLocalizationPort(localizationValue);
   const t = localization.translate;
@@ -328,7 +332,7 @@ export function createDiagnosticReviewPresentation(snapshotValue, localizationVa
     : [];
   const journal = report?.journal ?? null;
   const events = journal
-    ? [...journal.events].reverse().map((event) => eventPresentation(event, localization))
+    ? [...journal.events].reverse().map((event) => eventPresentation(event, localization, timeZone))
     : [];
 
   const update = report?.update
@@ -349,7 +353,7 @@ export function createDiagnosticReviewPresentation(snapshotValue, localizationVa
         "system.diagnostics.review.update.phase.unknown",
       ),
       checkedAt: report.update.checkedAt && report.update.checkedAt !== "unknown"
-        ? formatTimestamp(report.update.checkedAt, localization)
+        ? formatTimestamp(report.update.checkedAt, localization, timeZone)
         : t("system.diagnostics.review.update.checkedUnknown"),
       lastError: report.update.lastError || "",
     })
@@ -409,7 +413,7 @@ export function createDiagnosticReviewPresentation(snapshotValue, localizationVa
     }),
     review: review
       ? freeze({
-        generatedAt: formatTimestamp(review.generatedAt, localization),
+        generatedAt: formatTimestamp(review.generatedAt, localization, timeZone),
         fileName: document.fileName,
         hasFailures: review.manifest.hasFailures,
         sources: freeze(sources),
@@ -625,6 +629,8 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
   }
   const controller = assertDiagnosticReviewController(controllerValue);
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
+  const preferences = lifecycle.preferences == null
+    ? null : assertPreferenceRuntimePort(lifecycle.preferences);
   const localization = lifecycle.localization;
   const documentObject = container.ownerDocument;
   let destroyed = false;
@@ -638,7 +644,9 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
         : documentObject.activeElement?.dataset?.systemDiagnosticsExport !== undefined
           ? "export"
           : null;
-    const presentation = createDiagnosticReviewPresentation(stateValue, localization);
+    const presentation = createDiagnosticReviewPresentation(
+      stateValue, localization, resolveRegionalTimeZone(preferences?.getSnapshot() ?? {}),
+    );
     const section = node(documentObject, "section", "ordax-system-section");
     section.dataset.systemDiagnosticsReview = "";
     renderReview(documentObject, section, presentation, localization);
@@ -671,9 +679,11 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
   container.addEventListener("click", click);
   render(controller.getSnapshot());
   const unsubscribeController = controller.subscribe(render);
-  const unsubscribeLocalization = localization.subscribe(() => {
+  const rerender = () => {
     if (!destroyed) render(controller.getSnapshot());
-  });
+  };
+  const unsubscribeLocalization = localization.subscribe(rerender);
+  const unsubscribePreferences = preferences?.subscribe(rerender);
 
   return Object.freeze({
     dispose() {
@@ -681,6 +691,7 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
       destroyed = true;
       unsubscribeController();
       unsubscribeLocalization();
+      unsubscribePreferences?.();
       container.removeEventListener("click", click);
       container.replaceChildren();
     },

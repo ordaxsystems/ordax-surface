@@ -364,3 +364,80 @@ test("Native audio refresh cannot invalidate an in-flight write and leave contro
   assert.match(source, /refreshButton\.disabled = pending;/);
   assert.match(source, /operation \+= 1;\s*outputSelect\.removeEventListener/);
 });
+
+
+test("Native network, Settings, System and Diagnostics timestamps use the regional SSOT", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const [network, settings, system, diagnostics] = await Promise.all([
+    read("network-tray-controls.mjs"),
+    read("settings-overview-controls.mjs"),
+    read("system-overview-controls.mjs"),
+    read("system-diagnostics-review.mjs"),
+  ]);
+  for (const [owner, source] of Object.entries({ network, settings, system, diagnostics })) {
+    assert.match(source, /resolveRegionalTimeZone/);
+    assert.doesNotMatch(source, /timeZone:\s*["']America\/Bahia["']/,
+      owner + " must not override the user's regional choice");
+  }
+
+  assert.match(network, /const unsubscribePreferences = preferences\?\.subscribe\(rerenderPresentation\)/);
+  assert.match(network, /unsubscribePreferences\?\.\(\)/);
+  assert.match(settings, /const unsubscribePreferences = preferences\.subscribe/);
+  assert.match(settings, /resolveRegionalTimeZone\(preferenceSnapshot\)/);
+  assert.match(system, /const unsubscribePreferences = preferences\?\.subscribe/);
+  assert.match(system, /unsubscribePreferences\?\.\(\)/);
+  assert.match(diagnostics, /const unsubscribePreferences = preferences\?\.subscribe\(rerender\)/);
+  assert.match(diagnostics, /unsubscribePreferences\?\.\(\)/);
+
+  const extract = (source, start, end) => {
+    const begin = source.indexOf(start);
+    const finish = source.indexOf(end, begin);
+    assert.ok(begin >= 0 && finish > begin, start + " and " + end + " must exist");
+    return source.slice(begin, finish).replace(/^export /, "");
+  };
+  const networkTime = runInNewContext(
+    extract(network, "export function formatNetworkReceivedAt(", "function signalLevel(")
+      + "\n;formatNetworkReceivedAt",
+    { Intl, Date, Number, resolveRegionalTimeZone: () => "America/Bahia" },
+  );
+  const settingsTime = runInNewContext(
+    extract(settings, "function formatReceivedAt(", "const PREFERENCE_PRESENTATION_IDS")
+      + "\n;formatReceivedAt",
+    { Intl, Date, Number },
+  );
+  const overviewTimes = runInNewContext(
+    extract(system, "function formatOverviewTimestamp(", "function validSystemSection(")
+      + "\n;({ formatOverviewTimestamp, formatOverviewReceivedAt })",
+    { Intl, Date, Number },
+  );
+  const diagnosticTime = runInNewContext(
+    extract(diagnostics, "function displayLocale(", "function formatBytes(")
+      + "\n;formatTimestamp",
+    { Intl, Date, Number },
+  );
+  const instant = "2026-11-01T12:34:00.000Z";
+  const millis = Date.parse(instant);
+  const zones = ["America/Bahia", "America/Manaus"];
+  const expected = ["09:34", "08:34"];
+  const localization = {
+    getLocale: () => "pt-BR",
+    translate: () => "unknown",
+  };
+  const formatters = [
+    zone => networkTime(millis, "pt-BR", zone),
+    zone => settingsTime(millis, "pt-BR", zone),
+    zone => overviewTimes.formatOverviewTimestamp(instant, "pt-BR", zone),
+    zone => overviewTimes.formatOverviewReceivedAt(millis, "pt-BR", zone),
+    zone => diagnosticTime(instant, localization, zone),
+  ];
+  for (const [i, formatter] of formatters.entries()) {
+    assert.notEqual(formatter(zones[0]), formatter(zones[1]), "formatter " + i);
+    for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex++) {
+      assert.ok(formatter(zones[zoneIndex]).includes(expected[zoneIndex]),
+        "formatter " + i + " / " + zones[zoneIndex] + ": " + formatter(zones[zoneIndex]));
+    }
+  }
+  assert.equal(networkTime(null, "pt-BR", zones[0]), null);
+  assert.equal(settingsTime(null, "pt-BR", zones[0]), null);
+  assert.equal(overviewTimes.formatOverviewTimestamp("unknown", "pt-BR", zones[0]), null);
+});

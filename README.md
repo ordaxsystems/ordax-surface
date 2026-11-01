@@ -32,6 +32,15 @@ contrato mínimo de ciclo de vida (sem o port de preferências), aplica-se o
 padrão definido no serviço regional canônico do OS, não uma constante
 duplicada de fuso na UI.
 
+A mesma fonte canônica agora rege as datas e horários apresentados na
+**bandeja de rede**, na seção **Rede dos Ajustes**, no **Sistema**
+(atualizações, histórico e observações de métricas) e na **revisão local
+de diagnósticos**. Mudanças em `regional.time-zone` reformatam a
+apresentação já carregada, sem nova leitura de dados, alteração dos
+timestamps originais, edição do relatório exportável ou duplicação da
+preferência. Onde o ciclo de vida expõe apenas o contrato mínimo,
+usa-se `resolveRegionalTimeZone()` do OS para o padrão canônico.
+
 ## Aura — estados de carregamento e cancelamento
 
 As apresentações **Aura do Home** e **Aura no aplicativo** consomem a

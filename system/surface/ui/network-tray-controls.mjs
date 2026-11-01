@@ -3,14 +3,15 @@ import {
   validateNetworkStatusSnapshot,
 } from "../../contracts/network-status.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { assertPreferenceRuntimePort } from "../../contracts/preference-runtime.mjs";
+import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
 
 const POLL_INTERVAL_MS = 5000;
-const NETWORK_TIME_ZONE = "America/Bahia";
 
-export function formatNetworkReceivedAt(value, locale = "pt-BR") {
+export function formatNetworkReceivedAt(value, locale = "pt-BR", timeZone = resolveRegionalTimeZone()) {
   if (!Number.isFinite(value)) return null;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: NETWORK_TIME_ZONE,
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -152,6 +153,8 @@ export function mountNetworkTrayControls(
   }
   const port = assertNetworkStatusPort(networkStatus);
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
+  const preferences = lifecycle.preferences == null
+    ? null : assertPreferenceRuntimePort(lifecycle.preferences);
   const localization = lifecycle.localization;
   const t = localization.translate;
   const tray = root.querySelector("[data-connectivity-tray]");
@@ -168,7 +171,8 @@ export function mountNetworkTrayControls(
   let lastObservation = "unavailable";
 
   const receivedAt = () =>
-    formatNetworkReceivedAt(lastSuccessAt, localization.getLocale())
+    formatNetworkReceivedAt(lastSuccessAt, localization.getLocale(),
+      resolveRegionalTimeZone(preferences?.getSnapshot() ?? {}))
     ?? t("network.time.unknown");
 
   const render = (snapshot, { stale = false } = {}) => {
@@ -225,14 +229,16 @@ export function mountNetworkTrayControls(
     }
   };
 
-  const unsubscribeLocalization = localization.subscribe(() => {
+  const rerenderPresentation = () => {
     if (destroyed) return;
     if (lastSnapshot) {
       render(lastSnapshot, { stale: lastObservation === "stale" });
     } else {
       renderUnavailable();
     }
-  });
+  };
+  const unsubscribeLocalization = localization.subscribe(rerenderPresentation);
+  const unsubscribePreferences = preferences?.subscribe(rerenderPresentation);
 
   void refresh();
   const timer = setInterval(() => void refresh(), pollIntervalMs);
@@ -243,6 +249,7 @@ export function mountNetworkTrayControls(
       destroyed = true;
       clearInterval(timer);
       unsubscribeLocalization();
+      unsubscribePreferences?.();
       lastSnapshot = null;
       lastSuccessAt = null;
       delete tray.dataset.networkObservation;
