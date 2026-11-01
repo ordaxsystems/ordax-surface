@@ -220,9 +220,10 @@ jobs:
             tests.test_surface_web_builder \
             tests.test_native_host_module_integrity \
             tests.test_system_runtime_contract \
-            tests.test_store_update_all_ui_contract -v
+            tests.test_store_update_all_ui_contract \
+            tests.test_diagnostic_system_view_contract -v
 
-      - name: Verify shared Surface state, localization, Store request batch and Native audio
+      - name: Verify shared Surface, regional network and diagnostics, Store batch and Native audio
         working-directory: os
         run: |
           node --test \
@@ -230,7 +231,9 @@ jobs:
             tests/test_surface_localization.mjs \
             tests/test_sidebar_layout.mjs \
             tests/test_audio_output_controls.mjs \
-            tests/test_store_update_request_batch.mjs
+            tests/test_store_update_request_batch.mjs \
+            tests/test_network_status.mjs \
+            tests/test_diagnostic_system_view.mjs
 
       - name: Prove shared Native Surface in Chromium at desktop and mobile viewports
         working-directory: os
