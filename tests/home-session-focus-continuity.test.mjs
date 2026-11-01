@@ -46,7 +46,8 @@ test("Home Account retains the OS action name and describes live session context
     assert.ok(code.includes('id="'+id+'"'),id);
   }
   assert.match(code,/session\.state === "signed-in" \? session\.displayName/);
-  assert.match(code,/status: translate\(offline \? "sidebar\.account\.offline"/);
+  assert.match(code,/status: translate\(sidebarAccountStatusKey\(session\.state, offline\)\)/);
+  assert.match(code,/from "\.\/identity-presence-presentation\.mjs"/);
   assert.match(code,/snapshot\.capabilityIds\.includes\("account\.identity"\)/);
   assert.match(code,/snapshot\.connectivity === "offline"/);
 });

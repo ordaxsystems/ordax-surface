@@ -1,6 +1,7 @@
 import { validateIdentitySessionSnapshot, assertIdentitySessionPort } from "../../contracts/identity-session.mjs";
 import { SIDEBAR_SOURCE_MESSAGES } from "../../services/i18n/catalog/sidebar.mjs";
 import { escapeMarkup } from "./sidebar-layout.mjs";
+import { sidebarAccountStatusKey } from "./identity-presence-presentation.mjs";
 const USER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>';
 const CHEVRON = '<svg class="account-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
 const BELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>';
@@ -8,7 +9,7 @@ export function projectSidebarAccount(identity, offline = false, translate = id 
   const session = validateIdentitySessionSnapshot(identity);
   const displayName = session.state === "signed-in" ? session.displayName : translate(session.state === "signed-out" ? "sidebar.account.signIn" : "sidebar.account.unavailable");
   const initials = session.state === "signed-in" ? displayName.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0] ?? "").join("").toLocaleUpperCase() : null;
-  return Object.freeze({ displayName, initials, connected: session.state === "signed-in" && !offline, status: translate(offline ? "sidebar.account.offline" : session.state === "signed-in" ? "sidebar.account.signedIn" : "sidebar.account.connect"), openLabel: translate("sidebar.account.open"), storageLabel: translate("sidebar.storage.unavailable"), storageShort: translate("sidebar.storage.short"), notificationsLabel: translate("sidebar.notifications"), notificationsUnavailable: translate("sidebar.notifications.unavailable") });
+  return Object.freeze({ displayName, initials, connected: session.state === "signed-in" && !offline, status: translate(sidebarAccountStatusKey(session.state, offline)), openLabel: translate("sidebar.account.open"), storageLabel: translate("sidebar.storage.unavailable"), storageShort: translate("sidebar.storage.short"), notificationsLabel: translate("sidebar.notifications"), notificationsUnavailable: translate("sidebar.notifications.unavailable") });
 }
 export function sidebarAccountMarkup(view, native = false) {
   const launch = native ? 'data-sidebar-app="account" data-launch-app="account" data-app-target="overview"' : '';

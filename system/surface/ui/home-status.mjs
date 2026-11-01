@@ -64,7 +64,7 @@ function accountValue(snapshot, sourceState, translate) {
     return message(translate, sourceState === "loading" ? "home.status.loading" : "home.status.unavailable", sourceState);
   }
   return snapshot.state === "signed-in"
-    ? message(translate, "home.status.account.connected", "success")
+    ? message(translate, "sidebar.account.signedIn", "success")
     : message(translate, "home.status.account.signedOut", "neutral");
 }
 
