@@ -108,7 +108,7 @@ test("Profile mutation results cannot repaint a different account or selected Sp
   assert.match(flow, /authorizedSpaces\(\)\.activeSpace\?\.id === selectedSpace\.id/);
   assert.match(flow, /authorizedSpaces\(\)\.activeSpace\?\.kind === selectedSpace\.kind/);
   assert.equal((flow.match(/if \(!isCurrentProfileContext\(\)\) return;/g) ?? []).length, 3);
-  assert.match(flow, /if \(isCurrentProfileContext\(\)\) profileMessage = t\("account\.profiles\.failed"\)/);
+  assert.match(flow, /if \(isCurrentProfileContext\(\)\) \{\s*profileMessage = t\("account\.profiles\.failed"\);\s*profileMessageTone = "attention";\s*\}/);
   assert.match(flow, /if \(ordinal === profileOrdinal\) \{\s*pendingProfileAction = null;\s*pendingProfileSpaceId = null;/);
   assert.match(account, /profileOrdinal \+= 1;\s*pendingProfileAction = null;\s*pendingProfileSpaceId = null;\s*profileMessage = "";/);
   assert.match(account, /const unsubscribeSpaceSelection = spaceSelectionPort\?\.subscribe\(\(snapshot\) => \{\s*spaceSelectionSnapshot = validateSpaceSelectionSnapshot\(snapshot\);\s*if \(pendingProfileSpaceId !== null/);

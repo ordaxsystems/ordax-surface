@@ -1,4 +1,5 @@
-import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
+import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import {
   assertIntelligencePort,
@@ -458,7 +459,10 @@ export function mountSystemOverviewControls(
     }
 
     const target = findFocusTarget(slot, snapshot.focus);
-    if (!target || target.disabled) return;
+    if (!target || target.disabled || target.hidden || target.closest?.("[hidden]")) {
+      restoreSectionFocusFallback(slot, snapshot.focus, target);
+      return;
+    }
     target.focus({ preventScroll: true });
   };
 
@@ -646,7 +650,8 @@ export function mountSystemOverviewControls(
       progress: ratio(memoryUsed, metricsSnapshot.memoryTotalBytes),
     });
     section.append(resourceGrid);
-    if (metricsMessageId) section.append(node(documentObject, "p", "ordax-system-message", t(metricsMessageId)));
+    if (metricsMessageId) section.append(markSurfaceFeedback(
+      node(documentObject, "p", "ordax-system-warning", t(metricsMessageId)), "attention"));
     view.append(section);
   };
 
@@ -715,7 +720,8 @@ export function mountSystemOverviewControls(
         t("system.resources.storage.scope"),
       ),
     );
-    if (metricsMessageId) section.append(node(documentObject, "p", "ordax-system-message", t(metricsMessageId)));
+    if (metricsMessageId) section.append(markSurfaceFeedback(
+      node(documentObject, "p", "ordax-system-warning", t(metricsMessageId)), "attention"));
     view.append(section);
   };
 
@@ -756,8 +762,8 @@ export function mountSystemOverviewControls(
         manualUpdateMessageId === "system.updates.manual.failed" ? "ordax-system-warning" : "ordax-system-message",
         t(manualUpdateMessageId),
       );
-      message.setAttribute("role", "status");
-      section.append(message);
+      section.append(markSurfaceFeedback(message,
+        manualUpdateMessageId === "system.updates.manual.failed" ? "attention" : "information"));
     }
 
     if (!updateSnapshot) {
@@ -782,8 +788,8 @@ export function mountSystemOverviewControls(
         updateSnapshot.lastError === "non-fast-forward" ? "ordax-system-warning" : "ordax-system-message",
         t(updateReasonMessageId),
       );
-      explanation.setAttribute("role", "status");
-      section.append(explanation);
+      section.append(markSurfaceFeedback(explanation,
+        updateSnapshot.lastError === "non-fast-forward" ? "attention" : "information"));
     }
 
     const facts = node(documentObject, "dl", "ordax-system-facts");
@@ -1001,7 +1007,8 @@ export function mountSystemOverviewControls(
       );
     }
     if (recoveryMessageId) {
-      section.append(node(documentObject, "p", "ordax-system-message", t(recoveryMessageId)));
+      section.append(markSurfaceFeedback(
+        node(documentObject, "p", "ordax-system-warning", t(recoveryMessageId)), "attention"));
     }
     view.append(section);
   };
@@ -1417,7 +1424,8 @@ export function mountSystemOverviewControls(
     }
 
     section.append(applications, releases);
-    if (historyMessageId) section.append(node(documentObject, "p", "ordax-system-message", t(historyMessageId)));
+    if (historyMessageId) section.append(markSurfaceFeedback(
+      node(documentObject, "p", "ordax-system-warning", t(historyMessageId)), "attention"));
     view.append(section);
   };
 
@@ -1512,9 +1520,8 @@ export function mountSystemOverviewControls(
         intelligenceAnswer ? "ordax-system-message" : "ordax-system-warning",
         t(intelligenceMessageId),
       );
-      message.setAttribute("role", "status");
-      message.setAttribute("aria-live", "polite");
-      section.append(message);
+      section.append(markSurfaceFeedback(message,
+        intelligenceAnswer ? "information" : "attention"));
     }
     if (intelligenceAnswer) {
       const answer = node(documentObject, "article", "ordax-system-history-item");
