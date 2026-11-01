@@ -219,16 +219,18 @@ jobs:
             tests.test_notification_center_ui_contract \
             tests.test_surface_web_builder \
             tests.test_native_host_module_integrity \
-            tests.test_system_runtime_contract -v
+            tests.test_system_runtime_contract \
+            tests.test_store_update_all_ui_contract -v
 
-      - name: Verify shared Surface state, localization and Native audio
+      - name: Verify shared Surface state, localization, Store request batch and Native audio
         working-directory: os
         run: |
           node --test \
             tests/test_surface_workspace.mjs \
             tests/test_surface_localization.mjs \
             tests/test_sidebar_layout.mjs \
-            tests/test_audio_output_controls.mjs
+            tests/test_audio_output_controls.mjs \
+            tests/test_store_update_request_batch.mjs
 
       - name: Prove shared Native Surface in Chromium at desktop and mobile viewports
         working-directory: os

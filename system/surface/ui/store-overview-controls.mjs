@@ -46,6 +46,28 @@ function operationAllowed(entry, operation) {
   return false;
 }
 
+// A request is scoped to the signed lifecycle candidate, not the entire
+// Store catalog. Metadata or progress of another app cannot change its ID.
+function lifecycleCandidateSignature(entry, operation) {
+  return JSON.stringify([
+    entry.appId,
+    operation,
+    entry.state,
+    entry.installedVersion,
+    operation === "remove" ? null : entry.availableVersion,
+    operationAllowed(entry, operation),
+    operation === "remove" ? null : entry.artifactIdentityVerified,
+    operation === "remove" ? null : entry.provenanceVerified,
+  ]);
+}
+
+function sameLifecycleCandidate(catalogSnapshot, appId, operation, signature) {
+  if (catalogSnapshot.state !== "ready") return false;
+  const entry = catalogSnapshot.entries.find((candidate) => candidate.appId === appId);
+  return entry !== undefined && operationAllowed(entry, operation)
+    && lifecycleCandidateSignature(entry, operation) === signature;
+}
+
 function versionSummary(t, entry) {
   if (entry.installedVersion !== null && entry.availableVersion !== null) {
     return t("store.version.update", {
@@ -257,18 +279,18 @@ export function mountStoreOverviewControls(
   const activation = appActivationPort === null ? null : assertAppActivationPort(appActivationPort);
 
   let snapshot = validateAppStoreCatalogSnapshot(catalog.getSnapshot());
-  // These are ephemeral presentation revisions, not a second catalog or
-  // persisted inventory. Only semantic snapshot changes invalidate a request.
+  // Snapshot identity is presentation-only. Request identity is tied to each
+  // signed candidate, not to unrelated global catalog revision changes.
   let catalogFingerprint = JSON.stringify(snapshot);
-  let catalogGeneration = 0;
   let mountedSlot = null;
   let pendingRequest = null;
   let requestMessageId = null;
   let requestReason = null;
   let requestOrdinal = 0;
-  // UI-only retry receipts: an ambiguous transport failure is not a denial
-  // and must never mint a second identity for the same lifecycle intent.
-  // The signed catalog remains the only authority over app state and eligibility.
+  // Ephemeral idempotency receipts, not another inventory or authority.
+  // Reserve the ID before delegation: any catalog emission during an
+  // unresolved request must preserve it if this candidate is unchanged.
+  // Bounded by the OS catalog (<=256 app IDs, 3 operations each).
   const uncertainRequestIds = new Map();
   let activeView = VIEWS.includes(lifecycle.getAppTarget("store"))
     ? lifecycle.getAppTarget("store") : "discover";
@@ -340,8 +362,8 @@ export function mountStoreOverviewControls(
 
   const reconcileAcceptedRequest = () => {
     if (pendingRequest?.phase !== "accepted") return;
-    const entry = snapshot.entries.find((candidate) => candidate.appId === pendingRequest.appId);
-    if (!entry || !operationAllowed(entry, pendingRequest.operation)) pendingRequest = null;
+    if (!sameLifecycleCandidate(snapshot, pendingRequest.appId,
+      pendingRequest.operation, pendingRequest.candidateSignature)) pendingRequest = null;
   };
 
   const refreshResults = () => {
@@ -642,8 +664,10 @@ export function mountStoreOverviewControls(
     requestMessageId = null;
     requestReason = null;
     const retryScope = JSON.stringify([appId, operation]);
-    const retainedRequestId = uncertainRequestIds.get(retryScope);
-    if (retainedRequestId === undefined) requestOrdinal += 1;
+    const candidateSignature = lifecycleCandidateSignature(entry, operation);
+    const receipt = uncertainRequestIds.get(retryScope);
+    const retainedRequestId = receipt?.candidateSignature === candidateSignature ? receipt.requestId : null;
+    if (retainedRequestId === null) requestOrdinal += 1;
     const request = validateAppLifecycleRequest({
       schema: APP_LIFECYCLE_REQUEST_SCHEMA,
       requestId: retainedRequestId ?? "store:" + operation + ":" + appId + ":" + requestSessionId + ":" + requestOrdinal,
@@ -652,16 +676,20 @@ export function mountStoreOverviewControls(
       source: "store",
       authority: "none",
     });
+    uncertainRequestIds.set(retryScope, Object.freeze({
+      appId, operation, candidateSignature, requestId: request.requestId,
+    }));
     pendingRequest = Object.freeze({
       appId,
       operation,
+      candidateSignature,
       requestId: request.requestId,
       phase: "requesting",
     });
-    const requestGeneration = catalogGeneration;
     const isCurrentRequest = () => !destroyed
-      && catalogGeneration === requestGeneration
-      && pendingRequest?.requestId === request.requestId;
+      && pendingRequest?.requestId === request.requestId
+      && pendingRequest?.candidateSignature === candidateSignature
+      && sameLifecycleCandidate(snapshot, appId, operation, candidateSignature);
     render();
 
     // Deferred work must never resurrect a request from a replaced signed
@@ -676,13 +704,16 @@ export function mountStoreOverviewControls(
         const result = validateAppLifecycleRequestResultForRequest(rawResult, request);
         // Only a validated, request-correlated acceptance or rejection ends
         // the uncertain retry. Request acceptance is not installation success.
-        uncertainRequestIds.delete(retryScope);
+        if (uncertainRequestIds.get(retryScope)?.requestId === request.requestId) {
+          uncertainRequestIds.delete(retryScope);
+        }
         requestMessageId = "store.request." + operation + "." + result.state;
         requestReason = result.state === "rejected" ? result.reason : null;
         if (result.state === "accepted") {
           pendingRequest = Object.freeze({
             appId,
             operation,
+            candidateSignature,
             requestId: request.requestId,
             phase: "accepted",
           });
@@ -694,8 +725,7 @@ export function mountStoreOverviewControls(
       })
       .catch(() => {
         if (!isCurrentRequest()) return;
-        // No authoritative outcome arrived; preserve the original requestId.
-        uncertainRequestIds.set(retryScope, request.requestId);
+        // No authoritative outcome arrived; keep the pre-delegation receipt.
         pendingRequest = null;
         requestMessageId = "store.request." + operation + ".failed";
         requestReason = null;
@@ -728,20 +758,38 @@ export function mountStoreOverviewControls(
     const verified = validateAppStoreCatalogSnapshot(next);
     const fingerprint = JSON.stringify(verified);
     if (fingerprint !== catalogFingerprint) {
-      // The signed projection changed; previously uncertain UI intent cannot
-      // be replayed against a potentially different app candidate.
-      uncertainRequestIds.clear();
-      // Drop stale visual request state before showing the new projection.
-      // Platform requests already delegated remain platform-owned.
       catalogFingerprint = fingerprint;
-      catalogGeneration += 1;
-      pendingRequest = null;
-      requestMessageId = null;
-      requestReason = null;
-      removalConfirmationAppId = null;
-      updateAll?.cancelPending();
-      batchPresentationGeneration += 1;
-      batchReport = null;
+      // Unrelated app updates must not cancel or reidentify another app's
+      // in-flight request. The canonical OS projection is checked per target.
+      if (verified.state === "ready") {
+        for (const [scope, receipt] of uncertainRequestIds) {
+          if (!sameLifecycleCandidate(verified, receipt.appId,
+            receipt.operation, receipt.candidateSignature)) {
+            uncertainRequestIds.delete(scope);
+          }
+        }
+      }
+      if (pendingRequest !== null && !sameLifecycleCandidate(verified,
+        pendingRequest.appId, pendingRequest.operation, pendingRequest.candidateSignature)) {
+        pendingRequest = null;
+        requestMessageId = null;
+        requestReason = null;
+      }
+      if (removalConfirmationAppId !== null
+        && !verified.entries.some((entry) =>
+          entry.appId === removalConfirmationAppId && entry.removable)) {
+        removalConfirmationAppId = null;
+      }
+      if (verified.state !== "ready") {
+        // Fail closed without interpreting temporary catalog unavailability
+        // as proof that any delegated lifecycle request was rejected.
+        removalConfirmationAppId = null;
+        updateAll?.cancelPending();
+        batchPresentationGeneration += 1;
+        batchReport = null;
+      }
+      // Update-all already revalidates each candidate at the OS-owned port;
+      // do not cancel its queue when the preceding app advances in the catalog.
     }
     snapshot = verified;
     reconcileAcceptedRequest();
