@@ -20,6 +20,9 @@ export function mountLocalSessionLock(
   let snapshot = validateLocalSessionSnapshot(port.getSnapshot());
   let overlay = null;
   let pending = false;
+  // Each locked -> unlocked -> locked cycle is a different visual session.
+  // A prior unlock completion must not mutate the next lock screen.
+  let attemptRevision = 0;
   let messageId = null;
   let destroyed = false;
   let previousInert = root.inert;
@@ -121,7 +124,8 @@ export function mountLocalSessionLock(
     overlay.append(card);
 
     queueMicrotask(() => {
-      if (destroyed || input.disabled) return;
+      if (destroyed || input.disabled || snapshot.state !== "locked"
+          || !overlay?.contains(input)) return;
       if (!secretState || secretState.focused || !documentObject.activeElement) {
         input.focus();
       }
@@ -142,18 +146,19 @@ export function mountLocalSessionLock(
       render();
       return;
     }
+    const revision = ++attemptRevision;
     pending = true;
     messageId = null;
     render();
     const operationSecret = secret;
     secret = "";
     void port.unlock(operationSecret).catch((error) => {
-      if (destroyed) return;
+      if (destroyed || revision !== attemptRevision || snapshot.state !== "locked") return;
       messageId = error?.status === 429
         ? "localSession.lock.message.rateLimited"
         : "localSession.lock.message.incorrect";
     }).finally(() => {
-      if (destroyed) return;
+      if (destroyed || revision !== attemptRevision || snapshot.state !== "locked") return;
       pending = false;
       render();
     });
@@ -161,8 +166,17 @@ export function mountLocalSessionLock(
 
   documentObject.addEventListener("submit", onSubmit);
   const unsubscribeSession = port.subscribe((next) => {
+    const previousState = snapshot.state;
     snapshot = validateLocalSessionSnapshot(next);
-    if (snapshot.state !== "locked") messageId = null;
+    if (snapshot.state !== previousState) {
+      // The OS port is the lock authority. On an actual state transition,
+      // revoke pending visual attempts before rendering the new context.
+      attemptRevision += 1;
+      pending = false;
+      messageId = null;
+    } else if (snapshot.state !== "locked") {
+      messageId = null;
+    }
     render();
   });
   const unsubscribeLocalization = localization.subscribe(() => {
@@ -174,6 +188,7 @@ export function mountLocalSessionLock(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      attemptRevision += 1;
       unsubscribeSession();
       unsubscribeLocalization();
       documentObject.removeEventListener("submit", onSubmit);
