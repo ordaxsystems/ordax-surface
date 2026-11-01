@@ -114,3 +114,27 @@ test("Profile mutation results cannot repaint a different account or selected Sp
   assert.match(account, /const unsubscribeSpaceSelection = spaceSelectionPort\?\.subscribe\(\(snapshot\) => \{\s*spaceSelectionSnapshot = validateSpaceSelectionSnapshot\(snapshot\);\s*if \(pendingProfileSpaceId !== null/);
   assert.match(account, /\/\/ Old Profile Pack completions must not write into the next account\.\s*profileOrdinal \+= 1;/);
 });
+
+
+test("Native Space picker uses the OS authorization SSOT for both visibility and selection", () => {
+  const switcher = read("system/surface/ui/space-switcher-controls.mjs");
+  const account = read("system/surface/ui/account-overview-controls.mjs");
+  const projection = switcher.slice(
+    switcher.indexOf("export function deriveSpaceSwitcherView("),
+    switcher.indexOf("export function mountSpaceSwitcherControls("),
+  );
+  assert.match(projection, /const \{ ready, visibleSpaces, activeSpace: active \} = deriveAuthorizedSpaces\(/);
+  assert.match(projection, /return Object\.freeze\(\{\s*ready,\s*visibleSpaces,\s*active,/);
+  assert.match(switcher, /const \{ ready, active, visibleSpaces: spacesVisible, activeProfile, profilesBySpace \} =\s*deriveSpaceSwitcherView\(/);
+  assert.match(switcher, /else if \(!ready\) \{/);
+  const action = switcher.slice(
+    switcher.indexOf('const action = event.target.closest("[data-space-switcher-select]")'),
+    switcher.indexOf("  const originatedInside ="),
+  );
+  assert.match(action, /const authorized = deriveAuthorizedSpaces\(identity, catalog, selection\)/);
+  assert.match(action, /if \(!authorized\.ready\) return;/);
+  assert.match(action, /authorized\.visibleSpaces\.find\(\(space\) =>/);
+  assert.match(action, /if \(!match \|\| match\.state !== "active"\) return;/);
+  assert.doesNotMatch(action, /catalog\.spaces\.find|selection\.subjectId !== identity\.subjectId|catalog\.state !== "ready"/);
+  assert.match(account, /const authorizedSpaces = \(\) => deriveAuthorizedSpaces\(/);
+});
