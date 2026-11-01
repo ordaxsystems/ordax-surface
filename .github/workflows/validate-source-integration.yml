@@ -225,7 +225,7 @@ jobs:
             tests.test_store_update_all_ui_contract \
             tests.test_diagnostic_system_view_contract -v
 
-      - name: Verify shared Surface, regional network and diagnostics, Store batch and Native audio
+      - name: Verify shared Surface, lock security, regional network, Spaces, Store batch and Native audio
         working-directory: os
         run: |
           node --test \
@@ -236,6 +236,8 @@ jobs:
             tests/test_store_update_request_batch.mjs \
             tests/test_space_switcher.mjs \
             tests/test_space_selection.mjs \
+            tests/test_local_session_contract.mjs \
+            tests/test_windows_desktop_local_session.mjs \
             tests/test_network_status.mjs \
             tests/test_diagnostic_system_view.mjs
 
