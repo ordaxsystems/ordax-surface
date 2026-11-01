@@ -206,3 +206,40 @@ test("Store starts with authoritative catalog state and never silently opens dem
   assert.match(store, /toggle\.addEventListener\('click', onSwitch\)/);
   assert.doesNotMatch(store, /catalogPort\.getSnapshot\(\)\.state === 'ready' \? 'official' : 'planned'/);
 });
+
+
+test("Web and Native Store share the canonical official renderer; legacy parallel UI stays absent", async () => {
+  const file = path => readFile(new URL("../" + path, import.meta.url), "utf8");
+  const [web, desktop, wrapper, experience, official, demo] = await Promise.all([
+    file("system/surface/workspace/components/web/app-content.tsx"),
+    file("system/surface/workspace/components/central/desktop.tsx"),
+    file("system/surface/workspace/components/store/meridian-store.tsx"),
+    read("store-experience.mjs"),
+    file("system/surface/workspace/lib/store/official.ts"),
+    file("system/surface/workspace/components/store/presentation/app.js"),
+  ]);
+  assert.match(web, /import \{ StoreExperience \} from '@\/components\/store\/meridian-store'/);
+  assert.match(web, /if \(id === 'store'\) return <StoreExperience\/>/);
+  assert.doesNotMatch(web, /components\/store\/store['"]|<StoreApp\b|onOpenApp=/);
+  assert.match(desktop, /import\('\.\.\/store\/meridian-store'\)/);
+  assert.match(wrapper, /export function StoreExperience\(\)/);
+  assert.match(wrapper, /const catalogPort = useStoreCatalogPort\(\)/);
+  assert.match(wrapper, /mountStoreExperience\(host\.current, \{ catalogPort, surfaceLifecycle, presentationAssets \}\)/);
+  assert.match(experience, /let mode = 'official'/);
+  assert.match(experience, /if \(mode === 'planned'\) void loadPreview\(\)/);
+  assert.match(official, /export function createStoreSnapshotSource\(input: unknown\)/);
+  assert.doesNotMatch(official, /projectOfficialStoreItems|officialEntryStatus|from '\.\/catalog'|from '\.\/state'/);
+  // Retain the one explicit preview, not another authoritative catalog or Store.
+  assert.match(demo, /lib\/store\/catalog\.mjs/);
+  assert.match(demo, /lib\/store\/state\.mjs/);
+  const { existsSync } = await import("node:fs");
+  for (const legacy of [
+    "system/surface/workspace/components/store/store.tsx",
+    "system/surface/workspace/components/store/styles.css",
+    "system/surface/workspace/assets/store-hero.jpg",
+    "system/surface/workspace/lib/store/catalog.ts",
+    "system/surface/workspace/lib/store/state.ts",
+  ]) {
+    assert.equal(existsSync(new URL("../" + legacy, import.meta.url)), false, legacy + " must not return");
+  }
+});
