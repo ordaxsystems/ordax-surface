@@ -20,6 +20,23 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Home Native — hierarquia responsiva do layout
+
+A Home Meridian usa a largura **real da área de trabalho** por meio do
+container `meridian-native-home`, sem adotar breakpoints globais da tela nem
+uma segunda tabela de tamanhos. Em janelas estreitas (até `38rem` de
+conteúdo), as seções se organizam na ordem: saudação e busca, Aura, retomar
+quando disponível, acesso rápido, status, Space atual, arquivos e destinos,
+encerrando na faixa de sessão. Busca e saudação deixam de competir pela
+mesma linha; textos localizados podem quebrar linha em vez de serem cortados;
+as sugestões da Aura passam para duas colunas e arquivos/destinos para uma.
+Nas áreas mais largas, os layouts Meridian existentes são preservados.
+
+A alteração utiliza apenas os tokens já definidos em `meridian.tokens.css`.
+Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
+autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
+reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
+
 ## Primeiro uso — ações de Conta vinculadas à sessão
 
 O First Run considera as ações de entrar e sair da Conta como tentativas
