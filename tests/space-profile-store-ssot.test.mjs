@@ -78,3 +78,39 @@ test("uncertain Space creation retries the exact same intent and UUID", () => {
   assert.match(account, /input\.matches\("\[data-account-space-create-name\]"\) && !createPending && !createUnconfirmed/);
   assert.match(account, /createOrdinal \+= 1;\s*createPending = false;\s*createIdempotencyKey = null;\s*createUnconfirmed = false;/);
 });
+
+
+test("Account Space form retains focus and text selection through authoritative refresh", () => {
+  const account = read("system/surface/ui/account-overview-controls.mjs");
+  assert.match(account, /element\.hasAttribute\("data-account-space-create-name"\)/);
+  assert.match(account, /element\.hasAttribute\("data-account-space-create-type"\)/);
+  assert.match(account, /slot\.querySelectorAll\("button, input, select"\)/);
+  assert.match(account, /const focusedName = activeInside && activeElement\?\.matches\?\.\("\[data-account-space-create-name\]"\)/);
+  assert.match(account, /start: focusedName\.selectionStart,\s*end: focusedName\.selectionEnd,\s*direction: focusedName\.selectionDirection/);
+  assert.match(account, /focus: activeInside \? focusIdentity\(activeElement\) : null,\s*caret,/);
+  assert.match(account, /target\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(account, /snapshot\.focus\?\.kind === "space-create-name"/);
+  assert.match(account, /target\.setSelectionRange\(snapshot\.caret\.start, snapshot\.caret\.end, snapshot\.caret\.direction\)/);
+  assert.match(account, /force && slot === mountedSlot \? captureInteractionState\(slot\) : null/);
+  assert.match(account, /restoreInteractionState\(slot, interaction\)/);
+});
+
+test("Profile mutation results cannot repaint a different account or selected Space", () => {
+  const account = read("system/surface/ui/account-overview-controls.mjs");
+  const start = account.indexOf('const profileButton = event.target.closest("[data-account-profile-action]")');
+  const end = account.indexOf('const closeButton = event.target.closest("[data-account-close-action]")');
+  assert.ok(start !== -1 && end > start);
+  const flow = account.slice(start, end);
+  assert.match(flow, /const ordinal = \+\+profileOrdinal;/);
+  assert.match(flow, /pendingProfileSpaceId = selectedSpace\.id;/);
+  assert.match(flow, /!destroyed\s*&& ordinal === profileOrdinal\s*&& sessionSnapshot\.state === "signed-in"/);
+  assert.match(flow, /sessionSnapshot\.subjectId === actingSubjectId/);
+  assert.match(flow, /authorizedSpaces\(\)\.activeSpace\?\.id === selectedSpace\.id/);
+  assert.match(flow, /authorizedSpaces\(\)\.activeSpace\?\.kind === selectedSpace\.kind/);
+  assert.equal((flow.match(/if \(!isCurrentProfileContext\(\)\) return;/g) ?? []).length, 3);
+  assert.match(flow, /if \(isCurrentProfileContext\(\)\) profileMessage = t\("account\.profiles\.failed"\)/);
+  assert.match(flow, /if \(ordinal === profileOrdinal\) \{\s*pendingProfileAction = null;\s*pendingProfileSpaceId = null;/);
+  assert.match(account, /profileOrdinal \+= 1;\s*pendingProfileAction = null;\s*pendingProfileSpaceId = null;\s*profileMessage = "";/);
+  assert.match(account, /const unsubscribeSpaceSelection = spaceSelectionPort\?\.subscribe\(\(snapshot\) => \{\s*spaceSelectionSnapshot = validateSpaceSelectionSnapshot\(snapshot\);\s*if \(pendingProfileSpaceId !== null/);
+  assert.match(account, /\/\/ Old Profile Pack completions must not write into the next account\.\s*profileOrdinal \+= 1;/);
+});
