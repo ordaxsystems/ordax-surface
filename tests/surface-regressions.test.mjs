@@ -719,6 +719,11 @@ test("First Run rejects stale registration policy responses after sign-in and si
       'let registrationLegalAccepted = false;',
       'let registrationPolicyPending = false;',
       'let registrationPolicyOrdinal = 0;',
+      'let identityPending = null;',
+      'let identityActionOrdinal = 0;',
+      'let accountLocalRequested = false;',
+      'let identityPasswordDraft = "";',
+      'let passwordVisible = false;',
       'let hostedSignupAllowed = false;',
       'let draft = { accountMode: null };',
       'let finishing = false;',
@@ -891,4 +896,145 @@ test("First Run revalidates authenticated subject after the last awaited device 
     "save:identity",
     "close",
   ], "stable identity is verified exactly once after rename before commit");
+});
+
+
+test("First Run old account logout and sign-in cannot mutate a newly authenticated subject", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("first-run.mjs");
+  const actionStart = source.indexOf("  const runIdentity = async (kind) => {");
+  const actionEnd = source.indexOf("  const finish = async () => {", actionStart);
+  const sessionStart = source.indexOf("  unsubscribeSession = sessionPort.subscribe((snapshot) => {");
+  const sessionEnd = source.indexOf("  unsubscribeActions = actionsPort.subscribe(", sessionStart);
+  assert.ok(actionStart >= 0 && actionEnd > actionStart);
+  assert.ok(sessionStart >= 0 && sessionEnd > sessionStart);
+
+  const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  };
+
+  const build = ({ kind, originalState, originalSubject, localRequested = false }) => {
+    const actionResponse = deferred();
+    const calls = [];
+    const context = [
+      "let destroyed = false;",
+      "let finishing = false;",
+      "let sessionSnapshot = { state: originalState, subjectId: originalSubject };",
+      "let actionsSnapshot = { supportedActions: ['sign-in', 'sign-out'] };",
+      "let identityPending = null;",
+      "let identityActionOrdinal = 0;",
+      "let identityMessage = '';",
+      "let identityEmailDraft = 'someone@example.test';",
+      "let identityPasswordDraft = 'temporary-secret';",
+      "let passwordVisible = false;",
+      "let identityFormMode = 'sign-in';",
+      "let accountLocalRequested = localRequested;",
+      "let selectedIdentitySubjectId = originalSubject;",
+      "let draft = { accountMode: 'identity' };",
+      "let registrationPolicy = null;",
+      "let registrationLegalAccepted = false;",
+      "let hostedSignupAllowed = false;",
+      "let registrationPolicyPending = false;",
+      "let registrationPolicyOrdinal = 0;",
+      "const capabilitySnapshot = { identityRegister: false, registrationPolicy: false };",
+      "const STEPS = ['account', 'ready'];",
+      "let stepIndex = 0;",
+      "const stepIndexFor = () => 0;",
+      "let renderCount = 0;",
+      "const render = () => { renderCount += 1; };",
+      "const go = index => { calls.push('go:' + index); stepIndex = index; };",
+      "const overlay = { querySelectorAll: () => [], querySelector: () => ({ focus() {} }) };",
+      "const isIdentityActionSupported = () => true;",
+      "const matchesFirstRunIdentitySelection = () => true;",
+      "const refreshRegistrationPolicy = () => {};",
+      "const sessionPort = {",
+      "  getSnapshot() { return sessionSnapshot; },",
+      "  async refresh() { calls.push('refresh'); },",
+      "  subscribe(callback) { this.notify = callback; return () => {}; },",
+      "};",
+      "const actionsPort = {",
+      "  execute() { calls.push('execute'); return actionResponse.promise; },",
+      "  getSnapshot() { return actionsSnapshot; },",
+      "};",
+      "const credentialsPort = {",
+      "  signIn() { calls.push('signIn'); return actionResponse.promise; },",
+      "  register() { throw new Error('unexpected register'); },",
+      "};",
+      "let unsubscribeSession = null;",
+      source.slice(actionStart, actionEnd),
+      source.slice(sessionStart, sessionEnd),
+      "({",
+      "  runIdentity,",
+      "  publish(state, subjectId = null) { sessionPort.notify({ state, subjectId }); },",
+      "  state() { return { identityPending, identityActionOrdinal, identityMessage, accountLocalRequested, accountMode: draft.accountMode, stepIndex, renderCount }; },",
+      "});",
+    ].join("\n");
+    const harness = runInNewContext(context, {
+      originalState,
+      originalSubject,
+      localRequested,
+      calls,
+      actionResponse,
+    });
+    return { ...harness, calls, actionResponse, kind };
+  };
+
+  for (const completion of ["resolve", "reject"]) {
+    const attempt = build({
+      kind: "sign-out",
+      originalState: "signed-in",
+      originalSubject: "account-A",
+      localRequested: true,
+    });
+    const pending = attempt.runIdentity("sign-out");
+    assert.equal(attempt.state().identityPending, "sign-out");
+    attempt.publish("signed-out");
+    assert.equal(attempt.state().identityPending, "sign-out",
+      "normal logout must preserve the pending local-only handoff");
+    attempt.publish("signed-in", "account-B");
+    assert.equal(attempt.state().identityPending, null,
+      "different authenticated subject releases the obsolete UI attempt");
+    assert.equal(attempt.state().accountLocalRequested, false,
+      "old logout must not proceed to local-only after account replacement");
+    if (completion === "resolve") attempt.actionResponse.resolve();
+    else attempt.actionResponse.reject(new Error("old logout failed"));
+    await pending;
+    assert.equal(attempt.state().accountMode, null);
+    assert.equal(attempt.state().identityMessage, "",
+      "old action completion cannot leave an error on the new account");
+    assert.deepEqual(attempt.calls, ["execute"],
+      "old logout may finish on its original authority but never navigate the next user");
+  }
+
+  const normal = build({
+    kind: "sign-out",
+    originalState: "signed-in",
+    originalSubject: "account-A",
+    localRequested: true,
+  });
+  const normalPending = normal.runIdentity("sign-out");
+  normal.publish("signed-out");
+  normal.actionResponse.resolve();
+  await normalPending;
+  assert.equal(normal.state().accountMode, "local-only");
+  assert.deepEqual(normal.calls, ["execute", "go:1"],
+    "the ordinary A -> signed-out path must still advance to local setup");
+
+  const incoming = build({
+    kind: "sign-in", originalState: "signed-out", originalSubject: null,
+  });
+  const signInPending = incoming.runIdentity("sign-in");
+  assert.equal(incoming.state().identityPending, "sign-in");
+  incoming.publish("signed-in", "account-B");
+  assert.equal(incoming.state().identityPending, null);
+  incoming.actionResponse.resolve({ authenticated: true });
+  await signInPending;
+  assert.deepEqual(incoming.calls, ["signIn"],
+    "stale sign-in completion must not force a refresh over the newly authenticated session");
+  assert.equal(incoming.state().identityMessage, "");
+
+  assert.match(source, /if \(destroyed \|\| ordinal !== identityActionOrdinal\) return;/);
+  assert.match(source, /identityActionOrdinal \+= 1;[\s\S]*?accountLocalRequested = false;/);
 });
