@@ -214,6 +214,7 @@ jobs:
         run: |
           python3 -m unittest \
             tests.test_surface_ui_contract \
+            tests.test_surface_async_lifecycle \
             tests.test_surface_visual_identity \
             tests.test_surface_boot_screen \
             tests.test_notification_center_ui_contract \
