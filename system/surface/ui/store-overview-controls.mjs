@@ -12,13 +12,14 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { assertSystemMetricsPort } from "../../contracts/system-metrics.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
+import { STORE_OPERATIONS, storeEntryVisualState } from "./store-entry-presentation.mjs";
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
 import { listFirstRunDefaultAppIds } from "../../services/apps/first-run-selection.mjs";
 
 const STORE_WINDOW_SELECTOR = '[data-window-id="store"]';
 const STORE_EXTENSION_SELECTOR = '[data-app-extension="store-overview"]';
-const OPERATIONS = new Set(["install", "update", "remove"]);
+const OPERATIONS = new Set(STORE_OPERATIONS);
 const VIEWS = Object.freeze(["discover", "essentials", "installed", "updates", "models"]);
 const ESSENTIAL_APP_IDS = new Set(listFirstRunDefaultAppIds());
 
@@ -136,7 +137,8 @@ function appendAction(documentObject, target, entry, operation, lifecycleRequest
   const button = makeButton(
     documentObject,
     "ordax-store-action" + (operation === "remove" ? " ordax-store-action-secondary" : ""),
-    isPending ? t("store.action.requesting") : t("store.action." + operation),
+    isPending && pendingRequest?.phase === "requesting"
+      ? t("store.action.requesting") : t("store.action." + operation),
     "storeOperation",
     operation,
   );
@@ -150,10 +152,28 @@ function appMonogram(title) {
   return title.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0] ?? "").join("").toLocaleUpperCase();
 }
 
-function appendStatus(documentObject, parent, entry, t) {
-  const status = node(documentObject, "span", "ordax-store-card-status", t(stateMessageId(entry.state)));
-  status.dataset.storeEntryState = entry.state;
-  parent.append(status);
+function appendStatus(documentObject, parent, entry, pendingRequest, t) {
+  const visual = storeEntryVisualState(entry, pendingRequest);
+  const badges = node(documentObject, "div", "ordax-store-statuses");
+  const status = node(documentObject, "span", "ordax-store-card-status", t(stateMessageId(visual.state)));
+  status.dataset.storeEntryState = visual.state;
+  badges.append(status);
+  if (visual.updateAvailable) {
+    const update = node(documentObject, "span",
+      "ordax-store-card-status ordax-store-update-status", t("store.section.updates"));
+    update.dataset.storeUpdateAvailable = "true";
+    badges.append(update);
+  }
+  parent.append(badges);
+  // Request accepted by OS is not a successful installation or removal.
+  if (visual.requestPhase !== null) {
+    const message = visual.requestPhase === "accepted"
+      ? t("store.request." + visual.requestOperation + ".accepted")
+      : t("store.action.requesting");
+    const note = node(documentObject, "p", "ordax-store-card-context", message);
+    note.dataset.storeRequestPhase = visual.requestPhase;
+    parent.append(note);
+  }
 }
 
 function appendCard(documentObject, grid, entry, lifecycleRequests, pendingRequest, t, requestIdentityReady) {
@@ -172,7 +192,12 @@ function appendCard(documentObject, grid, entry, lifecycleRequests, pendingReque
   );
   top.append(monogram, heading);
   const footer = node(documentObject, "div", "ordax-store-card-footer");
-  appendStatus(documentObject, card, entry, t);
+  appendStatus(documentObject, footer, entry, pendingRequest, t);
+  if (entry.state === "blocked" && entry.blockedReason !== null) {
+    const reason = node(documentObject, "p", "ordax-store-card-warning",
+      t("store.details.blocked") + " " + entry.blockedReason);
+    footer.append(reason);
+  }
   const details = makeButton(documentObject, "ordax-store-details-link", t("store.details.open"), "storeDetails", entry.appId);
   details.setAttribute("aria-label", t("store.details.openFor", { title: entry.title }));
   footer.append(details);
@@ -199,7 +224,7 @@ function appendDetail(documentObject, target, entry, lifecycleRequests, pendingR
   heading.append(monogram, titleGroup);
 
   const state = node(documentObject, "div", "ordax-store-detail-state");
-  appendStatus(documentObject, state, entry, t);
+  appendStatus(documentObject, state, entry, pendingRequest, t);
   const actions = node(documentObject, "div", "ordax-store-actions");
   for (const operation of OPERATIONS) {
     appendAction(documentObject, actions, entry, operation, lifecycleRequests, pendingRequest, t, requestIdentityReady);

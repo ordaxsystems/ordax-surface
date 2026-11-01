@@ -191,6 +191,23 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Loja — estados reais e ações sem sucesso presumido
+
+O catálogo oficial mantém os estados canônicos do OS (disponível, instalado,
+instalando, atualizando, removendo, em validação, bloqueado e falha com versão
+anterior preservada). O renderer compartilhado distingue estados
+intermediários de estados finais **sem inventar percentual de conclusão**.
+Quando o OS marca um aplicativo `installed` com `updatable: true`, a
+interface exibe um indicador adicional de atualizações ao lado de
+*Instalado*, sem presumir que a versão já foi aplicada. Se o OS informa
+`blocked`, o cartão revela seu motivo, também disponível nos detalhes.
+
+O feedback por aplicativo diferencia pedido sendo enviado e pedido aceito
+pelo lifecycle. **Aceite não significa instalação concluída**: só o
+catálogo OS confirma uma transição real. Os textos localizados reutilizam
+`system/services/i18n/catalog/store.mjs`, do OS; não há nova paleta,
+tradução duplicada, cache de inventário ou nova autoridade na Surface.
+
 ## Loja — navegação responsiva Web/Native
 
 A Loja oficial usa a barra de categorias existente também em janelas pequenas,

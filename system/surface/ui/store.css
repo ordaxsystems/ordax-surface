@@ -346,7 +346,20 @@
   margin-top: auto;
 }
 
+.ordax-store-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ordax-space-2);
+  min-width: 0;
+}
+
 .ordax-store-card-status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
   width: fit-content;
   padding: 5px 9px;
   border: 1px solid var(--ordax-border);
@@ -356,6 +369,28 @@
   font-weight: 650;
   line-height: 1.4;
 }
+
+.ordax-store-card-status[data-store-entry-state="installing"],
+.ordax-store-card-status[data-store-entry-state="updating"],
+.ordax-store-card-status[data-store-entry-state="removing"],
+.ordax-store-card-status[data-store-entry-state="staged"],
+.ordax-store-update-status[data-store-update-available="true"] {
+  border-color: var(--ordax-border-soft);
+  background: var(--ordax-selected-bg);
+  color: var(--ordax-accent-strong);
+}
+
+.ordax-store-card-context,
+.ordax-store-card-warning {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.ordax-store-card-context { color: var(--ordax-muted); }
+.ordax-store-card-warning { color: var(--ordax-warning); }
+.ordax-store-detail-state .ordax-store-card-context { flex-basis: 100%; }
 
 .ordax-store-card-status[data-store-entry-state="installed"] {
   border-color: color-mix(in srgb, var(--ordax-success) 38%, transparent);
