@@ -215,6 +215,7 @@ jobs:
           python3 -m unittest \
             tests.test_surface_ui_contract \
             tests.test_surface_async_lifecycle \
+            tests.test_space_selection_surface_contract \
             tests.test_surface_visual_identity \
             tests.test_surface_boot_screen \
             tests.test_notification_center_ui_contract \
@@ -233,6 +234,8 @@ jobs:
             tests/test_sidebar_layout.mjs \
             tests/test_audio_output_controls.mjs \
             tests/test_store_update_request_batch.mjs \
+            tests/test_space_switcher.mjs \
+            tests/test_space_selection.mjs \
             tests/test_network_status.mjs \
             tests/test_diagnostic_system_view.mjs
 
