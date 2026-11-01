@@ -37,6 +37,8 @@ import {
 } from "../../services/update/presentation.mjs";
 import { mountSystemDiagnosticsReview } from "./system-diagnostics-review.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { assertPreferenceRuntimePort } from "../../contracts/preference-runtime.mjs";
+import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
 
 const SYSTEM_WINDOW_SELECTOR = '[data-window-id="system"]';
 const SYSTEM_EXTENSION_SELECTOR = '[data-app-extension="system-overview"]';
@@ -144,12 +146,14 @@ function overviewUpdateDetailMessageId(snapshot) {
     ?? "system.overview.update.detail.pending";
 }
 
-function formatOverviewTimestamp(value, locale) {
+// Historical System timestamps were fixed to "America/Bahia", even after a
+// user selected a different regional zone. The OS preference now owns it.
+function formatOverviewTimestamp(value, locale, timeZone) {
   if (typeof value !== "string" || !value || value === "unknown") return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "America/Bahia",
+    timeZone,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -159,10 +163,10 @@ function formatOverviewTimestamp(value, locale) {
   }).format(date);
 }
 
-function formatOverviewReceivedAt(value, locale) {
+function formatOverviewReceivedAt(value, locale, timeZone) {
   if (!Number.isFinite(value)) return null;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "America/Bahia",
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -324,6 +328,9 @@ export function mountSystemOverviewControls(
   const intelligencePort = intelligence === null ? null : assertIntelligencePort(intelligence);
   const recoveryPort = recoveryStatus === null ? null : assertRecoveryStatusPort(recoveryStatus);
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
+  const preferences = lifecycle.preferences == null
+    ? null : assertPreferenceRuntimePort(lifecycle.preferences);
+  const regionalTimeZone = () => resolveRegionalTimeZone(preferences?.getSnapshot() ?? {});
   const localization = lifecycle.localization;
   const t = localization.translate;
   const documentObject = root.ownerDocument;
@@ -532,7 +539,7 @@ export function mountSystemOverviewControls(
 
     const updateDetailMessageId = overviewUpdateDetailMessageId(updateSnapshot);
     const checkedAt = updateSnapshot?.checkedAt && updateSnapshot.checkedAt !== "unknown"
-      ? formatOverviewTimestamp(updateSnapshot.checkedAt, localization.getLocale())
+      ? formatOverviewTimestamp(updateSnapshot.checkedAt, localization.getLocale(), regionalTimeZone())
       : null;
     appendMetricCard(documentObject, grid, {
       label: t("system.overview.card.update"),
@@ -562,6 +569,7 @@ export function mountSystemOverviewControls(
     const receivedAt = formatOverviewReceivedAt(
       metricsLastSuccessAt,
       localization.getLocale(),
+      regionalTimeZone(),
     ) ?? t("system.overview.time.unknown");
     appendMetricCard(documentObject, grid, {
       label: t("system.overview.card.uptime"),
@@ -621,7 +629,7 @@ export function mountSystemOverviewControls(
           documentObject,
           "p",
           "ordax-system-warning",
-          t("system.resources.stale", { time: formatOverviewReceivedAt(metricsLastSuccessAt, localization.getLocale()) ?? t("system.overview.time.unknown") }),
+          t("system.resources.stale", { time: formatOverviewReceivedAt(metricsLastSuccessAt, localization.getLocale(), regionalTimeZone()) ?? t("system.overview.time.unknown") }),
         ),
       );
     }
@@ -682,7 +690,7 @@ export function mountSystemOverviewControls(
           documentObject,
           "p",
           "ordax-system-warning",
-          t("system.resources.stale", { time: formatOverviewReceivedAt(metricsLastSuccessAt, localization.getLocale()) ?? t("system.overview.time.unknown") }),
+          t("system.resources.stale", { time: formatOverviewReceivedAt(metricsLastSuccessAt, localization.getLocale(), regionalTimeZone()) ?? t("system.overview.time.unknown") }),
         ),
       );
     }
@@ -785,7 +793,7 @@ export function mountSystemOverviewControls(
       facts.append(item);
     };
     const locale = localization.getLocale();
-    const formatTimestamp = (value) => formatOverviewTimestamp(value, locale) ?? "—";
+    const formatTimestamp = (value) => formatOverviewTimestamp(value, locale, regionalTimeZone()) ?? "—";
     const statusMessageId = overviewUpdateStatusMessageId(updateSnapshot.status);
     const modeMessageId = overviewUpdateModeMessageId(updateSnapshot.applyMode);
     const phaseMessageId = UPDATE_PHASE_MESSAGE_IDS[updateSnapshot.phase] ?? "system.updates.phase.idle";
@@ -1343,7 +1351,7 @@ export function mountSystemOverviewControls(
     }
 
     const formatHistoryTimestamp = (value) =>
-      formatOverviewTimestamp(value, localization.getLocale()) ?? "—";
+      formatOverviewTimestamp(value, localization.getLocale(), regionalTimeZone()) ?? "—";
     const deliveryText = (value) =>
       Number.isSafeInteger(value) && value > 0
         ? t("system.overview.delivery.number", { value })
@@ -1776,6 +1784,9 @@ export function mountSystemOverviewControls(
     renderView(sectionChanged);
     refreshVisibleSection();
   });
+  const unsubscribePreferences = preferences?.subscribe(() => {
+    if (!destroyed) replaceView();
+  });
   const unsubscribeHost = hostPort.subscribe((snapshot) => {
     hostSnapshot = validateSurfaceSnapshot(snapshot);
     replaceView();
@@ -1825,6 +1836,7 @@ export function mountSystemOverviewControls(
       unsubscribeComponents?.();
       unsubscribeActivation?.();
       unsubscribeHost?.();
+      unsubscribePreferences?.();
       unsubscribeRender();
       root.removeEventListener("click", onClick);
       const slot = findSlot();
