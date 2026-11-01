@@ -10,6 +10,13 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { deriveAuthorizedSpaces } from "../../services/spaces/authorized-view.mjs";
 import { describeSpacePresentation } from "../../services/spaces/presentation.mjs";
 
+// A session heartbeat or refresh is not a new user. Only actual identity
+// transitions revoke the switcher's transient navigation/read context.
+function identityPresentationContextChanged(previous, next) {
+  return previous.state !== next.state
+    || (next.state === "signed-in" && previous.subjectId !== next.subjectId);
+}
+
 // One presentation for the existing Account-owned Spaces catalog and selection.
 // Selecting a Space is navigation context, never a permission grant.
 export function deriveSpaceSwitcherView(identity, catalog, selection, activation = null) {
@@ -84,6 +91,7 @@ export function mountSpaceSwitcherControls(
   let selectionFailed = false;
   let destroyed = false;
   let refreshRevision = 0;
+  let observedIdentity = identityPort.getSnapshot();
 
   const render = () => {
     if (destroyed) return;
@@ -314,11 +322,19 @@ export function mountSpaceSwitcherControls(
   doc.addEventListener("focusin", onFocusIn);
   const subscriptions = [
     identityPort.subscribe(() => {
-      refreshRevision += 1;
-      loading = false;
-      open = false;
-      error = false;
-      selectionFailed = false;
+      const nextIdentity = identityPort.getSnapshot();
+      const contextChanged = identityPresentationContextChanged(observedIdentity, nextIdentity);
+      observedIdentity = nextIdentity;
+      if (contextChanged) {
+        // Revoke old-context fetch/selection UI only when the session state
+        // or signed-in subject really changes. Token renewals, display-name
+        // changes and repeated snapshots must not dismiss the Space picker.
+        refreshRevision += 1;
+        loading = false;
+        open = false;
+        error = false;
+        selectionFailed = false;
+      }
       render();
     }),
     spacesPort.subscribe(render),
