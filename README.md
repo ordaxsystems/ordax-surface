@@ -20,6 +20,18 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Primeiro uso — confirmação final de identidade
+
+Quando a configuração inicial termina em modo Conta, o First Run usa a
+verificação canônica `verifyFirstRunIdentitySession` do OS **depois** de
+qualquer renomeação assíncrona do dispositivo e imediatamente antes de
+persistir o recibo de conclusão. Caso a conta autenticada não corresponda
+ao sujeito selecionado, a interface retorna à etapa Conta, sem persistir
+a conclusão como autenticada. Não existe uma segunda fonte de identidade,
+nem a renomeação do dispositivo autoriza o recibo do First Run. A gravação
+e a consistência transacional do recibo permanecem sob autoridade do
+state store do OS, não da Surface.
+
 ## Primeiro uso — política de cadastro e sessão
 
 O First Run só apresenta política e consentimento de cadastro vindos do port

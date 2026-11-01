@@ -786,3 +786,109 @@ test("First Run rejects stale registration policy responses after sign-in and si
   assert.match(source, /if \(destroyed \|\| ordinal !== registrationPolicyOrdinal\s*\|\| sessionSnapshot\.state !== "signed-out"/);
   assert.match(source, /if \(!destroyed && ordinal === registrationPolicyOrdinal\) \{\s*registrationPolicyPending = false;/);
 });
+
+
+test("First Run revalidates authenticated subject after the last awaited device rename", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("first-run.mjs");
+  const start = source.indexOf("  const finish = async () => {");
+  const end = source.indexOf("  const onClick = (event) => {", start);
+  assert.ok(start >= 0 && end > start);
+  const actualFinish = source.slice(start, end);
+  assert.ok(actualFinish.indexOf("await deviceProfilePort.rename(nextName)")
+    < actualFinish.indexOf("await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId)"));
+  assert.ok(actualFinish.indexOf("await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId)")
+    < actualFinish.indexOf("await store.save(completeFirstRunState(draft))"));
+
+  const build = (accountMode = "identity") => {
+    const calls = [];
+    let currentSubject = "subject-A";
+    let releaseRename;
+    const renameWait = new Promise(resolve => { releaseRename = resolve; });
+    const globals = {
+      rename: async name => {
+        calls.push("rename:" + name);
+        await renameWait;
+        return { displayName: name };
+      },
+      revalidate: async (_port, subjectId) => {
+        calls.push("verify:" + subjectId + ":" + currentSubject);
+        return currentSubject === subjectId;
+      },
+      preference: (key, value) => calls.push("preference:" + key + ":" + value),
+      persist: async value => calls.push("save:" + value.accountMode),
+      onClose: () => calls.push("close"),
+      calls,
+    };
+    const code = [
+      actualFinish,
+      "({",
+      "  finish,",
+      "  state() { return { finishing, accountMode: draft.accountMode, selectedIdentitySubjectId, stepIndex, completionError, identityMessage }; }",
+      "});",
+    ].join("\n");
+    const context = {
+      ...globals,
+      destroyed: false,
+      finishing: false,
+      draft: { accountMode, locale: "pt-BR", timeZone: "America/Bahia" },
+      systemTermsAccepted: true,
+      selectedIdentitySubjectId: "subject-A",
+      stepIndex: 2,
+      stepIndexFor: () => 1,
+      identityMessage: "",
+      completionError: "",
+      deviceProfilePort: { rename: globals.rename },
+      deviceProfileSnapshot: { displayName: "OrdaX Original" },
+      deviceNameDraft: "OrdaX Revisado",
+      STEPS: ["welcome", "account", "ready"],
+      sessionPort: { getSnapshot: () => ({ state: "signed-in", subjectId: currentSubject }) },
+      verifyFirstRunIdentitySession: globals.revalidate,
+      preferencePort: { set: globals.preference },
+      REGIONAL_LOCALE_PREFERENCE_ID: "regional.locale",
+      REGIONAL_TIME_ZONE_PREFERENCE_ID: "regional.time-zone",
+      createSystemTermsAcceptance: value => ({ accepted: value }),
+      completeFirstRunState: draft => ({ ...draft, completed: true }),
+      store: { save: globals.persist },
+      close: globals.onClose,
+      render: () => {},
+      productMode: "desktop",
+    };
+    const harness = runInNewContext(code, context);
+    return {
+      ...harness,
+      calls,
+      releaseRename,
+      setSubject: subject => { currentSubject = subject; },
+    };
+  };
+
+  const swapped = build();
+  const pending = swapped.finish();
+  assert.deepEqual(swapped.calls, ["rename:OrdaX Revisado"]);
+  swapped.setSubject("subject-B");
+  swapped.releaseRename();
+  await pending;
+  assert.deepEqual(swapped.calls, [
+    "rename:OrdaX Revisado",
+    "verify:subject-A:subject-B",
+  ], "stale subject cannot save an identity receipt or update preferences");
+  assert.equal(swapped.state().accountMode, null);
+  assert.equal(swapped.state().selectedIdentitySubjectId, null);
+  assert.equal(swapped.state().stepIndex, 1);
+  assert.equal(swapped.state().finishing, false);
+  assert.match(swapped.state().identityMessage, /sessão da Conta OrdaX mudou/);
+
+  const stable = build();
+  const legitimate = stable.finish();
+  stable.releaseRename();
+  await legitimate;
+  assert.deepEqual(stable.calls, [
+    "rename:OrdaX Revisado",
+    "verify:subject-A:subject-A",
+    "preference:regional.locale:pt-BR",
+    "preference:regional.time-zone:America/Bahia",
+    "save:identity",
+    "close",
+  ], "stable identity is verified exactly once after rename before commit");
+});
