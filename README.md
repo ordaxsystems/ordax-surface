@@ -73,6 +73,17 @@ No Web, a rota e a janela compartilham `system/surface/workspace/components/stor
 o host Native utiliza diretamente o mesmo renderer. Nenhum desses consumidores
 reimplementa o catálogo oficial ou estados de instalação.
 
+As identidades de requisições `install`, `update` e `remove` da Loja
+ficam exclusivamente em memória e são vinculadas ao aplicativo, operação
+e candidato validado do catálogo OS. Uma resposta inconclusiva reutiliza
+a identidade original; mudança de outro aplicativo ou apenas de seu título
+não a invalida. Alteração do candidato ou revogação de elegibilidade
+impedem repetir a identidade anterior. Se o catálogo ficar indisponível,
+a UI bloqueia novos envios sem supor sucesso ou falha de requisições já
+delegadas. O `Update All` reutiliza o lote canônico do OS, revalida cada
+candidato e não é cancelado por progresso de outros aplicativos. Aceitação
+de requisição nunca é tratada como instalação concluída.
+
 A visualização de demonstração em `workspace/components/store/presentation/`
 é **opcional e explicitamente selecionada**: mantém dados e operações simulados
 isolados, sem instalar, autorizar ou alterar aplicativos reais. O runtime
