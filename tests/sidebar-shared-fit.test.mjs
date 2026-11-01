@@ -12,7 +12,10 @@ test("Web navigation uses the Native fit engine with one DOM group per section",
   assert.match(web, /data-nav-group="ecossistema"/);
   assert.match(web, /data-nav-menu-more hidden/);
   assert.doesNotMatch(web, /sidebarNavigationCapacity|visibleCount|setVisibleCount/);
-  assert.doesNotMatch(shared, /sidebarNavigationCapacity|measuredSidebarHeadings/);
+  // The OS integration suite still imports the historical capacity API.
+  // It must remain available until the OS owner updates that contract.
+  assert.match(shared, /export function sidebarNavigationCapacity/);
+  assert.match(shared, /export function mountNativeSidebarFit/);
 });
 
 function fixture(initialHeight) {

@@ -16,10 +16,42 @@ export function createSidebarMarkup({ id, label, content }) {
   return `<aside id="${escapeMarkup(id)}" class="ordax-rail ordax-product-sidebar" aria-label="${escapeMarkup(label)}">${SIDEBAR_LAYOUT.map(slot => `<${slot.tag} class="${slot.className}" data-sidebar-slot="${slot.key}">${content[slot.key] ?? ""}</${slot.tag}>`).join("")}</aside>`;
 }
 export function sidebarIsExpanded(sidebar) { return (sidebar.offsetWidth || sidebar.getBoundingClientRect().width) > 100; }
+const measuredSidebarHeadings = new WeakMap();
 export function sidebarItemIsActive(activeWindow, button) {
   if (!activeWindow || !button?.dataset?.sidebarApp || activeWindow.appId !== button.dataset.sidebarApp) return false;
   const target = button.dataset.appTarget;
   return target ? activeWindow.target === target : activeWindow.target === null;
+}
+export function sidebarNavigationCapacity(nav) {
+  const style = nav.ownerDocument.defaultView.getComputedStyle(nav);
+  const button = nav.querySelector("button:not([hidden])");
+  if (!button) return 0;
+  const gap = parseFloat(style.rowGap) || 0;
+  const buttonBounds = button.getBoundingClientRect();
+  const buttonHeight = button.offsetHeight || buttonBounds.height;
+  const visualScale = buttonHeight > 0 ? buttonBounds.height / buttonHeight : 1;
+  const pitch = buttonHeight + gap;
+  if (pitch <= 0) return 0;
+  const labels = [...nav.querySelectorAll(".meridian-nav-label")];
+  let headingHeight = 0;
+  for (const label of labels) {
+    const rect = label.getBoundingClientRect();
+    const labelStyle = nav.ownerDocument.defaultView.getComputedStyle(label);
+    if (rect.height > 0) {
+      const firstButton = label.parentElement?.querySelector("button:not([hidden])");
+      const followingGap = firstButton ? Math.max(0, firstButton.getBoundingClientRect().top - rect.bottom) / (visualScale || 1) : 0;
+      const contribution = (label.offsetHeight || rect.height / (visualScale || 1)) + (parseFloat(labelStyle.marginTop) || 0)
+        + (parseFloat(labelStyle.marginBottom) || 0) + followingGap;
+      measuredSidebarHeadings.set(label, contribution);
+      headingHeight += contribution;
+    } else if (label.closest("[hidden]") && labelStyle.display !== "none") {
+      // Keep a heading's measured height when its entire group was hidden to
+      // make room for the More button. A collapsed icon rail hides labels with
+      // CSS while keeping groups visible; that saved space must count again.
+      headingHeight += measuredSidebarHeadings.get(label) || 0;
+    }
+  }
+  return Math.max(0, Math.floor((nav.clientHeight - headingHeight + gap) / pitch));
 }
 export function mountNativeSidebarFit(nav, onResize) {
   const buttons = [...nav.querySelectorAll(".meridian-nav-destination button")];
