@@ -56,3 +56,25 @@ test("Spaces is the sole user-facing destination for Profile composition in Nati
   assert.match(home, /target:'Espaços'/);
   assert.match(profileApps, /export function SpaceProfileAppsPanel/);
 });
+
+test("uncertain Space creation retries the exact same intent and UUID", () => {
+  const account = read("system/surface/ui/account-overview-controls.mjs");
+  const handler = account.slice(account.indexOf("  const onSubmit = (event) => {"), account.indexOf("  const onClick = (event) => {"));
+  assert.ok(handler.length > 0, "Space creation submit handler must exist");
+  assert.match(handler, /createIdempotencyKey = crypto\.randomUUID\(\)/);
+  assert.match(handler, /idempotencyKey: createIdempotencyKey/);
+  assert.match(handler, /await spacesPort\.refresh\(\)/);
+  const success = handler.slice(handler.indexOf('createMessage = t("account.spaces.create.createdPending")'));
+  assert.match(success, /createUnconfirmed = false;\s*createNameDraft = "";\s*createIdempotencyKey = null;/);
+  const failure = handler.slice(handler.indexOf('} catch {'), handler.indexOf('} finally {'));
+  assert.match(failure, /createUnconfirmed = true;/);
+  assert.doesNotMatch(failure, /createIdempotencyKey = null/);
+
+  // A retry stays possible, but a user cannot change the payload of an
+  // operation whose first result could have succeeded remotely.
+  assert.match(account, /nameInput\.disabled = createPending \|\| createUnconfirmed;/);
+  assert.match(account, /typeInput\.disabled = createPending \|\| createUnconfirmed;/);
+  assert.match(account, /control\.matches\("\[data-account-space-create-type\]"\) && !createPending && !createUnconfirmed/);
+  assert.match(account, /input\.matches\("\[data-account-space-create-name\]"\) && !createPending && !createUnconfirmed/);
+  assert.match(account, /createOrdinal \+= 1;\s*createPending = false;\s*createIdempotencyKey = null;\s*createUnconfirmed = false;/);
+});
