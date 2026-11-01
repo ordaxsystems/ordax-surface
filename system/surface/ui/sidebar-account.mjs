@@ -10,24 +10,17 @@ export function projectSidebarAccount(identity, offline = false, translate = id 
   const initials = session.state === "signed-in" ? displayName.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0] ?? "").join("").toLocaleUpperCase() : null;
   return Object.freeze({ displayName, initials, connected: session.state === "signed-in" && !offline, status: translate(offline ? "sidebar.account.offline" : session.state === "signed-in" ? "sidebar.account.signedIn" : "sidebar.account.connect"), openLabel: translate("sidebar.account.open"), storageLabel: translate("sidebar.storage.unavailable"), storageShort: translate("sidebar.storage.short"), notificationsLabel: translate("sidebar.notifications"), notificationsUnavailable: translate("sidebar.notifications.unavailable") });
 }
-// Names already visible on screen are echoed in the accessible action name.
-// An assistive user must be able to distinguish a signed-in account from an
-// unavailable account after First Run, including offline transitions.
-export function sidebarAccountAccessibleLabel(view) {
-  return [view.openLabel, view.displayName, view.status].filter(Boolean).join(" · ");
-}
-
 export function sidebarAccountMarkup(view, native = false) {
   const launch = native ? 'data-sidebar-app="account" data-launch-app="account" data-app-target="overview"' : '';
   return `<section class="account sidebar-account" aria-label="${escapeMarkup(view.displayName)}">
-    <button type="button" class="account-open meridian-rail-account" data-sidebar-account-open ${launch} aria-label="${escapeMarkup(sidebarAccountAccessibleLabel(view))}" title="${escapeMarkup(view.openLabel)}"><span class="meridian-account-avatar" aria-hidden="true"><span class="avatar" data-sidebar-avatar>${view.initials ? escapeMarkup(view.initials) : USER_ICON}</span><i data-sidebar-account-connected data-connected="${view.connected}"></i></span><span class="account-identity"><strong data-sidebar-account-name>${escapeMarkup(view.displayName)}</strong><span data-sidebar-account-status>${escapeMarkup(view.status)}</span></span>${CHEVRON}</button>
+    <button type="button" class="account-open meridian-rail-account" data-sidebar-account-open ${launch} aria-label="${escapeMarkup(view.openLabel)}" aria-describedby="ordax-sidebar-account-name ordax-sidebar-account-status" title="${escapeMarkup(view.openLabel)}"><span class="meridian-account-avatar" aria-hidden="true"><span class="avatar" data-sidebar-avatar>${view.initials ? escapeMarkup(view.initials) : USER_ICON}</span><i data-sidebar-account-connected data-connected="${view.connected}"></i></span><span class="account-identity"><strong id="ordax-sidebar-account-name" data-sidebar-account-name>${escapeMarkup(view.displayName)}</strong><span id="ordax-sidebar-account-status" data-sidebar-account-status>${escapeMarkup(view.status)}</span></span>${CHEVRON}</button>
     <div class="storage-track storage-unavailable" data-sidebar-storage aria-label="${escapeMarkup(view.storageLabel)}"></div>
     <div class="account-storage-footer"><span class="account-storage-value" title="${escapeMarkup(view.storageLabel)}"><span class="account-storage-summary" data-sidebar-storage-short>${escapeMarkup(view.storageShort)}</span><span class="account-storage-compact">—</span></span><div class="account-actions" data-sidebar-notification-slot><button type="button" data-sidebar-notifications ${native ? 'disabled' : ''} title="${escapeMarkup(native ? view.notificationsUnavailable : view.notificationsLabel)}" aria-label="${escapeMarkup(view.notificationsLabel)}">${BELL}</button></div></div>
   </section>`;
 }
 export function sidebarProfileButtonMarkup(view, native = false, active = false) {
   const attributes = [native ? 'data-sidebar-app="account" data-launch-app="account" data-app-target="overview"' : '', active ? 'aria-current="page"' : ''].filter(Boolean).join(' ');
-  return `<button type="button" class="account-open meridian-rail-account" data-sidebar-account-open${attributes ? ` ${attributes}` : ''} aria-label="${escapeMarkup(sidebarAccountAccessibleLabel(view))}" title="${escapeMarkup(`${view.displayName} · ${view.status}`)}"><span class="meridian-account-avatar" aria-hidden="true"><span class="avatar" data-sidebar-avatar>${view.initials ? escapeMarkup(view.initials) : USER_ICON}</span><i data-sidebar-account-connected data-connected="${view.connected}"></i></span><span class="account-identity"><strong data-sidebar-account-name>${escapeMarkup(view.displayName)}</strong><small data-sidebar-account-status>${escapeMarkup(view.status)}</small></span>${CHEVRON}</button>`;
+  return `<button type="button" class="account-open meridian-rail-account" data-sidebar-account-open${attributes ? ` ${attributes}` : ''} aria-label="${escapeMarkup(view.openLabel)}" aria-describedby="ordax-sidebar-profile-name ordax-sidebar-profile-status" title="${escapeMarkup(`${view.displayName} · ${view.status}`)}"><span class="meridian-account-avatar" aria-hidden="true"><span class="avatar" data-sidebar-avatar>${view.initials ? escapeMarkup(view.initials) : USER_ICON}</span><i data-sidebar-account-connected data-connected="${view.connected}"></i></span><span class="account-identity"><strong id="ordax-sidebar-profile-name" data-sidebar-account-name>${escapeMarkup(view.displayName)}</strong><small id="ordax-sidebar-profile-status" data-sidebar-account-status>${escapeMarkup(view.status)}</small></span>${CHEVRON}</button>`;
 }
 export function sidebarProfileMarkup(view, native = false, active = false) {
   return `<section class="account sidebar-account" aria-label="${escapeMarkup(view.displayName)}">${sidebarProfileButtonMarkup(view, native, active)}</section>`;
@@ -52,7 +45,7 @@ export function mountNativeSidebarAccount(root, identity, host, surface) {
     if (storage) storage.setAttribute("aria-label", view.storageLabel);
     if (storageValue) storageValue.setAttribute("title", view.storageLabel);
     const open = card.querySelector("[data-sidebar-account-open]");
-    open.setAttribute("title", `${view.displayName} · ${view.status}`); open.setAttribute("aria-label", sidebarAccountAccessibleLabel(view));
+    open.setAttribute("title", `${view.displayName} · ${view.status}`); open.setAttribute("aria-label", view.openLabel);
     const avatar = card.querySelector("[data-sidebar-avatar]");
     if (view.initials) avatar.textContent = view.initials; else avatar.innerHTML = USER_ICON;
   }

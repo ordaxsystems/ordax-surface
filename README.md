@@ -41,9 +41,10 @@ reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
 A Home Native mantém a apresentação de Conta ligada ao port público
 de sessão e à disponibilidade do host. O botão de Conta da barra
-lateral anuncia, além do comando localizado, o **nome e o estado
-atuais** (conectado, sem conexão ou indisponível). Sua descrição
-é calculada a partir da mesma projeção `projectSidebarAccount`,
+lateral preserva o **nome acessível do comando localizado** exigido
+pelo host OS; `aria-describedby` aponta aos textos já visíveis
+de **nome e estado atuais** (conectado, sem conexão ou indisponível).
+Esses textos continuam vindo da mesma projeção `projectSidebarAccount`,
 sem cache de sessão, token ou segunda autoridade.
 
 Os painéis dinâmicos **Retomar** (`home-continuation.mjs`) e
