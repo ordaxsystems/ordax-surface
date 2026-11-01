@@ -237,6 +237,7 @@ export function mountAccountOverviewControls(
   let hostedSignupAllowed = false;
   let registrationLegalAccepted = false;
   let registrationPolicyPending = false;
+  let registrationPolicyOrdinal = 0;
   let closePasswordDraft = "";
   let closeConfirmationChecked = false;
   let pendingClose = false;
@@ -1344,22 +1345,27 @@ export function mountAccountOverviewControls(
       }
       return;
     }
+    const ordinal = ++registrationPolicyOrdinal;
     registrationPolicyPending = true;
     try {
       const policy = await credentialsPort.registrationPolicy();
-      if (destroyed || sessionSnapshot.state !== "signed-out") return;
+      if (destroyed || ordinal !== registrationPolicyOrdinal
+          || sessionSnapshot.state !== "signed-out") return;
       hostedSignupAllowed = isHostedSignupEnabled(policy);
       registrationPolicy = policy.registrationEnabled === true && isIdentityActionSupported(actionsSnapshot, "register") ? policy : null;
       if (registrationPolicy === null) registrationLegalAccepted = false;
     } catch {
-      if (!destroyed) {
+      if (!destroyed && ordinal === registrationPolicyOrdinal
+          && sessionSnapshot.state === "signed-out") {
         registrationPolicy = null;
         registrationLegalAccepted = false;
         hostedSignupAllowed = false;
       }
     } finally {
-      registrationPolicyPending = false;
-      if (!destroyed) replaceView();
+      if (!destroyed && ordinal === registrationPolicyOrdinal) {
+        registrationPolicyPending = false;
+        replaceView();
+      }
     }
   };
 
@@ -1393,6 +1399,9 @@ export function mountAccountOverviewControls(
         credentialResult = action === "sign-in"
           ? await credentialsPort.signIn(credentialInput)
           : await credentialsPort.register(credentialInput);
+        // The adapter can complete after the user has changed or revoked the
+        // session. Do not refresh the new account for the old operation.
+        if (destroyed || ordinal !== actionOrdinal) return;
         if (typeof sessionPort.refresh === "function") {
           await sessionPort.refresh();
         }
@@ -1418,6 +1427,7 @@ export function mountAccountOverviewControls(
     if (
       destroyed
       || pendingClose
+      || sessionSnapshot.state !== "signed-in"
       || accountLifecyclePort === null
       || accountLifecycleSnapshot === null
       || !isAccountLifecycleActionSupported(accountLifecycleSnapshot, "close-account")
@@ -1433,6 +1443,11 @@ export function mountAccountOverviewControls(
     pendingClose = true;
     closeMessage = "";
     const ordinal = ++closeOrdinal;
+    const actingSubjectId = sessionSnapshot.subjectId;
+    const isCurrentCloseContext = () => !destroyed
+      && ordinal === closeOrdinal
+      && sessionSnapshot.state === "signed-in"
+      && sessionSnapshot.subjectId === actingSubjectId;
     replaceView();
 
     try {
@@ -1441,7 +1456,7 @@ export function mountAccountOverviewControls(
         confirmation: "close-account",
       });
       operationPassword = "";
-      if (destroyed || ordinal !== closeOrdinal) return;
+      if (!isCurrentCloseContext()) return;
       if (result?.closed !== true) throw new Error("invalid close result");
       closeMessage = t("account.lifecycle.close.closed");
       if (typeof sessionPort.refresh === "function") {
@@ -1449,11 +1464,11 @@ export function mountAccountOverviewControls(
       }
     } catch {
       operationPassword = "";
-      if (destroyed || ordinal !== closeOrdinal) return;
+      if (!isCurrentCloseContext()) return;
       closeMessage = t("account.lifecycle.close.failed");
     } finally {
       operationPassword = "";
-      if (!destroyed && ordinal === closeOrdinal) {
+      if (isCurrentCloseContext()) {
         pendingClose = false;
         replaceView();
       }
@@ -1787,11 +1802,29 @@ export function mountAccountOverviewControls(
     }
   });
   const unsubscribeSession = sessionPort.subscribe((snapshot) => {
-    const priorSubject = sessionSnapshot.state === "signed-in"
+    const priorState = sessionSnapshot.state;
+    const priorSubject = priorState === "signed-in"
       ? sessionSnapshot.subjectId : null;
     sessionSnapshot = validateIdentitySessionSnapshot(snapshot);
     const currentSubject = sessionSnapshot.state === "signed-in"
       ? sessionSnapshot.subjectId : null;
+    if (priorState !== sessionSnapshot.state || priorSubject !== currentSubject) {
+      // Fence every account-scoped completion before painting the new user.
+      // Closing an account and credentials requests are never transferable.
+      actionOrdinal += 1;
+      pendingAction = null;
+      closeOrdinal += 1;
+      pendingClose = false;
+      closePasswordDraft = "";
+      closeConfirmationChecked = false;
+      closeMessage = "";
+      credentialPasswordDraft = "";
+      registrationPolicyOrdinal += 1;
+      registrationPolicyPending = false;
+      registrationPolicy = null;
+      hostedSignupAllowed = false;
+      registrationLegalAccepted = false;
+    }
     if (priorSubject !== currentSubject || sessionSnapshot.state !== "signed-in") {
       // Invalidate all in-flight catalog reads before painting the new account.
       spacesPort?.reset();
@@ -1914,6 +1947,7 @@ export function mountAccountOverviewControls(
       closePasswordDraft = "";
       closeConfirmationChecked = false;
       closeOrdinal += 1;
+      registrationPolicyOrdinal += 1;
       registrationPolicy = null;
       registrationLegalAccepted = false;
       root.removeEventListener("input", onInput);
