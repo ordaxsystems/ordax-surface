@@ -31,6 +31,17 @@ nova sessão; o encerramento de um usuário não atualiza a sessão de outro.
 A autoridade de identidade, permissões e mutações continua exclusivamente
 nos ports e serviços canônicos do OS/Platform.
 
+## Spaces — seleção e sessão canônica
+
+O seletor de Spaces Native obtém visibilidade, Space ativo e autorização
+exclusivamente por `deriveAuthorizedSpaces` do OS. Uma emissão repetida da
+sessão (por exemplo, renovação de credenciais ou mudança no nome exibido)
+não altera esse contexto: mantém o menu, o foco, o feedback de seleção e
+uma leitura do catálogo ainda válida. A troca real do sujeito autenticado,
+o logout ou a indisponibilidade da sessão invalidam operações visuais
+pendentes e fecham o seletor antes de expor o próximo contexto. Nenhuma
+identidade, seleção de Space ou permissão é persistida pela Surface.
+
 ## Home Native — horários e preferência regional
 
 As atividades recentes de projetos e arquivos são projeções dos ports canônicos
