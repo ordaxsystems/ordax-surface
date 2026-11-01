@@ -45,7 +45,7 @@
 .ordax-store-nav-item {
   display: flex;
   align-items: center;
-  min-height: 43px;
+  min-height: 44px;
   width: 100%;
   padding: 0 var(--ordax-space-3);
   border: 1px solid transparent;
@@ -378,7 +378,10 @@
 
 .ordax-store-details-link,
 .ordax-store-back {
+  display: inline-flex;
+  align-items: center;
   width: fit-content;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -397,7 +400,7 @@
 }
 
 .ordax-store-action {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 16px;
   border: 1px solid transparent;
   border-radius: var(--ordax-radius-sm);
@@ -582,11 +585,17 @@
 
   .ordax-store-nav {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
   }
 
   .ordax-store-nav-item {
+    flex: 0 0 auto;
     width: auto;
+    white-space: nowrap;
   }
 
   .ordax-store-hero-art {
