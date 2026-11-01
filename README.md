@@ -37,6 +37,26 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Reconexão de Conta — identidade não é conectividade
+
+A projeção de Conta na barra lateral mantém **logout, transporte
+offline e sessão verificada** como estados distintos. Estar sem rede
+não converte uma sessão `signed-out` em `offline`: depois de sair
+da Conta, a ação continua sendo conectar a conta, mesmo que a rede
+caia. Se o sujeito permanece `signed-in` mas o host informa
+`offline`, a conta preserva sua identidade sem afirmar conectividade
+ativa. Um estado de identidade `unavailable` não é interpretado como
+logout. O helper puro `identity-presence-presentation.mjs` escolhe
+exclusivamente a **mensagem existente** e nunca muda o snapshot do OS.
+
+Na Home Native, o estado da conta `signed-in` passa a apresentar
+a mensagem já localizada **Sessão verificada** em vez de **Conectada**.
+A linha Rede continua responsável pela conectividade física; a Home
+não presume Internet com base na sessão de identidade. `signed-out`
+segue como **Sem conta** e um serviço indisponível segue como
+**Indisponível**. Os contratos OS, as permissões e os serviços
+de atualização permanecem intactos.
+
 ## Home — Space atual sem reexibir snapshots antigos
 
 A Home Native exibe o Space por meio do **único port de seleção
