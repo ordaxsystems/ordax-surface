@@ -14,7 +14,7 @@ import { ACCESSIBILITY_CONTRAST_PREFERENCE_ID, ACCESSIBILITY_MOTION_PREFERENCE_I
 const presentationAssets = { template, styles, tokens };
 
 /** Web composes the same Store as Native; availability comes only from its port. */
-export function StoreExperience({ onOpenApp: _onOpenApp }: { onOpenApp?: (id: string) => void }) {
+export function StoreExperience() {
   const host = useRef<HTMLDivElement>(null);
   const instance = useRef<ReturnType<typeof mountStoreExperience> | null>(null);
   const catalogPort = useStoreCatalogPort();
