@@ -10,6 +10,7 @@ import { validateFileSpacePath } from "../../contracts/file-space.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
 import { assertPreferenceRuntimePort } from "../../contracts/preference-runtime.mjs";
 import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
+import { restoreHomeCollectionFocus } from "./home-collection-focus.mjs";
 
 const MAX_HOME_CONTINUATION_ITEMS = 4;
 const MAX_PROJECT_ITEMS = 2;
@@ -144,8 +145,9 @@ export function mountHomeContinuation(
   const render = () => {
     if (destroyed) return;
     const activeElement = documentObject.activeElement;
-    const focusedKey = activeElement?.dataset?.homeContinuationKey ?? null;
-    const focusedAction = activeElement?.dataset?.homeContinuationAction ?? null;
+    const focusedWithin = section?.contains?.(activeElement) === true;
+    const focusedKey = focusedWithin ? activeElement?.dataset?.homeContinuationKey ?? null : null;
+    const focusedAction = focusedWithin ? activeElement?.dataset?.homeContinuationAction ?? null : null;
     const presentation = createHomeContinuationPresentation({
       projects: projectSnapshot,
       recentFiles: recentSnapshot,
@@ -155,6 +157,7 @@ export function mountHomeContinuation(
     if (!presentation.visible) {
       section?.remove();
       section = null;
+      restoreHomeCollectionFocus(homePanel, focusedWithin);
       return;
     }
 
@@ -222,14 +225,13 @@ export function mountHomeContinuation(
     else homePanel.insertBefore(next, space);
     section = next;
 
-    if (focusedKey) {
-      const target = Array.from(section.querySelectorAll("[data-home-continuation-key]"))
-        .find((element) => element.dataset.homeContinuationKey === focusedKey) ?? null;
-      target?.focus({ preventScroll: true });
-    } else if (focusedAction === "open-files") {
-      section.querySelector("[data-home-continuation-action='open-files']")
-        ?.focus({ preventScroll: true });
-    }
+    const target = focusedKey
+      ? Array.from(section.querySelectorAll("[data-home-continuation-key]"))
+        .find((element) => element.dataset.homeContinuationKey === focusedKey) ?? null
+      : focusedAction === "open-files"
+        ? section.querySelector("[data-home-continuation-action='open-files']")
+        : null;
+    restoreHomeCollectionFocus(homePanel, focusedWithin, target);
   };
 
   const unsubscribeProjects = projectPort?.subscribe((snapshot) => {

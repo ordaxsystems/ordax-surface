@@ -7,6 +7,7 @@ import {
   validateSyncRuntimeSnapshot,
 } from "../../contracts/sync-runtime.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { restoreHomeCollectionFocus } from "./home-collection-focus.mjs";
 
 const MAX_HOME_PENDING_ITEMS = 2;
 
@@ -138,7 +139,9 @@ export function mountHomePending(
 
   const render = () => {
     if (destroyed) return;
-    const focusedKey = documentObject.activeElement?.dataset?.homePendingKey ?? null;
+    const activeElement = documentObject.activeElement;
+    const focusedWithin = section?.contains?.(activeElement) === true;
+    const focusedKey = focusedWithin ? activeElement?.dataset?.homePendingKey ?? null : null;
     const presentation = createHomePendingPresentation({
       notifications: notificationsSnapshot,
       syncRuntime: syncSnapshot,
@@ -147,6 +150,7 @@ export function mountHomePending(
     if (!presentation.visible) {
       section?.remove();
       section = null;
+      restoreHomeCollectionFocus(homePanel, focusedWithin);
       return;
     }
 
@@ -204,11 +208,11 @@ export function mountHomePending(
     else homePanel.insertBefore(next, space);
     section = next;
 
-    if (focusedKey) {
-      const target = Array.from(section.querySelectorAll("[data-home-pending-key]"))
-        .find((element) => element.dataset.homePendingKey === focusedKey) ?? null;
-      target?.focus({ preventScroll: true });
-    }
+    const target = focusedKey
+      ? Array.from(section.querySelectorAll("[data-home-pending-key]"))
+        .find((element) => element.dataset.homePendingKey === focusedKey) ?? null
+      : null;
+    restoreHomeCollectionFocus(homePanel, focusedWithin, target);
   };
 
   const unsubscribeNotifications = notificationsPort?.subscribe((snapshot) => {

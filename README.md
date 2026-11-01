@@ -37,6 +37,29 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home após autenticação — identidade e recuperação de foco
+
+A Home Native mantém a apresentação de Conta ligada ao port público
+de sessão e à disponibilidade do host. O botão de Conta da barra
+lateral anuncia, além do comando localizado, o **nome e o estado
+atuais** (conectado, sem conexão ou indisponível). Sua descrição
+é calculada a partir da mesma projeção `projectSidebarAccount`,
+sem cache de sessão, token ou segunda autoridade.
+
+Os painéis dinâmicos **Retomar** (`home-continuation.mjs`) e
+**Pendências** (`home-pending.mjs`) compartilham a regra
+`restoreHomeCollectionFocus`. Quando o serviço retira um
+projeto, arquivo, notificação ou pendência que estava focado,
+o teclado retorna ao controle estável de busca/navegação da
+Home, e nunca a outro item que tenha assumido sua posição.
+Quando o item permanece autorizado e presente, o foco
+permanece no mesmo controle. Atualizações sem foco dentro
+do painel não movem o foco do usuário; nenhuma ação é
+executada automaticamente, nem o estado vazio recebe
+um cartão fictício. A lógica afeta somente a apresentação:
+dados, sessão, notificações, projetos e permissões continuam
+nos serviços canônicos do OS.
+
 ## Barra lateral — ajuste único Web/Native
 
 O ajuste responsivo dos destinos da barra lateral reutiliza
