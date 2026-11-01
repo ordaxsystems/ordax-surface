@@ -31,7 +31,7 @@ pelos dois consumidores. Se um backend ignorar `AbortSignal`, o estado
 de apresentação ainda termina; qualquer resultado tardio é descartado
 sem simular uma conclusão. Solicitações já canceladas nunca são enviadas.
 
-O **Home** mantém o orçamento interativo existente de **10 segundos**,
+O **Home** mantém um watchdog visual de **12 segundos**,
 mostra o erro com finalização explícita do estado ocupado e preserva o
 texto digitado para tentar novamente. A conversa do aplicativo Aura possui
 um limite independente de **120 segundos** para solicitações gerais;
@@ -52,6 +52,22 @@ A janela Aura usa o destino canônico do OS e a porta ordax.intelligence/1 do Ho
 O aplicativo conserva somente respostas completas validadas na memória da sessão do cliente Surface: oito trocas visíveis, quatro trocas como contexto de próximas perguntas, com origem explícita e texto limitado. Cancelamento, prazo excedido e texto parcial não entram no histórico confirmado. Interromper a espera ou iniciar nova conversa não concede autoridade nem executa ferramentas.
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
+
+## Loja — apresentação canônica Web/Native
+
+A Loja oficial tem **um único renderer** em `system/surface/ui/store-experience.mjs`,
+que monta `store-overview-controls.mjs` usando o catálogo e os ports do OS.
+No Web, a rota e a janela compartilham `system/surface/workspace/components/store/meridian-store.tsx`;
+o host Native utiliza diretamente o mesmo renderer. Nenhum desses consumidores
+reimplementa o catálogo oficial ou estados de instalação.
+
+A visualização de demonstração em `workspace/components/store/presentation/`
+é **opcional e explicitamente selecionada**: mantém dados e operações simulados
+isolados, sem instalar, autorizar ou alterar aplicativos reais. O runtime
+`workspace/lib/store/{catalog,state}.mjs` pertence somente a essa prévia,
+não à autoridade da Loja. A antiga segunda Loja React, seus estilos e imagem
+exclusivos e as fachadas TypeScript sem consumidores foram removidos para
+evitar duas experiências e dois caminhos de estado no Web.
 
 ## Desenvolvimento e testes
 
