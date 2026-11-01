@@ -3,6 +3,7 @@ import {
   validateSpaceSelectionSnapshot,
 } from "../../contracts/space-selection.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { projectHomeSpaceCard } from "./home-space-card-presentation.mjs";
 
 function assertHomeSpaceCard(root) {
   if (!root || typeof root.querySelector !== "function") {
@@ -28,36 +29,23 @@ export function mountHomeSpaceCard(rootValue, {
   const selectionPort = spaceSelection === null ? null : assertSpaceSelectionPort(spaceSelection);
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
   const localization = lifecycle.localization;
-  let selection = selectionPort
-    ? validateSpaceSelectionSnapshot(selectionPort.getSnapshot())
-    : null;
   let destroyed = false;
 
   const render = () => {
     if (destroyed) return;
-    const translate = localization.translate;
-    if (!selectionPort || !selection || selection.state === "unavailable") {
-      elements.name.textContent = translate("home.space.unavailable");
-      elements.kind.textContent = translate("home.space.unavailableDetail");
-      elements.state.textContent = translate("home.space.stateUnavailable");
-      elements.state.dataset.state = "unavailable";
-      return;
-    }
-    if (selection.state === "unselected") {
-      elements.name.textContent = translate("home.space.unselected");
-      elements.kind.textContent = translate("home.space.unselectedDetail");
-      elements.state.textContent = translate("home.space.stateUnselected");
-      elements.state.dataset.state = "partial";
-      return;
-    }
-    elements.name.textContent = selection.selectedSpace.name;
-    elements.kind.textContent = translate("account.spaces.kind." + selection.selectedSpace.kind);
-    elements.state.textContent = translate("home.space.stateSelected");
-    elements.state.dataset.state = "ready";
+    // Always re-read the current OS snapshot. Subscription notifications can
+    // arrive after a logout, account switch or a newer catalog reconciliation;
+    // their payload must not resurrect an earlier selected Space on Home.
+    const selection = selectionPort === null
+      ? null : validateSpaceSelectionSnapshot(selectionPort.getSnapshot());
+    const presentation = projectHomeSpaceCard(selection, localization.translate);
+    elements.name.textContent = presentation.name;
+    elements.kind.textContent = presentation.kind;
+    elements.state.textContent = presentation.status;
+    elements.state.dataset.state = presentation.state;
   };
 
-  const unsubscribeSelection = selectionPort?.subscribe((snapshot) => {
-    selection = validateSpaceSelectionSnapshot(snapshot);
+  const unsubscribeSelection = selectionPort?.subscribe(() => {
     render();
   });
   const unsubscribeLocalization = localization.subscribe(render);
