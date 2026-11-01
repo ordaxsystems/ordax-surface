@@ -1,3 +1,4 @@
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import {
   assertIntelligencePort,
@@ -438,6 +439,7 @@ export function mountSystemOverviewControls(
     const activeInside = activeElement && slot.contains(activeElement);
     return Object.freeze({
       section: slot.dataset.systemActiveSection ?? "",
+      navigationScrollLeft: captureSectionNavigationScroll(slot),
       windowScrollTop: windowBody?.scrollTop ?? 0,
       windowScrollLeft: windowBody?.scrollLeft ?? 0,
       focus: activeInside ? focusIdentity(activeElement) : null,
@@ -446,6 +448,7 @@ export function mountSystemOverviewControls(
 
   const restoreInteractionState = (slot, snapshot) => {
     const sameSection = Boolean(snapshot) && snapshot.section === activeSection;
+    restoreSectionNavigationScroll(slot, snapshot?.navigationScrollLeft ?? null, sameSection);
     if (!sameSection) return;
 
     const windowBody = slot.closest(".ordax-window-body");
@@ -493,13 +496,13 @@ export function mountSystemOverviewControls(
   };
 
   const renderSectionNavigation = (view) => {
-    const navigation = node(documentObject, "nav", "ordax-system-navigation");
+    const navigation = node(documentObject, "nav", "ordax-system-navigation ordax-section-navigation");
     navigation.setAttribute("aria-label", t("system.navigation.aria"));
     for (const section of SYSTEM_SECTIONS) {
       const button = node(
         documentObject,
         "button",
-        "ordax-system-navigation-item",
+        "ordax-system-navigation-item ordax-section-navigation-item",
         t(section.messageId),
       );
       button.type = "button";

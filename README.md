@@ -57,6 +57,16 @@ decidir quantos destinos exibir. Os estilos e os tokens de cores, tamanhos
 e tipografia continuam compartilhados; nenhum estado de navegação é
 persistido ou vira autoridade paralela.
 
+## Conta, Ajustes e Sistema — navegação por seções
+
+As três telas compartilham `section-navigation.mjs`, uma rotina somente de
+**apresentação**. Ao selecionar uma seção, a barra horizontal revela o item
+ativo sem mover a janela do aplicativo. Durante atualizações da mesma seção,
+preserva a posição de rolagem escolhida pelo usuário. A geometria dos
+controles usa uma classe comum, com alvos de no mínimo 44 CSS pixels,
+respeitando os tokens Meridian existentes. Não há novas fontes, cores,
+persistência, rotas ou autoridades de dados.
+
 ## Primeiro uso — ações de Conta vinculadas à sessão
 
 O First Run considera as ações de entrar e sair da Conta como tentativas
