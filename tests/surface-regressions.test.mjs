@@ -245,29 +245,79 @@ test("Web and Native Store share the canonical official renderer; legacy paralle
 });
 
 
-test("Store retries an uncertain lifecycle request without minting a second identity", async () => {
-  const store = await read("store-overview-controls.mjs");
-  assert.match(store, /const uncertainRequestIds = new Map\(\)/);
-  const handler = store.slice(
-    store.indexOf('const button = event.target.closest?.("[data-store-operation][data-store-app-id]")'),
-    store.indexOf("  const onKeyDown =", store.indexOf("  const onClick =")),
+test("Store idempotency survives unrelated catalog updates without inventing authority", async () => {
+  const source = await read("store-overview-controls.mjs");
+  const handler = source.slice(
+    source.indexOf('const button = event.target.closest?.("[data-store-operation][data-store-app-id]")'),
+    source.indexOf("  const onKeyDown =", source.indexOf("  const onClick =")),
   );
-  assert.ok(handler.length > 0, "The Store must retain its canonical lifecycle request handler");
-  assert.match(handler, /const retryScope = JSON\.stringify\(\[appId, operation\]\)/);
-  assert.match(handler, /const retainedRequestId = uncertainRequestIds\.get\(retryScope\)/);
-  assert.match(handler, /if \(retainedRequestId === undefined\) requestOrdinal \+= 1/);
-  assert.match(handler, /requestId: retainedRequestId \?\? "store:" \+ operation \+ ":" \+ appId \+ ":" \+ requestSessionId \+ ":" \+ requestOrdinal/);
-  assert.match(handler, /const request = validateAppLifecycleRequest\(/);
-  assert.match(handler, /return lifecycleRequests\.requestLifecycle\(request\)/);
-  const decision = handler.indexOf("validateAppLifecycleRequestResultForRequest(rawResult, request)");
-  const release = handler.indexOf("uncertainRequestIds.delete(retryScope)");
-  assert.ok(decision !== -1 && release > decision, "Only a validated terminal response releases a retry identity");
-  assert.match(handler, /if \(!isCurrentRequest\(\)\) return;\s*\/\/ No authoritative outcome arrived; preserve the original requestId\.\s*uncertainRequestIds\.set\(retryScope, request\.requestId\)/);
-  assert.doesNotMatch(handler.slice(handler.indexOf(".catch(() => {")), /uncertainRequestIds\.delete\(retryScope\)/);
-  assert.match(store, /if \(fingerprint !== catalogFingerprint\) \{[\s\S]*?uncertainRequestIds\.clear\(\)/);
-  assert.match(store, /catalogGeneration === requestGeneration/);
-  assert.match(store, /pendingRequest\?\.requestId === request\.requestId/);
-  assert.match(store, /if \(destroyed\) return;\s*destroyed = true;/);
+  const subscription = source.slice(
+    source.indexOf("  const unsubscribeCatalog = catalog.subscribe("),
+    source.indexOf("  const unsubscribeRender =", source.indexOf("  const unsubscribeCatalog =")),
+  );
+  assert.match(source, /const uncertainRequestIds = new Map\(\)/);
+  assert.match(handler, /const candidateSignature = lifecycleCandidateSignature\(entry, operation\)/);
+  assert.match(handler, /const receipt = uncertainRequestIds\.get\(retryScope\)/);
+  assert.match(handler, /receipt\?\.candidateSignature === candidateSignature \? receipt\.requestId : null/);
+  assert.match(handler, /uncertainRequestIds\.set\(retryScope, Object\.freeze\(\{/);
+  assert.ok(
+    handler.indexOf("uncertainRequestIds.set(retryScope") < handler.indexOf("lifecycleRequests.requestLifecycle(request)"),
+    "reserve the idempotency receipt before the async OS delegation",
+  );
+  assert.match(handler, /const isCurrentRequest = \(\) => !destroyed[\s\S]*?sameLifecycleCandidate\(snapshot, appId, operation, candidateSignature\)/);
+  assert.match(handler, /validateAppLifecycleRequestResultForRequest\(rawResult, request\)/);
+  assert.match(handler, /if \(uncertainRequestIds\.get\(retryScope\)\?\.requestId === request\.requestId\) \{\s*uncertainRequestIds\.delete\(retryScope\)/);
+  assert.match(handler, /\/\/ No authoritative outcome arrived; keep the pre-delegation receipt\.\s*pendingRequest = null/);
+  assert.doesNotMatch(source, /catalogGeneration|uncertainRequestIds\.clear\(\)/);
+
+  assert.match(subscription, /if \(verified\.state === "ready"\) \{\s*for \(const \[scope, receipt\] of uncertainRequestIds\)/);
+  assert.match(subscription, /if \(!sameLifecycleCandidate\(verified, receipt\.appId,\s*receipt\.operation, receipt\.candidateSignature\)\) \{\s*uncertainRequestIds\.delete\(scope\)/);
+  assert.match(subscription, /if \(pendingRequest !== null && !sameLifecycleCandidate\(verified,/);
+  assert.match(subscription, /if \(verified\.state !== "ready"\) \{[\s\S]*?updateAll\?\.cancelPending\(\)/);
+  assert.doesNotMatch(
+    subscription.slice(subscription.indexOf('if (verified.state === "ready")'), subscription.indexOf('if (verified.state !== "ready")')),
+    /updateAll\?\.cancelPending\(\)|batchPresentationGeneration \+= 1/,
+    "unrelated signed catalog changes cannot cancel Update All",
+  );
+
+  // Exercise the exact pure candidate matchers defined in the production UI,
+  // not a second model of Store eligibility or OS lifecycle authority.
+  const { runInNewContext } = await import("node:vm");
+  const implementation = source.slice(
+    source.indexOf("function operationAllowed(entry, operation) {"),
+    source.indexOf("function versionSummary(t, entry) {"),
+  );
+  const { lifecycleCandidateSignature, sameLifecycleCandidate } = runInNewContext(
+    implementation + "\n;({ lifecycleCandidateSignature, sameLifecycleCandidate })",
+  );
+  const app = (appId, overrides = {}) => ({
+    appId, title: appId, state: "installed", installedVersion: "1.0.0",
+    availableVersion: "2.0.0", installable: false, updatable: true,
+    removable: true, blockedReason: null, artifactIdentityVerified: true,
+    provenanceVerified: true, ...overrides,
+  });
+  const own = app("app-own");
+  const other = app("app-other");
+  const candidate = lifecycleCandidateSignature(own, "update");
+  assert.equal(sameLifecycleCandidate({ state: "ready", entries: [own, other] }, own.appId, "update", candidate), true);
+  assert.equal(sameLifecycleCandidate({
+    state: "ready", entries: [own, app("app-other", { state: "updating", updatable: false })],
+  }, own.appId, "update", candidate), true, "another app may advance without invalidating this retry");
+  assert.equal(sameLifecycleCandidate({
+    state: "ready", entries: [app("app-own", { title: "Renamed" }), other],
+  }, own.appId, "update", candidate), true, "presentation-only title changes preserve lifecycle intent");
+  assert.equal(sameLifecycleCandidate({
+    state: "ready", entries: [app("app-own", { availableVersion: "3.0.0" }), other],
+  }, own.appId, "update", candidate), false, "new artifact candidate must not replay old request ID");
+  assert.equal(sameLifecycleCandidate({
+    state: "ready", entries: [app("app-own", { updatable: false }), other],
+  }, own.appId, "update", candidate), false, "revoked eligibility must fail closed");
+  assert.equal(sameLifecycleCandidate({ state: "ready", entries: [other] }, own.appId, "update", candidate), false);
+  assert.equal(sameLifecycleCandidate({ state: "unavailable", entries: [] }, own.appId, "update", candidate), false);
+  const removeCandidate = lifecycleCandidateSignature(own, "remove");
+  assert.equal(sameLifecycleCandidate({
+    state: "ready", entries: [app("app-own", { availableVersion: "3.0.0" })],
+  }, own.appId, "remove", removeCandidate), true, "a new available release does not change removal of installed version");
 });
 
 
