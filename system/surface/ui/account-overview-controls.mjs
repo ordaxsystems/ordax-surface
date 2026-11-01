@@ -216,6 +216,8 @@ export function mountAccountOverviewControls(
     : null;
   let pendingAction = null;
   let pendingProfileAction = null;
+  let pendingProfileSpaceId = null;
+  let profileOrdinal = 0;
   let actionMessage = "";
   let spaceMessage = "";
   let profileMessage = "";
@@ -266,12 +268,18 @@ export function mountAccountOverviewControls(
     if (element.dataset.accountProfileAction) {
       return Object.freeze({ kind: "profile-action", value: element.dataset.accountProfileAction });
     }
+    if (element.hasAttribute("data-account-space-create-name")) {
+      return Object.freeze({ kind: "space-create-name", value: "" });
+    }
+    if (element.hasAttribute("data-account-space-create-type")) {
+      return Object.freeze({ kind: "space-create-type", value: "" });
+    }
     return null;
   };
 
   const findFocusTarget = (slot, identity) => {
     if (!identity) return null;
-    for (const element of slot.querySelectorAll("button")) {
+    for (const element of slot.querySelectorAll("button, input, select")) {
       const candidate = focusIdentity(element);
       if (
         candidate
@@ -288,11 +296,22 @@ export function mountAccountOverviewControls(
     const windowBody = slot.closest(".ordax-window-body");
     const activeElement = documentObject.activeElement;
     const activeInside = activeElement && slot.contains(activeElement);
+    const focusedName = activeInside && activeElement?.matches?.("[data-account-space-create-name]")
+      ? activeElement : null;
+    const caret = focusedName && Number.isInteger(focusedName.selectionStart)
+      && Number.isInteger(focusedName.selectionEnd)
+      ? Object.freeze({
+          start: focusedName.selectionStart,
+          end: focusedName.selectionEnd,
+          direction: focusedName.selectionDirection,
+        })
+      : null;
     return Object.freeze({
       section: slot.dataset.accountActiveSection ?? "",
       windowScrollTop: windowBody?.scrollTop ?? 0,
       windowScrollLeft: windowBody?.scrollLeft ?? 0,
       focus: activeInside ? focusIdentity(activeElement) : null,
+      caret,
       advancedOpen: slot.querySelector("[data-space-profile-details]")?.open === true,
     });
   };
@@ -312,6 +331,13 @@ export function mountAccountOverviewControls(
     const target = findFocusTarget(slot, snapshot.focus);
     if (!target || target.disabled) return;
     target.focus({ preventScroll: true });
+    if (
+      snapshot.caret
+      && snapshot.focus?.kind === "space-create-name"
+      && typeof target.setSelectionRange === "function"
+    ) {
+      target.setSelectionRange(snapshot.caret.start, snapshot.caret.end, snapshot.caret.direction);
+    }
   };
 
   const renderHeader = (view) => {
@@ -1658,7 +1684,17 @@ export function mountAccountOverviewControls(
       const operationKey = action === "activate"
         ? `activate:${profileButton.dataset.accountProfileSlug ?? ""}`
         : `deactivate:${selectedSpace.id}`;
+      const ordinal = ++profileOrdinal;
       pendingProfileAction = operationKey;
+      pendingProfileSpaceId = selectedSpace.id;
+      const isCurrentProfileContext = () => (
+        !destroyed
+        && ordinal === profileOrdinal
+        && sessionSnapshot.state === "signed-in"
+        && sessionSnapshot.subjectId === actingSubjectId
+        && authorizedSpaces().activeSpace?.id === selectedSpace.id
+        && authorizedSpaces().activeSpace?.kind === selectedSpace.kind
+      );
       profileMessage = "";
       replaceView();
       void (async () => {
@@ -1677,33 +1713,32 @@ export function mountAccountOverviewControls(
             };
             const preview = await profileActivationPort.previewActivation(intent);
             const acceptedDigest = assertMvpZeroComponentProfileReview(preview);
-            if (
-              sessionSnapshot.state !== "signed-in"
-              || sessionSnapshot.subjectId !== actingSubjectId
-              || authorizedSpaces().activeSpace?.id !== selectedSpace.id
-              || authorizedSpaces().activeSpace?.kind !== selectedSpace.kind
-            ) {
-              throw new Error("Profile activation context changed during preview");
-            }
+            // A stale preview cannot be authorized for a different Space or account.
+            if (!isCurrentProfileContext()) return;
             const next = await profileActivationPort.activate({
               ...intent,
               expectedRevision: preview.expectedRevision,
               acceptedPermissionDiffSha256: acceptedDigest,
             });
+            if (!isCurrentProfileContext()) return;
             profileActivationSnapshot = validateProfileActivationState(next);
             profileMessage = t("account.profiles.activated");
           } else if (action === "deactivate") {
             const next = await profileActivationPort.deactivate(selectedSpace.id);
+            if (!isCurrentProfileContext()) return;
             profileActivationSnapshot = validateProfileActivationState(next);
             profileMessage = t("account.profiles.deactivated");
           } else {
             throw new TypeError("unsupported Profile action");
           }
         } catch {
-          profileMessage = t("account.profiles.failed");
+          if (isCurrentProfileContext()) profileMessage = t("account.profiles.failed");
         } finally {
-          pendingProfileAction = null;
-          if (!destroyed) replaceView();
+          if (ordinal === profileOrdinal) {
+            pendingProfileAction = null;
+            pendingProfileSpaceId = null;
+            if (!destroyed) replaceView();
+          }
         }
       })();
       return;
@@ -1766,6 +1801,10 @@ export function mountAccountOverviewControls(
       createUnconfirmed = false;
       createNameDraft = "";
       createMessage = "";
+      // Old Profile Pack completions must not write into the next account.
+      profileOrdinal += 1;
+      pendingProfileAction = null;
+      pendingProfileSpaceId = null;
       spaceMessage = "";
       profileMessage = "";
     }
@@ -1822,6 +1861,14 @@ export function mountAccountOverviewControls(
   });
   const unsubscribeSpaceSelection = spaceSelectionPort?.subscribe((snapshot) => {
     spaceSelectionSnapshot = validateSpaceSelectionSnapshot(snapshot);
+    if (pendingProfileSpaceId !== null
+        && authorizedSpaces().activeSpace?.id !== pendingProfileSpaceId) {
+      // Global Space switching must not retain a mutation lock for another Space.
+      profileOrdinal += 1;
+      pendingProfileAction = null;
+      pendingProfileSpaceId = null;
+      profileMessage = "";
+    }
     replaceView();
   });
   const unsubscribeSpaceExperience = spaceExperiencePort?.subscribe(() => {
@@ -1846,7 +1893,9 @@ export function mountAccountOverviewControls(
     destroy() {
       destroyed = true;
       actionOrdinal += 1;
+      profileOrdinal += 1;
       pendingProfileAction = null;
+      pendingProfileSpaceId = null;
       memoryReviewControls?.dispose();
       memoryReviewControls = null;
       unsubscribeProfileActivation?.();
