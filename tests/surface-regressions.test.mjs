@@ -269,3 +269,31 @@ test("Store retries an uncertain lifecycle request without minting a second iden
   assert.match(store, /pendingRequest\?\.requestId === request\.requestId/);
   assert.match(store, /if \(destroyed\) return;\s*destroyed = true;/);
 });
+
+
+test("Native Home continuation reads the OS regional time-zone SSOT and reacts to preference changes", async () => {
+  const home = await read("home-continuation.mjs");
+  const shell = await read("desktop-shell.mjs");
+
+  // The desktop clock already uses the canonical region preference. The Home
+  // activity cards must read that same port rather than freezing Bahia time.
+  assert.match(shell, /REGIONAL_TIME_ZONE_PREFERENCE_ID/);
+  assert.match(home, /import \{ assertPreferenceRuntimePort \} from "\.\.\/\.\.\/contracts\/preference-runtime\.mjs"/);
+  assert.match(home, /import \{ resolveRegionalTimeZone \} from "\.\.\/\.\.\/services\/preferences\/regional\.mjs"/);
+  assert.match(home, /const preferencePort = lifecycle\.preferences == null\s*\? null : assertPreferenceRuntimePort\(lifecycle\.preferences\)/);
+  assert.match(home, /const timeZone = resolveRegionalTimeZone\(preferencePort\?\.getSnapshot\(\) \?\? \{\}\)/);
+  assert.match(home, /function formatActivity\(timestamp, locale, timeZone, unknownLabel\)/);
+  assert.match(home, /new Intl\.DateTimeFormat\(locale, \{\s*timeZone,/);
+  assert.match(home, /localization\.getLocale\(\),\s*timeZone,\s*t\("home\.continuation\.activityUnknown"\)/);
+  assert.match(home, /const unsubscribePreferences = preferencePort\?\.subscribe\(render\)/);
+  assert.match(home, /dispose\(\) \{[\s\S]*?unsubscribePreferences\?\.\(\)/);
+  assert.doesNotMatch(home, /timeZone:\s*["']America\/Bahia["']/);
+
+  // Same instant differs across two user-selectable OS zones. Formatting must
+  // follow the selected region, even when the host's locale stays pt-BR.
+  const moment = new Date("2026-11-01T12:00:00.000Z");
+  const format = timeZone => new Intl.DateTimeFormat("pt-BR", {
+    timeZone, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(moment);
+  assert.notEqual(format("America/Bahia"), format("America/Manaus"));
+});
