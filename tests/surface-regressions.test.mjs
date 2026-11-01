@@ -614,3 +614,79 @@ test("Space switcher preserves same-user selection and closes only on identity t
   assert.match(source, /if \(destroyed \|\| revision !== refreshRevision\) return;/);
   assert.match(source, /deriveAuthorizedSpaces\(identity, catalog, selection\)/);
 });
+
+
+test("Native lock rejects late unlock completions after a new lock cycle", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("local-session-lock.mjs");
+  const submitStart = source.indexOf("  const onSubmit = (event) => {");
+  const submitEnd = source.indexOf('  documentObject.addEventListener("submit", onSubmit);', submitStart);
+  const subscribeStart = source.indexOf("  const unsubscribeSession = port.subscribe((next) => {");
+  const subscribeEnd = source.indexOf("  const unsubscribeLocalization =", subscribeStart);
+  assert.ok(submitStart !== -1 && submitEnd > submitStart);
+  assert.ok(subscribeStart !== -1 && subscribeEnd > subscribeStart);
+
+  const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  };
+  const first = deferred();
+  const second = deferred();
+  const responses = [first, second];
+  const code = [
+    'let snapshot = { state: "locked" };',
+    'let destroyed = false;',
+    'let pending = false;',
+    'let attemptRevision = 0;',
+    'let messageId = null;',
+    'let renderCount = 0;',
+    'const render = () => { renderCount += 1; };',
+    'class HTMLInputElement { constructor() { this.value = "secret-valid"; } }',
+    'const input = new HTMLInputElement();',
+    'const form = { querySelector: () => input };',
+    'const overlay = { contains: value => value === form };',
+    'const port = { unlock: secret => nextResponse(secret), subscribe(listener) { this.notify = listener; listener(snapshot); return () => {}; } };',
+    'const validateLocalSessionSnapshot = value => value;',
+    source.slice(submitStart, submitEnd),
+    source.slice(subscribeStart, subscribeEnd),
+    '({',
+    'submit() { input.value = "secret-valid"; onSubmit({ target: { closest: () => form }, preventDefault() {} }); },',
+    'publish(state) { port.notify({ state }); },',
+    'read() { return { state: snapshot.state, pending, messageId, attemptRevision, renderCount }; },',
+    '});',
+  ].join("\n");
+  const harness = runInNewContext(code, {
+    nextResponse: () => responses.shift().promise,
+  });
+  assert.equal(harness.read().attemptRevision, 0, "initial snapshot is not a new lock cycle");
+
+  harness.submit();
+  assert.equal(harness.read().pending, true);
+  assert.equal(harness.read().attemptRevision, 1);
+  harness.publish("locked");
+  assert.equal(harness.read().pending, true, "same-state observation cannot drop a pending request");
+  harness.publish("unlocked");
+  assert.equal(harness.read().pending, false, "unlocked OS snapshot revokes the UI request");
+  harness.publish("locked");
+  assert.equal(harness.read().pending, false);
+  harness.submit();
+  assert.equal(harness.read().pending, true, "new lock cycle accepts its own attempt");
+  const newRevision = harness.read().attemptRevision;
+
+  first.reject({ status: 429 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.read().pending, true, "old 429 must not release the new attempt");
+  assert.equal(harness.read().messageId, null, "old 429 must not become the new lock's error");
+  assert.equal(harness.read().attemptRevision, newRevision);
+  second.reject({ status: 429 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.read().pending, false);
+  assert.equal(harness.read().messageId, "localSession.lock.message.rateLimited");
+
+  assert.match(source, /if \(destroyed \|\| revision !== attemptRevision \|\| snapshot.state !== "locked"\) return;/);
+  assert.match(source, /if \(snapshot.state !== previousState\) \{[\s\S]*?attemptRevision \+= 1;[\s\S]*?pending = false;/);
+  assert.match(source, /!overlay\?\.contains\(input\)/, "stale queued focus must not target detached overlay input");
+  assert.match(source, /render\(\{ preserveSecret: true \}\)/, "locale-only repaint keeps transient secret when safe");
+  assert.doesNotMatch(source, /localStorage|sessionStorage/);
+});
