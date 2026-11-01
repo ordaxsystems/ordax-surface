@@ -191,6 +191,23 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Loja — feedback de operações visível e acessível
+
+As mensagens de solicitação de instalação, atualização e remoção da Loja são
+apresentadas imediatamente após o cabeçalho, antes de qualquer grade ou
+detalhe de aplicativo. O resultado de `Update All` e a nota de que um pedido
+aceito **não equivale a instalação concluída** ficam no mesmo local, inclusive
+em catálogos extensos. Não existe segundo log, toast ou armazenamento de
+solicitações. O conteúdo usa somente mensagens existentes do catálogo de
+localização do OS. `role=status` e `aria-live=polite` permitem anunciar
+alterações sem assumir sucesso nem interromper o foco de navegação.
+
+Quando o host não fornece um port de lifecycle ou identidade segura de
+requisição, a Loja explica os controles desabilitados no cabeçalho, sem
+tentar instalar por uma rota alternativa. Falhas e indisponibilidades recebem
+a aparência de atenção sem adotar outra paleta: são utilizados somente tokens
+Meridian da Surface. A nota de segurança permanece no rodapé.
+
 ## Loja — detalhes, foco e estados vazios
 
 A Loja oficial diferencia três estados de lista vazia sem presumir erros do
