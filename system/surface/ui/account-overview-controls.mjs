@@ -319,9 +319,9 @@ export function mountAccountOverviewControls(
     const caret = focusedText && Number.isInteger(focusedText.selectionStart)
       && Number.isInteger(focusedText.selectionEnd)
       ? Object.freeze({
-          start: focusedName.selectionStart,
-          end: focusedName.selectionEnd,
-          direction: focusedName.selectionDirection,
+          start: focusedText.selectionStart,
+          end: focusedText.selectionEnd,
+          direction: focusedText.selectionDirection,
         })
       : null;
     return Object.freeze({
