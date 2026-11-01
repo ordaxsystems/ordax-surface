@@ -20,7 +20,7 @@ test("First Run has linked feedback for all three credential families",async()=>
  assert.match(s,/networkValidationInvalid = true;/);
  assert.match(s,/localSessionValidationInvalid = true;/);
  assert.match(s,/identityFeedbackTone = result\?\.confirmationRequired === true \? "information" : "attention"/);
- assert.match(s,/identityMessage = "Cadastro recebido\. Confirme seu e-mail para entrar\."/);
+ assert.ok(s.includes('"Cadastro recebido. Confirme seu e-mail para entrar."'));
 });
 test("Local validation errors are not inferred from remote network failures",async()=>{
  const s=await readFile(new URL("../system/surface/ui/first-run.mjs",import.meta.url),"utf8");
