@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { restoreHomeCollectionFocus } from "../system/surface/ui/home-collection-focus.mjs";
-import { sidebarAccountAccessibleLabel } from "../system/surface/ui/sidebar-account.mjs";
 
 function focusable(settings = {}) {
   return {disabled:false,hidden:false,closest:()=>null,
@@ -35,13 +34,15 @@ test("Home moves keyboard focus to stable search when an item is revoked or remo
   }
   assert.equal(restoreHomeCollectionFocus({querySelector:()=>focusable({disabled:true})},true,null),false);
 });
-test("Home Account accessible button reflects the current session without stale authority",()=>{
-  const view={openLabel:"Abrir conta",displayName:"Alex Oliveira",status:"Conta conectada"};
-  assert.equal(sidebarAccountAccessibleLabel(view),"Abrir conta · Alex Oliveira · Conta conectada");
-  assert.equal(sidebarAccountAccessibleLabel({...view,status:"Sem conexão"}),
-    "Abrir conta · Alex Oliveira · Sem conexão");
-  assert.equal(sidebarAccountAccessibleLabel({...view,displayName:"Conta indisponível",status:"Reconectar"}),
-    "Abrir conta · Conta indisponível · Reconectar");
+test("Home Account accessible action derives label only from the canonical session projection",async()=>{
+  // The Surface-owned proof runs without OS contracts. The imported host
+  // integration and Chromium stages exercise the complete reactive component.
+  const code=await readFile(new URL("../system/surface/ui/sidebar-account.mjs",import.meta.url),"utf8");
+  assert.match(code,/return \[view\.openLabel, view\.displayName, view\.status\]\.filter\(Boolean\)\.join\(" · "\)/);
+  assert.match(code,/session\.state === "signed-in" \? session\.displayName/);
+  assert.match(code,/status: translate\(offline \? "sidebar\.account\.offline"/);
+  assert.match(code,/snapshot\.capabilityIds\.includes\("account\.identity"\)/);
+  assert.match(code,/snapshot\.connectivity === "offline"/);
 });
 test("Home sections recover keyboard focus when their snapshot removes the item",async()=>{
   const root = new URL("../system/surface/ui/",import.meta.url);
