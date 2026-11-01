@@ -191,6 +191,28 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Conta, Ajustes e Sistema — feedback Native sem duplicação
+
+O renderer Native de Conta, Ajustes e Sistema compartilha
+`surface-feedback.mjs`: anota mensagens geradas por operação com
+`role=status`, `aria-live=polite` e `aria-atomic=true`, sem alterar
+o texto localizado nem a autoridade do OS. As mensagens de sucesso
+de Conta (Space criado, perfil ativado/desativado, encerramento confirmado)
+são visualmente informativas, e falhas ou resultados inconclusivos
+continuam em atenção, usando somente tokens semânticos Meridian.
+A tonalidade é atribuída na transição real da operação, nunca inferida
+de texto traduzido ou de estado presumido. Falhas de leitura em
+Sistema também são apresentadas como alertas, mantendo a última leitura
+somente onde o contrato já permite.
+
+As três telas compartilham ainda `restoreSectionFocusFallback` em
+`section-navigation.mjs`: se uma atualização do port remover,
+desabilitar ou ocultar o controle que estava focado, o teclado volta
+à seção ativa, sem retomar autoridade da ação revogada. A rolagem
+horizontal da navegação, o foco de controles válidos e a restauração
+do cursor de formulários continuam sob os controladores existentes.
+Nenhum port, cache, permissão, tradução ou renderer paralelo foi criado.
+
 ## Loja — feedback de operações visível e acessível
 
 As mensagens de solicitação de instalação, atualização e remoção da Loja são

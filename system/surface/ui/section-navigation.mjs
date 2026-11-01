@@ -31,3 +31,14 @@ export function restoreSectionNavigationScroll(slot, previousScrollLeft, sameSec
     rail.scrollLeft = Math.max(0, Math.min(maxScroll, rail.scrollLeft + offset));
   }
 }
+
+/** Refocus the active section if a previously focused action was revoked.
+ *  The current view still owns navigation, eligibility and action lifecycle. */
+export function restoreSectionFocusFallback(slot, priorFocus, target) {
+  if (!priorFocus || (target && !target.disabled && !target.hidden
+      && !target.closest?.("[hidden]"))) return false;
+  const active = slot?.querySelector?.(ACTIVE_SELECTOR);
+  if (!active || active.disabled || active.hidden || active.closest?.("[hidden]")) return false;
+  active.focus({ preventScroll: true });
+  return true;
+}

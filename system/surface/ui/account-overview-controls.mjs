@@ -1,4 +1,5 @@
-import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
+import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { deriveAuthorizedSpaces } from "../../services/spaces/authorized-view.mjs";
 import { readRememberedLoginEmail } from "../../services/account/remembered-login-email.mjs";
@@ -222,10 +223,12 @@ export function mountAccountOverviewControls(
   let actionMessage = "";
   let spaceMessage = "";
   let profileMessage = "";
+  let profileMessageTone = "attention";
   let createNameDraft = "";
   let createTypeDraft = CREATABLE_SPACE_TYPES[0]?.key ?? "";
   let createIdempotencyKey = null;
   let createMessage = "";
+  let createMessageTone = "attention";
   let createPending = false;
   // An ambiguous create must retry its original idempotent intent, never a new one.
   let createUnconfirmed = false;
@@ -243,6 +246,7 @@ export function mountAccountOverviewControls(
   let closeConfirmationChecked = false;
   let pendingClose = false;
   let closeMessage = "";
+  let closeMessageTone = "attention";
   let actionOrdinal = 0;
   let closeOrdinal = 0;
   // Historic destinations to Profiles become the existing Spaces destination.
@@ -333,7 +337,10 @@ export function mountAccountOverviewControls(
     const advanced = slot.querySelector("[data-space-profile-details]");
     if (advanced) advanced.open = snapshot.advancedOpen;
     const target = findFocusTarget(slot, snapshot.focus);
-    if (!target || target.disabled) return;
+    if (!target || target.disabled || target.hidden || target.closest?.("[hidden]")) {
+      restoreSectionFocusFallback(slot, snapshot.focus, target);
+      return;
+    }
     target.focus({ preventScroll: true });
     if (
       snapshot.caret
@@ -630,14 +637,14 @@ export function mountAccountOverviewControls(
       lifecycleSection.append(passwordLabel, confirmation, closeButton);
       if (closeMessage) {
         lifecycleSection.append(
-          node(documentObject, "p", "ordax-account-message", closeMessage),
+          markSurfaceFeedback(node(documentObject, "p", "ordax-account-message", closeMessage), closeMessageTone),
         );
       }
       section.append(lifecycleSection);
     }
 
     if (actionMessage) {
-      section.append(node(documentObject, "p", "ordax-account-message", actionMessage));
+      section.append(markSurfaceFeedback(node(documentObject, "p", "ordax-account-message", actionMessage), "attention"));
     }
     view.append(section);
   };
@@ -745,9 +752,8 @@ export function mountAccountOverviewControls(
         t("account.spaces.create.unavailable")));
     }
     if (createMessage) {
-      const status = node(documentObject, "p", "ordax-account-message", createMessage);
-      status.setAttribute("role", "status");
-      section.append(status);
+      section.append(markSurfaceFeedback(
+        node(documentObject, "p", "ordax-account-message", createMessage), createMessageTone));
     }
 
     if (spacesSnapshot.state === "loading" || spacesSnapshot.state === "idle") {
@@ -843,7 +849,7 @@ export function mountAccountOverviewControls(
     }
     section.append(grid);
     if (spaceMessage) {
-      section.append(node(documentObject, "p", "ordax-account-message", spaceMessage));
+      section.append(markSurfaceFeedback(node(documentObject, "p", "ordax-account-message", spaceMessage), "attention"));
     }
     // A Profile Pack is a technical composition of the selected Space, not a
     // separately navigable product or a second account section.
@@ -1026,7 +1032,7 @@ export function mountAccountOverviewControls(
         t("account.profiles.categories.empty")));
     }
     if (profileMessage) {
-      section.append(node(documentObject, "p", "ordax-account-message", profileMessage));
+      section.append(markSurfaceFeedback(node(documentObject, "p", "ordax-account-message", profileMessage), profileMessageTone));
     }
     view.append(section);
   };
@@ -1462,6 +1468,7 @@ export function mountAccountOverviewControls(
       if (!isCurrentCloseContext()) return;
       if (result?.closed !== true) throw new Error("invalid close result");
       closeMessage = t("account.lifecycle.close.closed");
+      closeMessageTone = "information";
       if (typeof sessionPort.refresh === "function") {
         await sessionPort.refresh();
       }
@@ -1469,6 +1476,7 @@ export function mountAccountOverviewControls(
       operationPassword = "";
       if (!isCurrentCloseContext()) return;
       closeMessage = t("account.lifecycle.close.failed");
+      closeMessageTone = "attention";
     } finally {
       operationPassword = "";
       if (isCurrentCloseContext()) {
@@ -1555,6 +1563,7 @@ export function mountAccountOverviewControls(
     if (!createIdempotencyKey) {
       if (typeof crypto?.randomUUID !== "function") {
         createMessage = t("account.spaces.create.secureIdUnavailable");
+        createMessageTone = "attention";
         replaceView();
         return;
       }
@@ -1586,6 +1595,7 @@ export function mountAccountOverviewControls(
         if (!match) throw new Error("Space not visible in refreshed authorized catalog");
         if (spaceSelectionPort) spaceSelectionPort.select(match.id);
         createMessage = t("account.spaces.create.createdPending");
+        createMessageTone = "information";
         createUnconfirmed = false;
         createNameDraft = "";
         createIdempotencyKey = null;
@@ -1594,6 +1604,7 @@ export function mountAccountOverviewControls(
         // Keep the original fields and UUID fixed until a canonical confirmation.
         createUnconfirmed = true;
         createMessage = t("account.spaces.create.retryUnconfirmed");
+        createMessageTone = "attention";
       } finally {
         if (!destroyed && ordinal === createOrdinal) {
           createPending = false;
@@ -1741,16 +1752,21 @@ export function mountAccountOverviewControls(
             if (!isCurrentProfileContext()) return;
             profileActivationSnapshot = validateProfileActivationState(next);
             profileMessage = t("account.profiles.activated");
+            profileMessageTone = "information";
           } else if (action === "deactivate") {
             const next = await profileActivationPort.deactivate(selectedSpace.id);
             if (!isCurrentProfileContext()) return;
             profileActivationSnapshot = validateProfileActivationState(next);
             profileMessage = t("account.profiles.deactivated");
+            profileMessageTone = "information";
           } else {
             throw new TypeError("unsupported Profile action");
           }
         } catch {
-          if (isCurrentProfileContext()) profileMessage = t("account.profiles.failed");
+          if (isCurrentProfileContext()) {
+            profileMessage = t("account.profiles.failed");
+            profileMessageTone = "attention";
+          }
         } finally {
           if (ordinal === profileOrdinal) {
             pendingProfileAction = null;

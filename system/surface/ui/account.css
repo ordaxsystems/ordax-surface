@@ -271,6 +271,16 @@
   background: var(--ordax-danger-bg);
   color: var(--ordax-danger);
   font-size: 0.74rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Successful OS receipts are informational, never painted as failure. */
+.ordax-account-message[data-surface-feedback-tone="information"] {
+  border-color: var(--ordax-border-soft);
+  border-left-color: var(--ordax-accent);
+  background: var(--ordax-subtle-bg);
+  color: var(--ordax-text);
 }
 
 .ordax-account-section-title {

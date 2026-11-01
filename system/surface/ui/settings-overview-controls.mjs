@@ -1,4 +1,5 @@
-import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
+import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import {mountSettingsJourneys} from './journeys/settings-mount.mjs';
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { assertLocalAiPort, validateLocalAiSnapshot } from "../../contracts/local-ai.mjs";
@@ -450,8 +451,11 @@ export function mountSettingsOverviewControls(
     }
 
     const focusTarget = findFocusTarget(slot, snapshot.focus);
-    if (focusTarget && !focusTarget.disabled) {
+    if (focusTarget && !focusTarget.disabled && !focusTarget.hidden
+        && !focusTarget.closest?.("[hidden]")) {
       focusTarget.focus({ preventScroll: true });
+    } else if (snapshot.section === activeSection) {
+      restoreSectionFocusFallback(slot, snapshot.focus, focusTarget);
     }
   };
 
@@ -591,9 +595,7 @@ export function mountSettingsOverviewControls(
         t(`settings.preference.persistence.${persistence}`),
       );
       status.dataset.settingsPreferencePersistence = persistence;
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-      view.append(status);
+      view.append(markSurfaceFeedback(status));
     }
   };
 
@@ -620,9 +622,7 @@ export function mountSettingsOverviewControls(
         "ordax-settings-keyboard-message",
         t(keyboardLayoutMessageId),
       );
-      status.setAttribute("role", "status");
-      status.setAttribute("aria-live", "polite");
-      section.append(status);
+      section.append(markSurfaceFeedback(status));
     }
 
     if (keyboardLayoutReadFailed && keyboardLayoutSnapshot === null) {
@@ -886,9 +886,7 @@ export function mountSettingsOverviewControls(
         "ordax-settings-section-copy",
         t(localSessionMessageId),
       );
-      message.setAttribute("role", "status");
-      message.setAttribute("aria-live", "polite");
-      section.append(message);
+      section.append(markSurfaceFeedback(message));
     }
     view.append(section);
   };
@@ -1085,9 +1083,7 @@ export function mountSettingsOverviewControls(
         "ordax-settings-network-message",
         t(networkManagementMessageId),
       );
-      message.setAttribute("role", "status");
-      message.setAttribute("aria-live", "polite");
-      panel.append(message);
+      panel.append(markSurfaceFeedback(message));
     }
 
     if (networkManagementReadFailed && networkManagementSnapshot === null) {
@@ -1346,8 +1342,8 @@ export function mountSettingsOverviewControls(
     const state = localAiSnapshot?.state ?? "unavailable";
     const status = node(documentObject, "p", "", t("settings.intelligence.state." + state));
     status.dataset.settingsLocalAiState = state;
-    status.setAttribute("role", "status");
-    section.append(status);
+    section.append(markSurfaceFeedback(status, state === "unavailable" || state === "error"
+      ? "attention" : "information"));
 
     if (["ready", "busy"].includes(state) && localAiSnapshot?.modelId && localAiSnapshot?.engineId) {
       section.append(node(documentObject, "p", "", t("settings.intelligence.active", {
