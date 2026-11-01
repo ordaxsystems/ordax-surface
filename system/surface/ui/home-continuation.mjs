@@ -8,6 +8,8 @@ import {
 } from "../../contracts/recent-files.mjs";
 import { validateFileSpacePath } from "../../contracts/file-space.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { assertPreferenceRuntimePort } from "../../contracts/preference-runtime.mjs";
+import { resolveRegionalTimeZone } from "../../services/preferences/regional.mjs";
 
 const MAX_HOME_CONTINUATION_ITEMS = 4;
 const MAX_PROJECT_ITEMS = 2;
@@ -20,10 +22,10 @@ function parentPath(path) {
   return index <= 0 ? "/" : value.slice(0, index);
 }
 
-function formatActivity(timestamp, locale, unknownLabel) {
+function formatActivity(timestamp, locale, timeZone, unknownLabel) {
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) return unknownLabel;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "America/Bahia",
+    timeZone,
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -119,6 +121,12 @@ export function mountHomeContinuation(
   const projectPort = projects === null ? null : assertProjectCatalogPort(projects);
   const recentPort = recentFiles === null ? null : assertRecentFilesPort(recentFiles);
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
+  // The Native composition passes the Surface instance, whose preference port
+  // is the same one that drives the system clock. Standalone read-only
+  // consumers may pass only the minimal render lifecycle; use the canonical
+  // regional default there instead of inventing a local setting.
+  const preferencePort = lifecycle.preferences == null
+    ? null : assertPreferenceRuntimePort(lifecycle.preferences);
   const localization = lifecycle.localization;
   const t = localization.translate;
   const documentObject = root.ownerDocument;
@@ -142,6 +150,7 @@ export function mountHomeContinuation(
       projects: projectSnapshot,
       recentFiles: recentSnapshot,
     });
+    const timeZone = resolveRegionalTimeZone(preferencePort?.getSnapshot() ?? {});
 
     if (!presentation.visible) {
       section?.remove();
@@ -173,6 +182,7 @@ export function mountHomeContinuation(
       const activity = formatActivity(
         item.activityAt,
         localization.getLocale(),
+        timeZone,
         t("home.continuation.activityUnknown"),
       );
       const persistence = item.persistence === "session"
@@ -230,7 +240,8 @@ export function mountHomeContinuation(
     recentSnapshot = validateRecentFilesSnapshot(snapshot);
     render();
   });
-  const unsubscribeLocalization = localization.subscribe(() => render());
+  const unsubscribeLocalization = localization.subscribe(render);
+  const unsubscribePreferences = preferencePort?.subscribe(render);
 
   render();
 
@@ -238,6 +249,7 @@ export function mountHomeContinuation(
     dispose() {
       if (destroyed) return;
       destroyed = true;
+      unsubscribePreferences?.();
       unsubscribeLocalization?.();
       unsubscribeRecent?.();
       unsubscribeProjects?.();

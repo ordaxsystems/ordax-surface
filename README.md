@@ -20,6 +20,18 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Home Native — horários e preferência regional
+
+As atividades recentes de projetos e arquivos são projeções dos ports canônicos
+do OS, sem persistência nem catálogo paralelo na Surface. O Home apresenta
+seus timestamps usando a mesma preferência de fuso horário
+`regional.time-zone` já consumida pelo relógio do Desktop Native.
+A mudança dessa preferência atualiza os horários apresentados sem alterar os
+timestamps ou registros de origem. Em renderizadores que fornecem apenas o
+contrato mínimo de ciclo de vida (sem o port de preferências), aplica-se o
+padrão definido no serviço regional canônico do OS, não uma constante
+duplicada de fuso na UI.
+
 ## Aura — estados de carregamento e cancelamento
 
 As apresentações **Aura do Home** e **Aura no aplicativo** consomem a
