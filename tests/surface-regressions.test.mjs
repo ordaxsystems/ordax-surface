@@ -551,3 +551,66 @@ test("Account close completion never refreshes or notifies a different subject",
   );
   assert.match(invoke, /if \(destroyed \|\| ordinal !== actionOrdinal\) return;\s*if \(typeof sessionPort\.refresh === "function"\)/);
 });
+
+
+test("Space switcher preserves same-user selection and closes only on identity transitions", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("space-switcher-controls.mjs");
+  const helperStart = source.indexOf("function identityPresentationContextChanged(");
+  const helperEnd = source.indexOf("// One presentation for the existing Account-owned Spaces", helperStart);
+  const subscribeStart = source.indexOf("    identityPort.subscribe(() => {");
+  const subscribeEnd = source.indexOf("    spacesPort.subscribe(render),", subscribeStart);
+  assert.ok(helperStart !== -1 && helperEnd > helperStart);
+  assert.ok(subscribeStart !== -1 && subscribeEnd > subscribeStart);
+  const helper = source.slice(helperStart, helperEnd);
+  const actualSubscribe = source.slice(subscribeStart, subscribeEnd).trim().replace(/,\s*$/, "");
+  const harness = runInNewContext([
+    helper,
+    'let identitySnapshot = { state: "signed-in", subjectId: "owner-a", displayName: "Original" };',
+    'let observedIdentity = identitySnapshot;',
+    'let refreshRevision = 0;',
+    'let loading = true;',
+    'let open = true;',
+    'let error = true;',
+    'let selectionFailed = true;',
+    'let repaintCount = 0;',
+    'let identityListener = null;',
+    'const render = () => { repaintCount += 1; };',
+    'const identityPort = {',
+    '  getSnapshot: () => identitySnapshot,',
+    '  subscribe(callback) { identityListener = callback; callback(); return () => {}; },',
+    '};',
+    actualSubscribe + ";",
+    '({',
+    '  publish(value) { identitySnapshot = value; identityListener(); },',
+    '  state() { return { refreshRevision, loading, open, error, selectionFailed, repaintCount }; },',
+    '});',
+  ].join("\n"));
+  assert.equal(harness.state().refreshRevision, 0, "initial replay is not a session change");
+  assert.equal(harness.state().open, true);
+  harness.publish({ state: "signed-in", subjectId: "owner-a", displayName: "Updated" });
+  assert.equal(harness.state().open, true, "profile refresh does not dismiss the menu");
+  assert.equal(harness.state().loading, true, "an in-flight catalog read remains valid");
+  assert.equal(harness.state().selectionFailed, true, "presentation feedback is preserved");
+  assert.equal(harness.state().refreshRevision, 0, "same-subject refresh cannot revoke a read");
+  harness.publish({ state: "signed-in", subjectId: "owner-b", displayName: "Another" });
+  assert.equal(harness.state().open, false, "account switch dismisses previous menu");
+  assert.equal(harness.state().loading, false, "old catalog wait is invalidated");
+  assert.equal(harness.state().error, false);
+  assert.equal(harness.state().selectionFailed, false);
+  assert.equal(harness.state().refreshRevision, 1);
+  harness.publish({ state: "signed-in", subjectId: "owner-b", displayName: "Another" });
+  assert.equal(harness.state().refreshRevision, 1, "duplicate event must not revoke again");
+  harness.publish({ state: "signed-out", subjectId: null });
+  assert.equal(harness.state().refreshRevision, 2, "sign-out revokes context");
+  harness.publish({ state: "signed-out", subjectId: null });
+  assert.equal(harness.state().refreshRevision, 2);
+  harness.publish({ state: "unavailable", subjectId: null });
+  assert.equal(harness.state().refreshRevision, 3, "identity unavailability revokes context");
+  assert.ok(harness.state().repaintCount >= 7, "all changes still repaint the authoritative view");
+
+  assert.match(source, /const nextIdentity = identityPort\.getSnapshot\(\);/);
+  assert.match(source, /if \(contextChanged\) \{[\s\S]*?refreshRevision \+= 1;[\s\S]*?open = false;/);
+  assert.match(source, /if \(destroyed \|\| revision !== refreshRevision\) return;/);
+  assert.match(source, /deriveAuthorizedSpaces\(identity, catalog, selection\)/);
+});
