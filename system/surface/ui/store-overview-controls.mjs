@@ -266,6 +266,10 @@ export function mountStoreOverviewControls(
   let requestMessageId = null;
   let requestReason = null;
   let requestOrdinal = 0;
+  // UI-only retry receipts: an ambiguous transport failure is not a denial
+  // and must never mint a second identity for the same lifecycle intent.
+  // The signed catalog remains the only authority over app state and eligibility.
+  const uncertainRequestIds = new Map();
   let activeView = VIEWS.includes(lifecycle.getAppTarget("store"))
     ? lifecycle.getAppTarget("store") : "discover";
   let searchQuery = "";
@@ -637,10 +641,12 @@ export function mountStoreOverviewControls(
 
     requestMessageId = null;
     requestReason = null;
-    requestOrdinal += 1;
+    const retryScope = JSON.stringify([appId, operation]);
+    const retainedRequestId = uncertainRequestIds.get(retryScope);
+    if (retainedRequestId === undefined) requestOrdinal += 1;
     const request = validateAppLifecycleRequest({
       schema: APP_LIFECYCLE_REQUEST_SCHEMA,
-      requestId: "store:" + operation + ":" + appId + ":" + requestSessionId + ":" + requestOrdinal,
+      requestId: retainedRequestId ?? "store:" + operation + ":" + appId + ":" + requestSessionId + ":" + requestOrdinal,
       appId,
       operation,
       source: "store",
@@ -668,6 +674,9 @@ export function mountStoreOverviewControls(
       .then((rawResult) => {
         if (!isCurrentRequest()) return;
         const result = validateAppLifecycleRequestResultForRequest(rawResult, request);
+        // Only a validated, request-correlated acceptance or rejection ends
+        // the uncertain retry. Request acceptance is not installation success.
+        uncertainRequestIds.delete(retryScope);
         requestMessageId = "store.request." + operation + "." + result.state;
         requestReason = result.state === "rejected" ? result.reason : null;
         if (result.state === "accepted") {
@@ -685,6 +694,8 @@ export function mountStoreOverviewControls(
       })
       .catch(() => {
         if (!isCurrentRequest()) return;
+        // No authoritative outcome arrived; preserve the original requestId.
+        uncertainRequestIds.set(retryScope, request.requestId);
         pendingRequest = null;
         requestMessageId = "store.request." + operation + ".failed";
         requestReason = null;
@@ -717,6 +728,9 @@ export function mountStoreOverviewControls(
     const verified = validateAppStoreCatalogSnapshot(next);
     const fingerprint = JSON.stringify(verified);
     if (fingerprint !== catalogFingerprint) {
+      // The signed projection changed; previously uncertain UI intent cannot
+      // be replayed against a potentially different app candidate.
+      uncertainRequestIds.clear();
       // Drop stale visual request state before showing the new projection.
       // Platform requests already delegated remain platform-owned.
       catalogFingerprint = fingerprint;
