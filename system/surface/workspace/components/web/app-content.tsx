@@ -1,9 +1,9 @@
-import { StoreExperience } from '@/components/store/store';
+import { StoreExperience } from '@/components/store/meridian-store';
 import { useState, type ReactNode } from 'react';
 import { Folder, Search, LayoutGrid, List, ChevronRight, Clock3, Star, Trash2, Plus, ArrowUpRight, Code2, FileText, Play, Terminal, Unplug, Send, MessageSquare, ScanLine, WandSparkles, Workflow, ShieldCheck, Layers3, Image, Globe2, ArrowLeft, ArrowRight, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { getWebApp, webApps, type WebAppId } from '@/lib/web/model';
+import { getWebApp, type WebAppId } from '@/lib/web/model';
 import { AppIcon, ServiceEmpty } from './primitives';
 import { IntelligenceSurface } from '@/components/intelligence/surface';
 import mark from '@ordax-brand/ordax-symbol.png';
@@ -47,16 +47,13 @@ function ResourceApp({ id, onOpen }: { id: 'projects' | 'spaces' | 'image-viewer
 function SettingsApp({ appearance, onAppearance }: Pick<AppProps, 'appearance' | 'onAppearance'>) {
   return <div className="web-settings-app"><div className="web-settings-heading"><h2>Seu ambiente, seu ritmo.</h2><p>Prévia de aparência · apenas nesta sessão</p></div><div className="web-setting"><div><h3>Papel de parede</h3><p>Baía ao entardecer</p></div><Switch aria-label="Exibir papel de parede" checked={appearance.wallpaper} onCheckedChange={value => onAppearance({ ...appearance, wallpaper: value })}/></div><div className="web-setting"><div><h3>Barra lateral compacta</h3><p>Mais espaço para a área de trabalho</p></div><Switch aria-label="Barra lateral compacta" checked={appearance.compact} onCheckedChange={value => onAppearance({ ...appearance, compact: value })}/></div><div className="web-setting"><div><h3>Sincronização entre dispositivos</h3><p>Serviço oficial não conectado</p></div><Switch disabled aria-label="Sincronização indisponível" checked={false}/></div><div className="web-setting"><div><h3>Permissões do ambiente</h3><p>Nenhuma concessão de arquivos, microfone ou processos</p></div><ShieldCheck/></div></div>;
 }
-function StoreApp({ onOpen }: { onOpen: AppProps['onOpen'] }) {
-  return <StoreExperience onOpenApp={id => { if (webApps.some(a => a.id === id)) onOpen(id as WebAppId); }}/>;
-}
 export function AppContent({ id, appearance, onAppearance, onOpen }: AppProps) {
   if (id === 'files') return <FilesApp/>;
   if (id === 'studio') return <StudioApp onOpen={onOpen}/>;
   if (id === 'internet') return <InternetApp/>;
   if (id === 'assistant') return <IntelligenceSurface presentation="panel" onOpenStudio={() => onOpen('studio')} onExpand={() => onOpen('assistant')}/>;
   if (id === 'settings') return <SettingsApp appearance={appearance} onAppearance={onAppearance}/>;
-  if (id === 'store') return <StoreApp onOpen={onOpen}/>;
+  if (id === 'store') return <StoreExperience/>;
   if (id === 'projects' || id === 'spaces' || id === 'image-viewer' || id === 'notes') return <ResourceApp id={id} onOpen={onOpen}/>;
   return <ServiceEmpty title="Notificações indisponíveis" description={getWebApp(id).service}/>;
 }
