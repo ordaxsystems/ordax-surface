@@ -20,6 +20,18 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Primeiro uso — política de cadastro e sessão
+
+O First Run só apresenta política e consentimento de cadastro vindos do port
+canônico de identidade, sem autoridade ou persistência própria. Uma transição
+efetiva entre `signed-out`, `signed-in` e `unavailable` invalida as leituras
+de política ainda pendentes e limpa o consentimento temporário; assim, após
+sair de uma conta, uma nova consulta não fica bloqueada por um pedido antigo.
+Sucessos ou falhas atrasados da sessão anterior não substituem os termos,
+não reabilitam cadastro nem ocultam um link de cadastro hospedado válido.
+Emissões repetidas da mesma condição de sessão não descartam a consulta
+atual nem o consentimento ainda em edição.
+
 ## Bloqueio local Native — isolamento de tentativas
 
 A tela de bloqueio local segue exclusivamente o estado `locked/unlocked`
