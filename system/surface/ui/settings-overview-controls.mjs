@@ -1,3 +1,4 @@
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import {mountSettingsJourneys} from './journeys/settings-mount.mjs';
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { assertLocalAiPort, validateLocalAiSnapshot } from "../../contracts/local-ai.mjs";
@@ -390,6 +391,8 @@ export function mountSettingsOverviewControls(
     const activeElement = documentObject.activeElement;
     const activeInside = activeElement && slot.contains(activeElement);
     return {
+      section: slot.dataset.settingsActiveSection ?? "",
+      navigationScrollLeft: captureSectionNavigationScroll(slot),
       scrollTop: windowBody?.scrollTop ?? 0,
       scrollLeft: windowBody?.scrollLeft ?? 0,
       focus: activeInside ? focusIdentity(activeElement) : null,
@@ -408,6 +411,7 @@ export function mountSettingsOverviewControls(
 
   const restoreInteractionState = (slot, snapshot) => {
     if (!snapshot) return;
+    restoreSectionNavigationScroll(slot, snapshot.navigationScrollLeft, snapshot.section === activeSection);
     const windowBody = slot.closest(".ordax-window-body");
     if (windowBody) {
       windowBody.scrollTop = snapshot.scrollTop;
@@ -467,13 +471,13 @@ export function mountSettingsOverviewControls(
   };
 
   const renderSectionNavigation = (view) => {
-    const navigation = node(documentObject, "nav", "ordax-settings-navigation");
+    const navigation = node(documentObject, "nav", "ordax-settings-navigation ordax-section-navigation");
     navigation.setAttribute("aria-label", t("settings.navigation.aria"));
     for (const section of SETTINGS_SECTIONS) {
       const button = node(
         documentObject,
         "button",
-        "ordax-settings-navigation-item",
+        "ordax-settings-navigation-item ordax-section-navigation-item",
         t(section.messageId),
       );
       button.type = "button";

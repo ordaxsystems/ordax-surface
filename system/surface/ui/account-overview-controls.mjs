@@ -1,3 +1,4 @@
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { deriveAuthorizedSpaces } from "../../services/spaces/authorized-view.mjs";
 import { readRememberedLoginEmail } from "../../services/account/remembered-login-email.mjs";
@@ -309,6 +310,7 @@ export function mountAccountOverviewControls(
       : null;
     return Object.freeze({
       section: slot.dataset.accountActiveSection ?? "",
+      navigationScrollLeft: captureSectionNavigationScroll(slot),
       windowScrollTop: windowBody?.scrollTop ?? 0,
       windowScrollLeft: windowBody?.scrollLeft ?? 0,
       focus: activeInside ? focusIdentity(activeElement) : null,
@@ -319,6 +321,7 @@ export function mountAccountOverviewControls(
 
   const restoreInteractionState = (slot, snapshot) => {
     const sameSection = Boolean(snapshot) && snapshot.section === activeSection;
+    restoreSectionNavigationScroll(slot, snapshot?.navigationScrollLeft ?? null, sameSection);
     if (!sameSection) return;
 
     const windowBody = slot.closest(".ordax-window-body");
@@ -362,13 +365,13 @@ export function mountAccountOverviewControls(
   };
 
   const renderSectionNavigation = (view) => {
-    const navigation = node(documentObject, "nav", "ordax-account-navigation");
+    const navigation = node(documentObject, "nav", "ordax-account-navigation ordax-section-navigation");
     navigation.setAttribute("aria-label", t("account.navigation.aria"));
     for (const section of ACCOUNT_SECTIONS) {
       const button = node(
         documentObject,
         "button",
-        "ordax-account-navigation-item",
+        "ordax-account-navigation-item ordax-section-navigation-item",
         t(section.messageId),
       );
       button.type = "button";

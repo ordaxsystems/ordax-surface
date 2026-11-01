@@ -171,3 +171,13 @@
 .meridian-workspace .meridian-integration-status {display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--md-danger) 28%,var(--md-border));border-radius:6px;padding:3px 8px;background:color-mix(in srgb,var(--md-danger) 6%,var(--md-surface));color:var(--md-danger);font-size:.6875rem;line-height:1.5;white-space:normal;max-width:100%;}
 .meridian-workspace .meridian-integration-status::before {content:'';width:5px;height:5px;flex-shrink:0;border-radius:50%;background:currentColor;}
 .meridian-session-strip .ordax-rail-icon {width:15px;height:15px;flex:0 0 auto;color:var(--md-muted);}
+
+/* A single interaction target and scroll behavior for section bars used by
+   Account, Settings and System. All paint resolves through existing tokens. */
+.ordax-section-navigation {
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: var(--md-space-3);
+}
+.ordax-section-navigation .ordax-section-navigation-item {
+  min-height: 44px;
+}
