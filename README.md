@@ -20,6 +20,18 @@
 
 A UI recebe capacidades por ports/contratos públicos do OS. Não adicionar adapters concretos, backend, serviços ou um segundo canal de atualização neste repositório.
 
+## Bloqueio local Native — isolamento de tentativas
+
+A tela de bloqueio local segue exclusivamente o estado `locked/unlocked`
+validado pelo port `ordax.local-session/1` do OS. Cada alteração efetiva
+do estado invalida as conclusões de desbloqueio pendentes na Surface. Se a
+sessão for desbloqueada e bloqueada novamente, um erro ou finalização de
+requisição anterior não altera o aviso, não habilita o formulário da nova
+sessão e não reaproveita sua credencial. Emissões repetidas de `locked`
+não interrompem o desbloqueio atual. Foco agendado em elementos removidos
+é descartado. Não há cache local, cópia de credenciais ou autoridade de
+desbloqueio na UI; o OS continua aplicando verificação e rate limiting.
+
 ## Conta — isolamento de sessões
 
 A apresentação de autenticação, encerramento de conta e consulta da política
