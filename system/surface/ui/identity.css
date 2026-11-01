@@ -566,12 +566,57 @@ body { background: var(--md-canvas); font-weight: 400; }
   .meridian-native-workspace .ordax-home-panel { grid-template-areas: "intro intro" "hero hero" "resume resume" "quick quick" "status current" "files files" "ecosystem ecosystem" "session session"; }
   .meridian-native-workspace .ordax-home-panel:not(:has([data-home-continuation])) { grid-template-areas: "intro intro" "hero hero" "quick quick" "status current" "files files" "ecosystem ecosystem" "session session"; }
 }
+/* At narrow *workspace* widths, keep complete labels and actions readable.
+   Use the existing home container: a full-size OS window must not inherit a
+   phone layout merely because the host screen is small or display-scaled. */
 @container meridian-native-home (max-width: 38rem) {
-  .meridian-native-workspace .ordax-home-intro { grid-template-columns: minmax(0, 1fr) minmax(10rem, .85fr); column-gap: .5rem; }
-  .meridian-native-workspace .ordax-home-title { font-size: clamp(1.125rem, 4cqi, 1.5rem); }
-  .meridian-native-workspace .ordax-home-search { gap: .375rem; min-height: 2.375rem; padding: .5rem; font-size: .625rem; }
-  .meridian-native-workspace .ordax-home-search kbd { font-size: .5rem; }
-  .meridian-native-workspace .ordax-home-tagline { font-size: .75rem; }
+  .meridian-native-workspace .ordax-home-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "intro" "hero" "resume" "quick" "status" "current" "files" "ecosystem" "session";
+    gap: var(--md-space-4);
+  }
+  .meridian-native-workspace .ordax-home-panel:not(:has([data-home-continuation])) {
+    grid-template-areas: "intro" "hero" "quick" "status" "current" "files" "ecosystem" "session";
+  }
+  .meridian-native-workspace .ordax-home-intro {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heading" "tagline" "search";
+    align-items: start;
+    row-gap: var(--md-space-2);
+  }
+  .meridian-native-workspace .ordax-home-title {
+    font-size: clamp(1.25rem, 4.5cqi, 1.5rem);
+    white-space: normal;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+  .meridian-native-workspace .ordax-home-tagline {
+    overflow: visible;
+    font-size: .75rem;
+    line-height: 1.5;
+    white-space: normal;
+  }
+  .meridian-native-workspace .ordax-home-search {
+    min-height: 2.75rem;
+    gap: var(--md-space-2);
+    padding: .625rem .75rem;
+    font-size: .75rem;
+  }
+  .meridian-native-workspace .ordax-home-hero {
+    min-height: 0;
+    padding: var(--md-space-4);
+  }
+  .meridian-native-workspace .ordax-home-aura-heading { flex-wrap: wrap; }
+  .meridian-native-workspace .ordax-home-suggestions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .meridian-native-workspace .ordax-home-suggestions button { overflow-wrap: anywhere; }
+  .meridian-native-workspace .ordax-home-destination-grid,
+  .meridian-native-workspace .ordax-home-panel > .ordax-space,
+  .meridian-native-workspace .ordax-home-panel > .ordax-space[data-home-continuation] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .meridian-native-workspace .ordax-statusbar { padding-block-end:max(0px,env(safe-area-inset-bottom)); }
 .meridian-native-workspace .meridian-native-dock { display:flex; align-items:center; justify-self:center; min-width:0; max-width:min(100%,35.625rem); padding:.125rem .25rem; overflow-x:auto; scroll-padding-inline:.25rem; border:0; border-radius:0; background:transparent; box-shadow:none; }
