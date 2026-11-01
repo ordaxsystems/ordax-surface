@@ -134,11 +134,14 @@ export function mountHomePending(
 
   let destroyed = false;
   let section = null;
-  let notificationsSnapshot = notificationsPort?.getSnapshot() ?? null;
-  let syncSnapshot = syncPort?.getSnapshot() ?? null;
-
   const render = () => {
     if (destroyed) return;
+    // The current OS snapshots override event payloads: a delayed unread
+    // notification or Sync callback must not resurrect cleared pending work.
+    const notificationsSnapshot = notificationsPort === null
+      ? null : validateNotificationsSnapshot(notificationsPort.getSnapshot());
+    const syncSnapshot = syncPort === null
+      ? null : validateSyncRuntimeSnapshot(syncPort.getSnapshot());
     const activeElement = documentObject.activeElement;
     const focusedWithin = section?.contains?.(activeElement) === true;
     const focusedKey = focusedWithin ? activeElement?.dataset?.homePendingKey ?? null : null;
@@ -215,12 +218,10 @@ export function mountHomePending(
     restoreHomeCollectionFocus(homePanel, focusedWithin, target);
   };
 
-  const unsubscribeNotifications = notificationsPort?.subscribe((snapshot) => {
-    notificationsSnapshot = validateNotificationsSnapshot(snapshot);
+  const unsubscribeNotifications = notificationsPort?.subscribe(() => {
     render();
   });
-  const unsubscribeSync = syncPort?.subscribe((snapshot) => {
-    syncSnapshot = validateSyncRuntimeSnapshot(snapshot);
+  const unsubscribeSync = syncPort?.subscribe(() => {
     render();
   });
   const unsubscribeLocalization = localization.subscribe(() => render());

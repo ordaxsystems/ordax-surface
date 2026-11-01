@@ -37,6 +37,30 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home — projetos, arquivos e pendências sem dados reapresentados
+
+Os painéis Native **Retomar** e **Pendências** preservam os owners
+canônicos do OS (`project-catalog`, `recent-files`, `notifications`
+e `sync-runtime`). Os callbacks de assinatura não armazenam nem
+se tornam autoridades paralelas sobre o conteúdo. Cada renderização,
+inclusive mudança de idioma e notificações de port, relê e valida
+`getSnapshot()` de seus respectivos owners.
+
+Quando um projeto, arquivo recente, notificação não lida ou mutação
+pendente foi removido, um evento atrasado não pode recriá-lo na Home.
+A apresentação continua limitada aos itens reais, sem cartões
+inventados, e remove o painel quando a projeção fica vazia. A mesma
+regra de foco `restoreHomeCollectionFocus` mantém o item existente
+quando ainda presente e envia o teclado à busca segura da Home caso
+ele desapareça, sem escolher outra ação por posição.
+
+Os projetos, arquivos, notificações, filas e permissões não são
+duplicados, migrados ou persistidos na Surface. A assinatura dos
+mounts Native, os contratos do OS, o vocabulário de localização
+e os tokens Meridian continuam inalterados. Os testes de regressão
+comprovam leitura dos snapshots atuais, callbacks sem payload
+autoritativo, limpeza de estados vazios e continuidade do foco.
+
 ## Home — carregamento real de serviços e sincronização
 
 A Home só mostra **Sem conta** no estado de sincronização quando o
