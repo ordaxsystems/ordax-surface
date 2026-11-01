@@ -138,3 +138,40 @@ test("Native Space picker uses the OS authorization SSOT for both visibility and
   assert.doesNotMatch(action, /catalog\.spaces\.find|selection\.subjectId !== identity\.subjectId|catalog\.state !== "ready"/);
   assert.match(account, /const authorizedSpaces = \(\) => deriveAuthorizedSpaces\(/);
 });
+
+
+test("Space member UI discards async results outside its committed account and port scope", () => {
+  const members = read("system/surface/workspace/components/central/space-members-panel.tsx");
+  assert.match(members, /import \{ useLayoutEffect, useRef, useState \} from 'react'/);
+  assert.match(members, /const currentContext = useRef\(\{ subjectId, spaceId, offline, members, actorCapability, membershipActions \}\)/);
+  assert.match(members, /currentContext\.current = \{ subjectId, spaceId, offline, members, actorCapability, membershipActions \}/);
+  assert.doesNotMatch(members, /currentSpace\.current/);
+
+  const page = members.slice(members.indexOf("async function readPage("), members.indexOf("async function readCapability("));
+  assert.match(page, /current\.subjectId === subjectId/);
+  assert.match(page, /current\.spaceId === targetSpaceId/);
+  assert.match(page, /!current\.offline/);
+  assert.match(page, /current\.members === members/);
+  assert.match(page, /membersReadGeneration\.current === generation/);
+  assert.equal((page.match(/if \(!isCurrent\(\)\) return/g) ?? []).length, 2);
+  assert.match(page, /if \(isCurrent\(\)\) membersReadInFlight\.current = null/);
+
+  const capability = members.slice(members.indexOf("async function readCapability("), members.indexOf("async function reloadRemoteState("));
+  assert.match(capability, /current\.subjectId === subjectId/);
+  assert.match(capability, /current\.spaceId === targetSpaceId/);
+  assert.match(capability, /!current\.offline/);
+  assert.match(capability, /current\.actorCapability === actorCapability/);
+  assert.match(capability, /capabilityReadGeneration\.current === generation/);
+  assert.equal((capability.match(/if \(!isCurrent\(\)\) return/g) ?? []).length, 2);
+
+  const action = members.slice(members.indexOf("async function runAction("), members.indexOf("// A lost connection is not a sign-out"));
+  assert.match(action, /current\.subjectId === subjectId/);
+  assert.match(action, /current\.spaceId === spaceId/);
+  assert.match(action, /!current\.offline/);
+  assert.match(action, /current\.membershipActions === membershipActions/);
+  assert.match(action, /actionGeneration\.current === generation/);
+  assert.match(action, /if \(isCurrent\(\)\) \{\s*await reloadRemoteState\(/);
+  assert.match(action, /if \(isCurrent\(\)\) \{\s*setActionError/);
+  assert.match(action, /if \(isCurrent\(\)\) \{\s*pendingAction\.current = false/);
+  assert.match(members, /\[spaceId, subjectId, offline, members, actorCapability, membershipActions\]/);
+});
