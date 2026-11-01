@@ -191,6 +191,23 @@ O aplicativo conserva somente respostas completas validadas na memória da sess�
 
 Minimizar ou fechar a janela preserva os turnos enquanto o cliente Surface permanecer montado. Trocar de porta/cliente descarta o histórico. Não existe persistência em disco, sincronização Desktop/Web, memória permanente, nem garantia após recarga da página. Motor, contrato de contexto, readiness e inferência seguem sob responsabilidade do OS. Testes cobrem ordem, limites, isolamento e fronteira de integração, não homologação física Windows.
 
+## Loja — navegação responsiva Web/Native
+
+A Loja oficial usa a barra de categorias existente também em janelas pequenas,
+sem duplicar renderer nem catálogo. A partir de `800px` de largura do
+**container da janela**, as categorias formam uma faixa horizontal rolável em
+vez de crescer em linhas; o item selecionado permanece acessível quando a
+categoria muda ou quando o catálogo emite novos dados. A apresentação reutiliza
+`section-navigation.mjs`, o mesmo comportamento de rolagem de Conta, Ajustes
+e Sistema. A posição escolhida pelo usuário é preservada em atualizações da
+mesma seção, sem mover a página inteira. Busca mantém foco e posição do cursor
+ao receber atualizações. Os alvos de categoria, detalhe, voltar e ações têm
+altura mínima de 44px, com foco, fontes e cores Meridian existentes.
+
+As operações continuam dependendo dos ports reais do OS, e um aceite de
+requisição **não** significa instalação concluída. Nenhum novo serviço, fixture,
+catálogo, persistência ou autoridade foi criado na Surface.
+
 ## Loja — apresentação canônica Web/Native
 
 A Loja oficial tem **um único renderer** em `system/surface/ui/store-experience.mjs`,

@@ -12,6 +12,7 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { assertSystemMetricsPort } from "../../contracts/system-metrics.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
+import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
 import { listFirstRunDefaultAppIds } from "../../services/apps/first-run-selection.mjs";
 
@@ -387,8 +388,15 @@ export function mountStoreOverviewControls(
       mountedSlot = null;
       return;
     }
-    const restoreSearchFocus = slot.contains(slot.ownerDocument.activeElement)
-      && slot.ownerDocument.activeElement?.dataset?.storeSearch === "true";
+    const searchField = slot.contains(slot.ownerDocument.activeElement)
+      && slot.ownerDocument.activeElement?.dataset?.storeSearch === "true"
+      ? slot.ownerDocument.activeElement : null;
+    const searchSelection = searchField && Number.isInteger(searchField.selectionStart)
+      && Number.isInteger(searchField.selectionEnd)
+      ? { start: searchField.selectionStart, end: searchField.selectionEnd,
+          direction: searchField.selectionDirection } : null;
+    const previousActiveView = slot.querySelector('[data-store-view][aria-current="page"]')?.dataset.storeView;
+    const previousNavigationScroll = captureSectionNavigationScroll(slot);
     mountedSlot = slot;
     slot.dataset.ordaxStoreOverviewView = "true";
     slot.dataset.storeState = snapshot.state;
@@ -398,10 +406,10 @@ export function mountStoreOverviewControls(
     const layout = node(documentObject, "div", "ordax-store-layout");
     const sidebar = node(documentObject, "aside", "ordax-store-sidebar");
     sidebar.append(node(documentObject, "div", "ordax-store-sidebar-title", t("store.title")));
-    const nav = node(documentObject, "nav", "ordax-store-nav");
+    const nav = node(documentObject, "nav", "ordax-store-nav ordax-section-navigation");
     nav.setAttribute("aria-label", t("store.navigation.label"));
     for (const view of VIEWS) {
-      const button = makeButton(documentObject, "ordax-store-nav-item", t("store.navigation." + view), "storeView", view);
+      const button = makeButton(documentObject, "ordax-store-nav-item ordax-section-navigation-item", t("store.navigation." + view), "storeView", view);
       button.setAttribute("aria-pressed", String(activeView === view));
       if (activeView === view) button.setAttribute("aria-current", "page");
       nav.append(button);
@@ -544,8 +552,15 @@ export function mountStoreOverviewControls(
     }
     layout.append(sidebar, main);
     slot.append(layout);
+    restoreSectionNavigationScroll(slot, previousNavigationScroll, previousActiveView === activeView);
     refreshResults();
-    if (restoreSearchFocus) slot.querySelector("[data-store-search]")?.focus?.();
+    if (searchField) {
+      const restored = slot.querySelector("[data-store-search]");
+      restored?.focus?.({ preventScroll: true });
+      if (restored && searchSelection && typeof restored.setSelectionRange === "function") {
+        restored.setSelectionRange(searchSelection.start, searchSelection.end, searchSelection.direction);
+      }
+    }
   };
 
   const onInput = (event) => {
