@@ -37,6 +37,26 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Barra lateral — ajuste único Web/Native
+
+O ajuste responsivo dos destinos da barra lateral reutiliza
+`mountNativeSidebarFit` de `sidebar-layout.mjs` tanto no Web quanto no
+Native. Todas as opções permanecem no DOM, agrupadas por seção; a rotina mede
+o espaço disponível após mudanças de janela, largura da barra e carregamento
+da fonte Meridian, ocultando somente os destinos que não cabem. O botão
+**Mais destinos** mantém o acesso ao catálogo completo, e o foco retorna
+para esse controle quando um item focado passa ao overflow.
+
+A exportação `sidebarNavigationCapacity` segue disponível exclusivamente
+para a suíte de contrato já existente no host OS. Sua remoção depende de
+reconciliação pelo proprietário dos testes do OS, sem voltar a utilizá-la no
+Web ou no Native.
+
+O Web não mantém mais contador estimado nem uma segunda fórmula para
+decidir quantos destinos exibir. Os estilos e os tokens de cores, tamanhos
+e tipografia continuam compartilhados; nenhum estado de navegação é
+persistido ou vira autoridade paralela.
+
 ## Primeiro uso — ações de Conta vinculadas à sessão
 
 O First Run considera as ações de entrar e sair da Conta como tentativas
