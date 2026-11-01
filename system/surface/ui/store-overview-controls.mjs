@@ -12,7 +12,8 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { assertSystemMetricsPort } from "../../contracts/system-metrics.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
-import { STORE_OPERATIONS, storeEntryVisualState } from "./store-entry-presentation.mjs";
+import { STORE_OPERATIONS, storeEntryVisualState, storeEmptyPresentation } from "./store-entry-presentation.mjs";
+import { captureStoreControlFocus, restoreStoreControlFocus } from "./store-control-focus.mjs";
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
 import { listFirstRunDefaultAppIds } from "../../services/apps/first-run-selection.mjs";
@@ -212,6 +213,7 @@ function appendCard(documentObject, grid, entry, lifecycleRequests, pendingReque
 function appendDetail(documentObject, target, entry, lifecycleRequests, pendingRequest, removalConfirmationAppId, t, requestIdentityReady) {
   const back = makeButton(documentObject, "ordax-store-back", t("store.details.back"), "storeBack", "true");
   const panel = node(documentObject, "section", "ordax-store-detail");
+  panel.dataset.storeDetailAppId = entry.appId;
   const heading = node(documentObject, "header", "ordax-store-detail-header");
   const monogram = node(documentObject, "span", "ordax-store-app-icon ordax-store-app-icon-large", appMonogram(entry.title));
   monogram.setAttribute("aria-hidden", "true");
@@ -402,7 +404,17 @@ export function mountStoreOverviewControls(
     const resultCount = mountedSlot.querySelector("[data-store-results-count]");
     if (resultCount) resultCount.textContent = t("store.results.count", { count: String(filtered.length) });
     const empty = mountedSlot.querySelector("[data-store-filter-empty]");
-    if (empty) empty.hidden = filtered.length !== 0;
+    if (empty) {
+      const presentation = storeEmptyPresentation(snapshot.entries.length, filtered.length, activeView, searchQuery);
+      empty.hidden = presentation === null;
+      if (presentation) {
+        empty.dataset.storeEmptyReason = presentation.reason;
+        const title = empty.querySelector("[data-store-empty-title]");
+        const description = empty.querySelector("[data-store-empty-description]");
+        if (title) title.textContent = t(presentation.titleId);
+        if (description) description.textContent = t(presentation.descriptionId);
+      }
+    }
   };
 
   const render = () => {
@@ -422,6 +434,7 @@ export function mountStoreOverviewControls(
           direction: searchField.selectionDirection } : null;
     const previousActiveView = slot.querySelector('[data-store-view][aria-current="page"]')?.dataset.storeView;
     const previousNavigationScroll = captureSectionNavigationScroll(slot);
+    const previousControlFocus = captureStoreControlFocus(slot, slot.ownerDocument);
     mountedSlot = slot;
     slot.dataset.ordaxStoreOverviewView = "true";
     slot.dataset.storeState = snapshot.state;
@@ -461,6 +474,8 @@ export function mountStoreOverviewControls(
       });
     } else if (snapshot.state !== "ready") {
       const empty = node(documentObject, "section", "ordax-store-empty");
+      empty.dataset.storeEmptyReason = "catalog-unavailable";
+      empty.setAttribute("role", "status");
       empty.append(
         node(documentObject, "span", "ordax-store-empty-symbol", "◇"),
         node(documentObject, "strong", "ordax-store-empty-title", t("store.status.unavailable")),
@@ -510,6 +525,9 @@ export function mountStoreOverviewControls(
         );
         const count = node(documentObject, "span", "ordax-store-result-count");
         count.dataset.storeResultsCount = "true";
+        count.setAttribute("role", "status");
+        count.setAttribute("aria-live", "polite");
+        count.setAttribute("aria-atomic", "true");
         listHeader.append(titles, count);
         if (activeView === "updates") {
           const updateActions = node(documentObject, "div", "ordax-store-actions");
@@ -537,10 +555,11 @@ export function mountStoreOverviewControls(
         const filterEmpty = node(documentObject, "div", "ordax-store-filter-empty");
         filterEmpty.dataset.storeFilterEmpty = "true";
         filterEmpty.setAttribute("role", "status");
-        filterEmpty.append(
-          node(documentObject, "strong", "", t("store.empty.filtered")),
-          node(documentObject, "p", "", t("store.empty.filteredDescription")),
-        );
+        const emptyTitle = node(documentObject, "strong", "", t("store.empty.filtered"));
+        emptyTitle.dataset.storeEmptyTitle = "true";
+        const emptyDescription = node(documentObject, "p", "", t("store.empty.filteredDescription"));
+        emptyDescription.dataset.storeEmptyDescription = "true";
+        filterEmpty.append(emptyTitle, emptyDescription);
         listing.append(listHeader, grid, filterEmpty);
         main.append(listing);
       }
@@ -585,6 +604,12 @@ export function mountStoreOverviewControls(
       if (restored && searchSelection && typeof restored.setSelectionRange === "function") {
         restored.setSelectionRange(searchSelection.start, searchSelection.end, searchSelection.direction);
       }
+    } else if (previousControlFocus && !restoreStoreControlFocus(slot, previousControlFocus)) {
+      // An OS catalog transition may remove or disable the focused action.
+      // Move focus to a stable, visible destination rather than losing it.
+      const fallback = slot.querySelector("[data-store-back]")
+        ?? slot.querySelector('[data-store-view][aria-current="page"]');
+      fallback?.focus?.({ preventScroll: true });
     }
   };
 
