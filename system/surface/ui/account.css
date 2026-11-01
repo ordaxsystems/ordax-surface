@@ -14,6 +14,7 @@
 
 .ordax-account-view {
   display: grid;
+  container: account-viewport / inline-size;
   color: var(--ordax-text);
 }
 
@@ -209,12 +210,59 @@
 .ordax-account-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 18px;
 }
 
+/* Keep every Native account form aligned to the Meridian field vocabulary. */
+.ordax-account-credential-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--ordax-space-4);
+}
+.ordax-account-credential-form .ordax-account-registration-legal { grid-column: 1 / -1; }
+.ordax-account-field {
+  display: grid;
+  gap: var(--ordax-space-2);
+  min-width: 0;
+  color: var(--ordax-text);
+  font-size: 0.76rem;
+  font-weight: 620;
+}
+.ordax-account-field input,
+.ordax-account-field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--ordax-space-3);
+  border: 1px solid var(--ordax-border);
+  border-radius: var(--ordax-radius-sm);
+  background: var(--ordax-window-bg);
+  color: var(--ordax-text);
+  font: inherit;
+  font-weight: 400;
+}
+.ordax-account-field :is(input, select):focus-visible {
+  outline: 2px solid var(--ordax-focus);
+  outline-offset: 2px;
+}
+.ordax-account-field :is(input, select):disabled { opacity: 0.6; cursor: not-allowed; }
+.ordax-account-space-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: end;
+  gap: var(--ordax-space-3);
+}
+.ordax-account-space-create-form > :is(h5, p) { grid-column: 1 / -1; }
+.ordax-account-space-create-form > button[type="submit"] { grid-column: 1 / -1; justify-self: start; }
+.ordax-account-lifecycle { display: grid; gap: var(--ordax-space-3); margin-top: var(--ordax-space-5); }
+.ordax-account-lifecycle > .ordax-account-action { justify-self: start; }
+
 .ordax-account-action {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 13px;
   border: 1px solid var(--ordax-border);
   border-radius: var(--ordax-radius-sm);
@@ -733,7 +781,7 @@
 
 .ordax-account-space-card .ordax-account-action,
 .ordax-account-profile-card .ordax-account-action {
-  min-height: 36px;
+  min-height: 44px;
   font-size: 0.76rem;
 }
 
@@ -767,4 +815,20 @@
 .ordax-account-space-metric-value {
   font-family: var(--ordax-font-display);
   font-size: 0.9rem;
+}
+
+@container account-viewport (max-width: 540px) {
+  .ordax-account-header, .ordax-account-section { padding-inline: var(--ordax-space-4); }
+  .ordax-account-credential-form,
+  .ordax-account-space-create-form,
+  .ordax-account-grid { grid-template-columns: minmax(0, 1fr); }
+  .ordax-account-section-heading { flex-wrap: wrap; gap: var(--ordax-space-3); }
+  .ordax-account-action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .ordax-account-credential-form .ordax-account-registration-legal,
+  .ordax-account-space-create-form > :is(h5, p, button[type="submit"]) { grid-column: 1; }
+}
+@container account-viewport (max-width: 360px) {
+  .ordax-account-actions > .ordax-account-action,
+  .ordax-account-lifecycle > .ordax-account-action,
+  .ordax-account-space-create-form > button[type="submit"] { width: 100%; justify-content: center; }
 }

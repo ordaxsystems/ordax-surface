@@ -85,11 +85,12 @@ test("Account Space form retains focus and text selection through authoritative 
   assert.match(account, /element\.hasAttribute\("data-account-space-create-name"\)/);
   assert.match(account, /element\.hasAttribute\("data-account-space-create-type"\)/);
   assert.match(account, /slot\.querySelectorAll\("button, input, select"\)/);
-  assert.match(account, /const focusedName = activeInside && activeElement\?\.matches\?\.\("\[data-account-space-create-name\]"\)/);
-  assert.match(account, /start: focusedName\.selectionStart,\s*end: focusedName\.selectionEnd,\s*direction: focusedName\.selectionDirection/);
+  assert.match(account, /const focusedText = activeInside && activeElement\?\.matches\?\.\(/);
+  assert.match(account, /\[data-account-space-create-name\], \[data-account-credential-password\], \[data-account-close-password\]/);
+  assert.match(account, /start: focusedText\.selectionStart,\s*end: focusedText\.selectionEnd,\s*direction: focusedText\.selectionDirection/);
   assert.match(account, /focus: activeInside \? focusIdentity\(activeElement\) : null,\s*caret,/);
   assert.match(account, /target\.focus\(\{ preventScroll: true \}\);/);
-  assert.match(account, /snapshot\.focus\?\.kind === "space-create-name"/);
+  assert.match(account, /\["space-create-name", "credential-password", "close-password"\]\.includes\(snapshot\.focus\?\.kind\)/);
   assert.match(account, /target\.setSelectionRange\(snapshot\.caret\.start, snapshot\.caret\.end, snapshot\.caret\.direction\)/);
   assert.match(account, /force && slot === mountedSlot \? captureInteractionState\(slot\) : null/);
   assert.match(account, /restoreInteractionState\(slot, interaction\)/);

@@ -268,6 +268,17 @@ export function mountAccountOverviewControls(
     if (element.dataset.accountIdentityAction) {
       return Object.freeze({ kind: "identity-action", value: element.dataset.accountIdentityAction });
     }
+    // Restores only a control identity. Passwords remain in the already
+    // bounded account drafts and are never copied into focus snapshots.
+    for (const [attribute, kind] of [
+      ["data-account-credential-email", "credential-email"],
+      ["data-account-credential-password", "credential-password"],
+      ["data-account-registration-legal-acceptance", "registration-legal"],
+      ["data-account-close-password", "close-password"],
+      ["data-account-close-confirmation", "close-confirmation"],
+    ]) {
+      if (element.hasAttribute(attribute)) return Object.freeze({ kind, value: "" });
+    }
     if (element.dataset.accountSpaceSelect) {
       return Object.freeze({ kind: "space-select", value: element.dataset.accountSpaceSelect });
     }
@@ -302,14 +313,15 @@ export function mountAccountOverviewControls(
     const windowBody = slot.closest(".ordax-window-body");
     const activeElement = documentObject.activeElement;
     const activeInside = activeElement && slot.contains(activeElement);
-    const focusedName = activeInside && activeElement?.matches?.("[data-account-space-create-name]")
-      ? activeElement : null;
-    const caret = focusedName && Number.isInteger(focusedName.selectionStart)
-      && Number.isInteger(focusedName.selectionEnd)
+    const focusedText = activeInside && activeElement?.matches?.(
+      "[data-account-space-create-name], [data-account-credential-password], [data-account-close-password]",
+    ) ? activeElement : null;
+    const caret = focusedText && Number.isInteger(focusedText.selectionStart)
+      && Number.isInteger(focusedText.selectionEnd)
       ? Object.freeze({
-          start: focusedName.selectionStart,
-          end: focusedName.selectionEnd,
-          direction: focusedName.selectionDirection,
+          start: focusedText.selectionStart,
+          end: focusedText.selectionEnd,
+          direction: focusedText.selectionDirection,
         })
       : null;
     return Object.freeze({
@@ -344,7 +356,7 @@ export function mountAccountOverviewControls(
     target.focus({ preventScroll: true });
     if (
       snapshot.caret
-      && snapshot.focus?.kind === "space-create-name"
+      && ["space-create-name", "credential-password", "close-password"].includes(snapshot.focus?.kind)
       && typeof target.setSelectionRange === "function"
     ) {
       target.setSelectionRange(snapshot.caret.start, snapshot.caret.end, snapshot.caret.direction);
