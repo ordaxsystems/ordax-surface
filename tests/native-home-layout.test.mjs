@@ -40,12 +40,12 @@ test("narrow Native Home reflows the real shell destinations into a usable readi
     "Localized greetings must wrap rather than truncate");
   assert.match(narrow, /\.ordax-home-tagline\s*\{[\s\S]*?white-space:\s*normal;/,
     "Localized descriptions must wrap instead of disappearing");
-  assert.match(narrow, /\.ordax-home-suggestions\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/,
-    "Aura suggestions need legible two-column targets");
   assert.match(narrow, /\.ordax-home-destination-grid,[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
     "Destinations and Files must become a single column at narrow width");
   assert.match(shell, /class="ordax-home-panel"/);
-  for (const klass of ["ordax-home-intro", "ordax-home-search", "ordax-home-suggestions", "ordax-home-action-grid", "ordax-home-destination-grid"]) {
+  assert.doesNotMatch(shell, /data-native-aura-prompt|data-home-aura-submit|meridian-planned-mark/,
+    "Native Home and navigation must not render a second Aura");
+  for (const klass of ["ordax-home-intro", "ordax-home-search", "ordax-home-action-grid", "ordax-home-destination-grid"]) {
     assert.ok(shell.includes(klass), `the production shell must actually render ${klass}`);
   }
   for (const klass of ["ordax-home-status", "ordax-home-current-space"]) {
