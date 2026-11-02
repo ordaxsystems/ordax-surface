@@ -1,18 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowUpRight, ArrowRight, Sparkles, Mic, ShieldCheck, Monitor, Folder, FileText, Clock3, Smartphone, Layers3, ShoppingBag, Moon, Sun, Plus, Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowUpRight, ArrowRight, Sparkles, ShieldCheck, Monitor, Folder, FileText, Clock3, Smartphone, Layers3, ShoppingBag, Moon, Sun, Plus, Check } from 'lucide-react';
 import { useWebAccount } from './account-context';
 import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
-import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
 import { useWebPreferences } from './preferences-context';
 import { resolveRegionalTimeZone } from '../../../../services/preferences/regional.mjs';
 import { resolveHomeScene } from '../../../../services/surface/home-scene.mjs';
-import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
-import { useIntelligenceClient } from '../intelligence/client-context';
 import { translateSurfaceMessage, SURFACE_SOURCE_LOCALE } from '../../../../services/i18n/surface.mjs';
 import dayWallpaper from '@/assets/alpine-day.jpg';
 import nightWallpaper from '@/assets/alpine-night.jpg';
 
-type Props = {theme:'light'|'dark'; onOpen:(title:string)=>void; onExample:(title:string)=>void; onPrompt:(value:{text:string;scopeKey:string})=>void};
+type Props = {theme:'light'|'dark'; onOpen:(title:string)=>void; onExample:(title:string)=>void};
 const exampleFiles = [{name:'Direção visual',kind:'Documento · exemplo',icon:FileText},{name:'Referências do projeto',kind:'Pasta · exemplo',icon:Folder},{name:'Ideias para o próximo passo',kind:'Notas · exemplo',icon:FileText}];
 const ecosystems = [{name:'Spaces',note:'Contextos diferentes. O mesmo fio.',icon:Layers3,target:'Espaços'},{name:'Dispositivos',note:'Cada tela pode fazer mais.',icon:Monitor,target:'Dispositivos'},{name:'Descobrir',note:'Novas peças para o seu mundo.',icon:ShoppingBag,target:'Loja'}];
 const homeCopy = (messageId:string) => translateSurfaceMessage(SURFACE_SOURCE_LOCALE, messageId);
@@ -26,40 +23,22 @@ export function MeridianHome(props:Props) {
   />;
 }
 
-function MeridianHomeContext({onOpen,onExample,onPrompt}:Props) {
-  const {session,identity,displayName,authorized,sidebarAccount}=useWebAccount();
+function MeridianHomeContext({onOpen,onExample}:Props) {
+  const {identity,displayName,authorized,sidebarAccount}=useWebAccount();
   const {snapshot:preferences}=useWebPreferences();
   const timeZone=resolveRegionalTimeZone(preferences);
-  const {snapshot:intelligence}=useIntelligenceClient();
-  const inferenceAvailable=intelligence.inferenceAvailable && ['ready','busy'].includes(intelligence.state);
-  const inferenceLabel=intelligence.state==='error'?'Serviço indisponível':intelligence.state==='busy'?'Em uso':inferenceAvailable?'Disponível nesta sessão':'Backend pendente';
   const [tab,setTab]=useState<'day'|'work'|'ecosystem'>('day');
-  const [prompt,setPrompt]=useState('');
   const [now,setNow]=useState(()=>new Date());
   const [tasks,setTasks]=useState<string[]>([]);
   useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60000);return()=>window.clearInterval(timer);},[]);
   const scene=resolveHomeScene(now,timeZone);
   const greeting=homeCopy(scene.greetingId).replace(/\.$/,'');
   const date=new Intl.DateTimeFormat('pt-BR',{timeZone,weekday:'long',day:'numeric',month:'long'}).format(now);
-  function submit(event:FormEvent){
-    event.preventDefault();
-    const text=prompt.trim();
-    if(!text)return;
-    const scopeKey=meridianHomeContextKey(identity,authorized.activeSpace);
-    // React may not have rerendered when the OS switches subject or Space.
-    // Recheck its current authorized projection before opening Aura.
-    const liveIdentity=session.identity.getSnapshot();
-    const liveAuthorized=deriveAuthorizedSpaces(
-      liveIdentity,session.spaces.getSnapshot(),session.selection.getSnapshot());
-    if(scopeKey!==meridianHomeContextKey(liveIdentity,liveAuthorized.activeSpace))return;
-    onPrompt({text,scopeKey});
-  }
   return <div className="meridian-home">
     <div className="meridian-page">
       <section className="meridian-welcome"><div><p className="meridian-eyebrow"><time dateTime={now.toISOString()}>{date}</time><span>·</span>{authorized.activeSpace?.name??'Seu espaço'}</p><h1>{greeting}{identity.state==='signed-in'?', '+displayName:''}.</h1><p>{homeCopy('shell.home.tagline')}</p></div><button className="meridian-context" onClick={()=>onOpen('Espaços')}><Layers3/><span><small>NO SEU CONTEXTO</small><strong>{authorized.activeSpace?.name??'Escolher um Space'}</strong></span><ArrowUpRight size={16}/></button></section>
       <section className="meridian-hero" aria-label={homeCopy('shell.home.hero.aria')}><img src={scene.period==='night'?nightWallpaper:dayWallpaper} alt={scene.period==='night'?'Lago alpino sob a luz da lua':'Lago alpino ao amanhecer'} width={1920} height={768}/><div><p className="meridian-eyebrow">{homeCopy('shell.home.hero.label')}</p><h2>{homeCopy('shell.home.hero.title.first')}<br/>{homeCopy('shell.home.hero.title.second')}</h2><p>{homeCopy('shell.home.hero.description.first')}<br/>{homeCopy('shell.home.hero.description.second')}</p><button onClick={()=>setTab('work')}>Encontre seu próximo passo <ArrowRight size={17}/></button></div><span className="meridian-hero-caption">OrdaX · Central</span></section>
       <div className="meridian-session-strip" aria-label="Estado da sessão"><span><Monitor size={15}/>Web · sessão do navegador</span><button onClick={()=>onOpen('Minha conta')}><ShieldCheck size={15}/>Conta · {sidebarAccount.status}</button><button onClick={()=>onOpen('Loja')}><ShoppingBag size={15}/>Loja e recursos</button><button className="meridian-integration-status" onClick={()=>onOpen('Configurações')}>Recursos pendentes · consultar Ajustes</button></div>
-      <section className="meridian-command" aria-label="Aura contextual"><div className="meridian-command-icon"><Sparkles size={26}/></div><form onSubmit={submit}><label className="sr-only" htmlFor="meridian-prompt">Pergunte ao Aura</label><input id="meridian-prompt" value={prompt} onChange={event=>setPrompt(event.target.value)} placeholder="Uma ideia, uma tarefa, um próximo passo…"/><button type="button" aria-label="Explorar interação por voz" onClick={()=>onExample('Interação por voz')}><Mic size={19}/></button><button type="submit" aria-label="Enviar pergunta"><ArrowRight size={20}/></button></form><small>{getSurfaceWindowTitle('intelligence')} <i/> <span className={inferenceAvailable?undefined:'meridian-integration-status'}>{inferenceLabel}</span> {authorized.activeSpace?.name??'Contexto sob seu controle'}<button onClick={()=>onOpen(getSurfaceWindowTitle('intelligence'))}><ShieldCheck size={13}/>Consultar disponibilidade</button></small></section>
       <nav className="meridian-tabs" aria-label="Perspectivas da Central">{[{id:'day' as const,label:'Visão do dia'},{id:'work' as const,label:'Seu trabalho'},{id:'ecosystem' as const,label:'Ecossistema'}].map(item=><button key={item.id} aria-pressed={tab===item.id} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
       {tab==='ecosystem'?<section className="meridian-ecosystem"><div><p className="meridian-eyebrow">UM SISTEMA. MUITAS POSSIBILIDADES.</p><h2>O seu jeito de fazer,<br/>com as ferramentas certas.</h2><p>Cada Space reúne seu contexto e a composição profissional.<br/>Seus dispositivos completam a experiência.</p></div><div>{ecosystems.map(item=><button key={item.name} onClick={()=>item.target?onOpen(item.target):onExample(item.name)}><item.icon size={27}/><span><strong>{item.name}</strong><small>{item.note}</small></span><ArrowUpRight size={19}/></button>)}</div></section>:<div className="meridian-columns"><div>
         <section className="meridian-section"><header><h2>{tab==='work'?'Projetos com contexto':'Retome o fio.'}</h2><button onClick={()=>onOpen('Projetos')}>{tab==='work'?'Seus projetos':'Ver tudo'}<ArrowUpRight size={15}/></button></header><button className="meridian-project" onClick={()=>onExample('Projeto Atlas')}><span className="meridian-project-art"><span>ATLAS<small>ESTUDO 04 / FORMA</small></span><i/><b>Exemplo</b></span><span className="meridian-project-copy"><small className="meridian-eyebrow">PROJETO DE EXEMPLO</small><strong>Uma identidade<br/>em construção.</strong><span>Suas ideias, referências e ferramentas.<br/>Um lugar para retomar.</span><span className="meridian-project-people">LM <i>RC</i><i>AN</i><small>Colaboração · mock</small></span><b>Explorar projeto <ArrowRight size={17}/></b></span></button></section>
