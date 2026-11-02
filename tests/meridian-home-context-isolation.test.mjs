@@ -38,7 +38,7 @@ test("Home remounts local prompt and mock checklist before presenting another co
 });
 test("Meridian Home status uses canonical identity presentation, not offline-first signout text",async()=>{
   const s=await readFile(new URL("../system/surface/workspace/components/central/meridian-home.tsx",import.meta.url),"utf8");
-  assert.match(s,/const \{identity,displayName,authorized,sidebarAccount\}=useWebAccount\(\)/);
+  assert.match(s,/const \{session,identity,displayName,authorized,sidebarAccount\}=useWebAccount\(\)/);
   assert.match(s,/Conta · \{sidebarAccount\.status\}/);
   assert.doesNotMatch(s,/\{offline\?'Conta sem conexão'/);
   const projection=await readFile(new URL("../system/surface/ui/sidebar-account.mjs",import.meta.url),"utf8");
