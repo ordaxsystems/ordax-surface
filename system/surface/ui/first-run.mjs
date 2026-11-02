@@ -113,7 +113,7 @@ export function mountFirstRunExperience(
   // Both presentations consume OS-owned journey metadata. Windows manages
   // its own connectivity, so the device Wi-Fi setup is not a Desktop step.
   const journey = productMode === "desktop"
-    ? FIRST_RUN_JOURNEY.filter((step) => step.id !== "network")
+    ? FIRST_RUN_JOURNEY.filter((step) => step.id !== "network" && step.id !== "name")
     : FIRST_RUN_JOURNEY;
   const STEPS = journey.map((step) => step.id);
   const STEP_LABELS = journey.map((step) => step.label);
@@ -888,7 +888,7 @@ export function mountFirstRunExperience(
     // Network is optional in First Run. A slow status, scan, or connection
     // request must not prevent the user from continuing offline or opening
     // another step; network controls themselves remain disabled while pending.
-    const busy = identityPending !== null || identityAvailabilityPending || localSessionPending || deviceNamePending;
+    const busy = identityPending !== null || (step === "account" && identityAvailabilityPending) || localSessionPending || deviceNamePending;
     if (stepIndex > 0 && !finishing) {
       const back = action(documentObject, "Voltar", "back");
       back.disabled = busy;
