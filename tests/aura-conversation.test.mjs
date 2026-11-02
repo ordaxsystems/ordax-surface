@@ -75,7 +75,7 @@ test('Aura UI uses the canonical client and never creates another provider/persi
   assert.match(app, /snapshot\.state !== 'degraded'/);
   assert.match(app, /requestGeneration\.current\+\+/);
   assert.match(provider, /createAuraConversationStore\(\)/);
-  assert.match(home, /const inferenceAvailable=intelligence\.inferenceAvailable/);
+  assert.doesNotMatch(home, /useIntelligenceClient|inferenceAvailable|onPrompt/);
   assert.doesNotMatch(home, /inferenceAvailable=!offline/);
   assert.doesNotMatch(client + provider + app, /new WebSocket|localStorage|sessionStorage|llama-server|apiKey/);
 });
