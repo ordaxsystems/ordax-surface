@@ -139,11 +139,14 @@ export function mountHomeContinuation(
 
   let destroyed = false;
   let section = null;
-  let projectSnapshot = projectPort?.getSnapshot() ?? null;
-  let recentSnapshot = recentPort?.getSnapshot() ?? null;
-
   const render = () => {
     if (destroyed) return;
+    // Subscription events are notifications, never a second snapshot store.
+    // Re-read the OS owners on every repaint so a delayed event cannot
+    // recreate a project or recent file that a newer snapshot removed.
+    // The existing presentation validates each snapshot exactly once.
+    const projectSnapshot = projectPort?.getSnapshot() ?? null;
+    const recentSnapshot = recentPort?.getSnapshot() ?? null;
     const activeElement = documentObject.activeElement;
     const focusedWithin = section?.contains?.(activeElement) === true;
     const focusedKey = focusedWithin ? activeElement?.dataset?.homeContinuationKey ?? null : null;
@@ -234,12 +237,10 @@ export function mountHomeContinuation(
     restoreHomeCollectionFocus(homePanel, focusedWithin, target);
   };
 
-  const unsubscribeProjects = projectPort?.subscribe((snapshot) => {
-    projectSnapshot = validateProjectCatalogSnapshot(snapshot);
+  const unsubscribeProjects = projectPort?.subscribe(() => {
     render();
   });
-  const unsubscribeRecent = recentPort?.subscribe((snapshot) => {
-    recentSnapshot = validateRecentFilesSnapshot(snapshot);
+  const unsubscribeRecent = recentPort?.subscribe(() => {
     render();
   });
   const unsubscribeLocalization = localization.subscribe(render);
