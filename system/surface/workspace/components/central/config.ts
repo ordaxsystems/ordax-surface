@@ -9,7 +9,7 @@ export type AppItem = { id: string; name: string; icon: LucideIcon; tone: IconTo
 const surfaceName = (id: string): string => getSurfaceDestination(id).label;
 
 export const navigation: { name: string; icon: LucideIcon; target?: string; rail?: boolean; group?: 'principal' | 'ecossistema' }[] = [
-  ...MERIDIAN_RAIL_DESTINATIONS.map(item => ({name:item.name, icon:({LayoutGrid,Sparkles,WalletCards,BriefcaseBusiness,MonitorSmartphone,ShoppingBag} as Record<string,LucideIcon>)[item.icon], rail:true, group:item.group as 'principal'|'ecossistema'|undefined})),
+  ...MERIDIAN_RAIL_DESTINATIONS.filter(item => item.key !== 'intelligence').map(item => ({name:item.name, icon:({LayoutGrid,Sparkles,WalletCards,BriefcaseBusiness,MonitorSmartphone,ShoppingBag} as Record<string,LucideIcon>)[item.icon], rail:true, group:item.group as 'principal'|'ecossistema'|undefined})),
   { name: surfaceName('projects'), icon: Folder }, { name: surfaceName('files'), icon: FolderOpen },
   { name: surfaceName('internet'), icon: Globe }, { name: 'Ajustes', icon: Settings, target: 'Configurações' },
 ];
@@ -32,11 +32,11 @@ export const modes = [
 const shortcutAppearance: Record<string, { icon: LucideIcon; tone: IconTone }> = {
   projects: { icon: Folder, tone: 'violet' }, files: { icon: FolderOpen, tone: 'orange' },
   internet: { icon: Globe, tone: 'green' }, store: { icon: ShoppingBag, tone: 'red' },
-  intelligence: { icon: Sparkles, tone: 'lime' }, 'editor-3d': { icon: Box, tone: 'violet' },
+'editor-3d': { icon: Box, tone: 'violet' },
   terminal: { icon: Terminal, tone: 'ink' },
 };
 
-export const favorites: AppItem[] = HOME_SHORTCUTS.map(shortcut => ({
+export const favorites: AppItem[] = HOME_SHORTCUTS.filter(shortcut => shortcut.id !== 'intelligence').map(shortcut => ({
   ...shortcut,
   ...shortcutAppearance[shortcut.id],
 }));
