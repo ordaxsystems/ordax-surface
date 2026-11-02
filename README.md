@@ -37,6 +37,28 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home Meridian Web — rascunhos isolados por Conta e Space
+
+Na Home Web, os estados locais de apresentação (**texto ainda não
+enviado à Aura**, aba e checklist explicitamente demonstrativo) são
+descartados de forma síncrona pela reconciliação React quando muda
+o sujeito da sessão do OS ou o **Space ativo autorizado**. O componente
+`MeridianHome` mantém o mesmo contrato externo, mas monta o conteúdo
+em uma instância com `key` derivada exclusivamente da projeção
+já validada pelo `useWebAccount` e pelo
+`deriveAuthorizedSpaces`. O helper `meridian-home-context.mjs` não
+autoriza conteúdo, não usa armazenamento e não contém informações
+secretas da sessão.
+
+Assim, um rascunho de um Space ou usuário não permanece visível nem
+pode ser enviado como se pertencesse ao contexto seguinte. O retorno
+de uma indisponibilidade ou logout gera uma nova instância;
+oscilações simples de rede não são tratadas como troca de identidade.
+A faixa de Conta da Home agora reutiliza `sidebarAccount.status`,
+já calculado pela fonte visual canônica da barra lateral,
+sem confundir logout com conexão offline. Nenhum backend, port,
+rota, contrato do OS, token de design ou exemplo foi duplicado.
+
 ## Home — projetos, arquivos e pendências sem dados reapresentados
 
 Os painéis Native **Retomar** e **Pendências** preservam os owners
