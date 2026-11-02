@@ -44,6 +44,15 @@ export function getActiveArea(state) {
   return area;
 }
 
+/** Native semantic observation for trusted local consumers (MCP, Intelligence).
+ * Only the selected area and its visible focused app may be reported.
+ * Window IDs, workspace contents and host details never cross this boundary. */
+export function getActiveSurfaceAppId(state) {
+  const area = getActiveArea(state);
+  const active = area.windows.find((item) => item.id === area.activeWindowId);
+  return active && !active.minimized ? active.appId : null;
+}
+
 export function getActiveWindows(state) {
   return getActiveArea(state).windows;
 }

@@ -1011,3 +1011,19 @@ test("First Run old account logout and sign-in cannot mutate a newly authenticat
   assert.match(source, /if \(destroyed \|\| ordinal !== identityActionOrdinal\) return;/);
   assert.match(source, /identityActionOrdinal \+= 1;[\s\S]*?accountLocalRequested = false;/);
 });
+
+
+test("Native MCP receives the canonical Surface state port, never a DOM selector",async()=>{
+  // This repository is a separately composed producer: imported OS contracts
+  // are resolved by the OrdaX OS build, not duplicated here. Behavioral HTTP
+  // tests for the consumer run in ordax-os.
+  const [selector,surface]=await Promise.all([
+    read("surface-state.mjs"),read("surface.mjs"),
+  ]);
+  assert.match(selector,/export function getActiveSurfaceAppId\(state\)/);
+  assert.match(selector,/const area = getActiveArea\(state\)/);
+  assert.match(selector,/area\.windows\.find\(\(item\) => item\.id === area\.activeWindowId\)/);
+  assert.match(selector,/active && !active\.minimized \? active\.appId : null/);
+  assert.match(surface,/getActiveAppId\(\)\s*\{\s*return getActiveSurfaceAppId\(state\)/);
+  assert.doesNotMatch(surface,/getActiveAppId\(\)\s*\{[^}]*querySelector/);
+});
