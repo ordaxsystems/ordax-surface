@@ -37,6 +37,34 @@ Não muda a paleta, tipografia, rotas, funcionalidade dos botões nem a
 autoridade de dados do OS. A prova de CI combina asserções do CSS e dos slots
 reais da Home com o smoke Chromium Native nos viewports de desktop e mobile.
 
+## Home → Aura Web — encaminhamento vinculado ao contexto original
+
+O formulário Aura da Home Meridian só encaminha a mensagem
+quando o snapshot **atual** de identidade, catálogo e seleção do OS,
+revalidado por `deriveAuthorizedSpaces`, corresponde ao contexto
+apresentado ao usuário no momento da digitação. A mensagem enviada
+à janela leva uma `scopeKey` de apresentação, derivada da mesma
+identidade e Space autorizado; não contém credenciais, grants nem
+autoriza o pedido por si só.
+
+A janela existente da Aura e seu `initialPrompt` preservam a origem
+do pedido durante a transição entre componentes. Antes de preencher
+o editor ou iniciar `client.ask`, a Aura compara essa origem com
+seu contexto atual. Pedidos sem origem ou oriundos de outra conta,
+Space ou sessão indisponível são **descartados**, inclusive se a
+janela abrir ou remontar tardiamente. Além disso, todos os envios
+da Aura conferem novamente o snapshot atual dos ports canônicos
+antes de solicitar inferência; a verificação visual não substitui
+as validações do host ou do transporte remoto.
+
+O `meridianHomeContextKey` existente continua a única função
+para identificar o contexto visual da Home e da Aura, sem
+persistência paralela ou nova fonte de autorização. Ações
+rotineiras da rede não alteram a chave da sessão. Os testes
+cobrem mudanças de sujeito/Space, logout, ausência da chave,
+roteamento até a janela, bloqueio antes da inferência e
+compatibilidade com o fluxo Web/Native.
+
 ## Home Meridian Web — rascunhos isolados por Conta e Space
 
 Na Home Web, os estados locais de apresentação (**texto ainda não

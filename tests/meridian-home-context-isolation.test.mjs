@@ -32,7 +32,8 @@ test("Home remounts local prompt and mock checklist before presenting another co
   assert.doesNotMatch(wrapper,/setPrompt|setTasks|useEffect/);
   assert.match(content,/const \[prompt,setPrompt\]=useState\(''\)/);
   assert.match(content,/const \[tasks,setTasks\]=useState<string\[\]>\(\[\]\)/);
-  assert.match(content,/if\(prompt\.trim\(\)\)onPrompt\(prompt\.trim\(\)\)/);
+  assert.match(content,/const text=prompt\.trim\(\)/);
+  assert.match(content,/onPrompt\(\{text,scopeKey\}\)/);
   assert.doesNotMatch(s,/localStorage|sessionStorage/);
 });
 test("Meridian Home status uses canonical identity presentation, not offline-first signout text",async()=>{

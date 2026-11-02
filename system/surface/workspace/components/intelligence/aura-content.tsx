@@ -3,11 +3,13 @@ import { Send, Sparkles, Square, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIntelligenceClient } from './client-context';
 import { useWebAccount } from '../central/account-context';
+import { meridianHomeContextKey } from '../../ui/meridian-home-context.mjs';
+import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
 import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
 import './aura-content.css';
 
 const AURA_CONVERSATION_DEADLINE_MS = 120_000;
-type Props = { initialPrompt?: { text: string } | undefined };
+type Props = { initialPrompt?: { text: string; scopeKey?: string } | undefined };
 type ResultState =
   | { state: 'idle' }
   | { state: 'pending'; prompt: string; partial: string }
@@ -19,8 +21,8 @@ type ResultState =
 export function AuraContent({ initialPrompt }: Props) {
   const { client, snapshot, conversation } = useIntelligenceClient();
   const turns = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot, conversation.getSnapshot);
-  const { identity, authorized } = useWebAccount();
-  const scopeKey = JSON.stringify([identity.state, identity.subjectId, authorized.activeSpace?.id ?? null]);
+  const { session, identity, authorized } = useWebAccount();
+  const scopeKey = meridianHomeContextKey(identity, authorized.activeSpace);
   const scoped = conversation.getScope() === scopeKey;
   const visibleTurns = scoped ? turns : [];
   const productName = getSurfaceWindowTitle('intelligence');
@@ -73,6 +75,12 @@ export function AuraContent({ initialPrompt }: Props) {
   const run = useCallback(async (raw: string) => {
     const normalized = raw.trim();
     if (!normalized || conversation.getScope() !== scopeKey) return;
+    // The current OS ports, not a render-time closure, determine whether
+    // this presentation is still showing the same subject and authorized Space.
+    const liveIdentity = session.identity.getSnapshot();
+    const liveAuthorized = deriveAuthorizedSpaces(
+      liveIdentity, session.spaces.getSnapshot(), session.selection.getSnapshot());
+    if (meridianHomeContextKey(liveIdentity, liveAuthorized.activeSpace) !== scopeKey) return;
     if (snapshot.state !== 'ready' || !snapshot.inferenceAvailable) {
       setResult({ state: 'unavailable' });
       return;
@@ -111,11 +119,15 @@ export function AuraContent({ initialPrompt }: Props) {
       clearTimeout(watchdog);
       if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, [client, conversation, scopeKey, snapshot.inferenceAvailable, snapshot.state]);
+  }, [client, conversation, scopeKey, session, snapshot.inferenceAvailable, snapshot.state]);
 
   useEffect(() => {
     if (initialPrompt === undefined || consumedInitialPrompt.current === initialPrompt) return;
     consumedInitialPrompt.current = initialPrompt;
+    // A window can receive a Home request before it mounts, or remount
+    // with an earlier request still stored in the desktop reducer.
+    // Unscoped and wrong-context requests are intentionally discarded.
+    if (initialPrompt.scopeKey !== scopeKey) return;
     setPrompt(initialPrompt.text);
     void run(initialPrompt.text);
   }, [initialPrompt, run]);

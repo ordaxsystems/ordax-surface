@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowUpRight, ArrowRight, Sparkles, Mic, ShieldCheck, Monitor, Folder, FileText, Clock3, Smartphone, Layers3, ShoppingBag, Moon, Sun, Plus, Check } from 'lucide-react';
 import { useWebAccount } from './account-context';
 import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
+import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
 import { useWebPreferences } from './preferences-context';
 import { resolveRegionalTimeZone } from '../../../../services/preferences/regional.mjs';
 import { resolveHomeScene } from '../../../../services/surface/home-scene.mjs';
@@ -11,7 +12,7 @@ import { translateSurfaceMessage, SURFACE_SOURCE_LOCALE } from '../../../../serv
 import dayWallpaper from '@/assets/alpine-day.jpg';
 import nightWallpaper from '@/assets/alpine-night.jpg';
 
-type Props = {theme:'light'|'dark'; onOpen:(title:string)=>void; onExample:(title:string)=>void; onPrompt:(text:string)=>void};
+type Props = {theme:'light'|'dark'; onOpen:(title:string)=>void; onExample:(title:string)=>void; onPrompt:(value:{text:string;scopeKey:string})=>void};
 const exampleFiles = [{name:'Direção visual',kind:'Documento · exemplo',icon:FileText},{name:'Referências do projeto',kind:'Pasta · exemplo',icon:Folder},{name:'Ideias para o próximo passo',kind:'Notas · exemplo',icon:FileText}];
 const ecosystems = [{name:'Spaces',note:'Contextos diferentes. O mesmo fio.',icon:Layers3,target:'Espaços'},{name:'Dispositivos',note:'Cada tela pode fazer mais.',icon:Monitor,target:'Dispositivos'},{name:'Descobrir',note:'Novas peças para o seu mundo.',icon:ShoppingBag,target:'Loja'}];
 const homeCopy = (messageId:string) => translateSurfaceMessage(SURFACE_SOURCE_LOCALE, messageId);
@@ -26,7 +27,7 @@ export function MeridianHome(props:Props) {
 }
 
 function MeridianHomeContext({onOpen,onExample,onPrompt}:Props) {
-  const {identity,displayName,authorized,sidebarAccount}=useWebAccount();
+  const {session,identity,displayName,authorized,sidebarAccount}=useWebAccount();
   const {snapshot:preferences}=useWebPreferences();
   const timeZone=resolveRegionalTimeZone(preferences);
   const {snapshot:intelligence}=useIntelligenceClient();
@@ -40,7 +41,19 @@ function MeridianHomeContext({onOpen,onExample,onPrompt}:Props) {
   const scene=resolveHomeScene(now,timeZone);
   const greeting=homeCopy(scene.greetingId).replace(/\.$/,'');
   const date=new Intl.DateTimeFormat('pt-BR',{timeZone,weekday:'long',day:'numeric',month:'long'}).format(now);
-  function submit(event:FormEvent){event.preventDefault();if(prompt.trim())onPrompt(prompt.trim());}
+  function submit(event:FormEvent){
+    event.preventDefault();
+    const text=prompt.trim();
+    if(!text)return;
+    const scopeKey=meridianHomeContextKey(identity,authorized.activeSpace);
+    // React may not have rerendered when the OS switches subject or Space.
+    // Recheck its current authorized projection before opening Aura.
+    const liveIdentity=session.identity.getSnapshot();
+    const liveAuthorized=deriveAuthorizedSpaces(
+      liveIdentity,session.spaces.getSnapshot(),session.selection.getSnapshot());
+    if(scopeKey!==meridianHomeContextKey(liveIdentity,liveAuthorized.activeSpace))return;
+    onPrompt({text,scopeKey});
+  }
   return <div className="meridian-home">
     <div className="meridian-page">
       <section className="meridian-welcome"><div><p className="meridian-eyebrow"><time dateTime={now.toISOString()}>{date}</time><span>·</span>{authorized.activeSpace?.name??'Seu espaço'}</p><h1>{greeting}{identity.state==='signed-in'?', '+displayName:''}.</h1><p>{homeCopy('shell.home.tagline')}</p></div><button className="meridian-context" onClick={()=>onOpen('Espaços')}><Layers3/><span><small>NO SEU CONTEXTO</small><strong>{authorized.activeSpace?.name??'Escolher um Space'}</strong></span><ArrowUpRight size={16}/></button></section>
