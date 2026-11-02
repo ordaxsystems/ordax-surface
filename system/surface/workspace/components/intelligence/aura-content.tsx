@@ -3,7 +3,7 @@ import { Send, Sparkles, Square, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIntelligenceClient } from './client-context';
 import { useWebAccount } from '../central/account-context';
-import { meridianHomeContextKey } from '../../ui/meridian-home-context.mjs';
+import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
 import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
 import './aura-content.css';
