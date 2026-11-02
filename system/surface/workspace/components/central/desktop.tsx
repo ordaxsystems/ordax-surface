@@ -3,14 +3,13 @@ import { SpacesExperience } from './spaces-experience';
 import { FavoriteShortcutsPanel } from './favorite-shortcuts';
 import { WebNotificationCenter } from './notifications';
 import { lazy, Suspense, useState, type Dispatch } from 'react';
-import { LayoutGrid, ChevronRight, Sparkles, WalletCards } from 'lucide-react';
+import { LayoutGrid, ChevronRight, WalletCards } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AccountPanel, AppIcon, Panel } from './primitives';
 import { favorites, shortcuts, type AppItem } from './config';
 import { useWebAccount } from './account-context';
 import { WindowResourceLoadError } from './window-resource-error.mjs';
 import type { DesktopAction, DesktopState } from './desktop-state';
-import { getSurfaceWindowTitle } from '../../../../services/surface/destination-catalog.mjs';
 import { getDesktopShortcutGlyphMarkup } from '../../../../services/surface/desktop-shortcut-glyphs.mjs';
 import { moveDesktopShortcutFocus } from '../../../../services/surface/dock-navigation.mjs';
 
@@ -34,7 +33,6 @@ export function Desktop({ onCentral, dispatch }: Props) {
   const desktopShortcuts = [
     { id: 'central', name: 'Central', icon: LayoutGrid, tone: 'lime' as const },
     ...shortcuts,
-    { id: 'aura', name: getSurfaceWindowTitle('intelligence'), icon: Sparkles, tone: 'lime' as const },
   ];
   return <main className="classic-desktop" aria-label="Área de trabalho OrdaX">
     <section className="desktop-shortcuts" aria-label="Atalhos da área de trabalho" onKeyDown={event => moveDesktopShortcutFocus(event.nativeEvent, event.currentTarget, '[data-desktop-app]')}>

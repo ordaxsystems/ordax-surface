@@ -21,7 +21,7 @@ export function Central() {
   const open = (title: string) => dispatch({ type: 'open', title });
   return <div className="window-workspace meridian-workspace" data-view={view} data-sidebar={sidebarMode} data-compact={compact ? (windows.compactCollapsed ? 'collapsed' : 'expanded') : 'none'} data-running={windows.windows.length > 0}>
     <div className="workspace-stage">
-      <div className="central-presentation" hidden={view !== 'central'}><div className="os-shell"><main className="os-main"><div className="central-content" inert={regular}><MeridianHome theme={theme} onOpen={open} onExample={setExample} onPrompt={({text,scopeKey}) => dispatch({ type:'open', title:'Aura', prompt:text, promptScope:scopeKey })}/></div></main></div></div>
+      <div className="central-presentation" hidden={view !== 'central'}><div className="os-shell"><main className="os-main"><div className="central-content" inert={regular}><MeridianHome theme={theme} onOpen={open} onExample={setExample}/></div></main></div></div>
       <div className="desktop-presentation" hidden={view !== 'desktop'}><Desktop onCentral={() => changeView('central')} dispatch={dispatch}/></div>
     </div>
     <div className="compact-reservation" aria-hidden="true"/>

@@ -1,5 +1,3 @@
-import { shouldSubmitTextInputOnEnter } from "./keyboard-submit.mjs";
-
 // Native Home chrome; service-owned data is rendered by its dedicated mounts.
 export function homeConceptSections(t, icons) {
   const rows = [
@@ -14,22 +12,3 @@ export function homeConceptSections(t, icons) {
   return { status, currentSpace };
 }
 
-export function handleHomeConceptKeyDown(event, root) {
-  if (!shouldSubmitTextInputOnEnter(event) || !event.target.matches?.("[data-native-aura-prompt]")) {
-    return false;
-  }
-  event.preventDefault();
-  if (event.target.value.trim()) root.querySelector("[data-home-aura-submit]")?.click();
-  return true;
-}
-
-export function handleHomeConceptClick(event, root, localization) {
-  const suggestion = event.target.closest("[data-home-aura-suggestion]");
-  if (!suggestion) return false;
-  const input = root.querySelector("[data-native-aura-prompt]");
-  if (input) {
-    input.value = localization.translate(suggestion.dataset.homeAuraSuggestion);
-    input.focus();
-  }
-  return true;
-}

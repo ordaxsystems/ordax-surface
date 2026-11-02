@@ -110,8 +110,10 @@ function spaceLink(messageId, target, t) {
     </button>`;
 }
 
+// Aura belongs to the external app; system navigation excludes an uninstalled app.
+const MERIDIAN_NATIVE_NAVIGATION = MERIDIAN_RAIL_DESTINATIONS.filter(item => item.key !== "intelligence");
+
 const MERIDIAN_NATIVE_DESTINATION_TARGETS = Object.freeze({
-  intelligence: { appId: "intelligence" },
   spaces: { appId: "account", target: "spaces" },
   profiles: { appId: "account", target: "profiles" },
   devices: { appId: "account", target: "devices" },
@@ -142,13 +144,11 @@ function meridianDestinationButton(destination, localization, groupLabel = "") {
   const target = MERIDIAN_NATIVE_DESTINATION_TARGETS[destination.key];
   if (!target) return "";
   const appTarget = target.target ? ` data-app-target="${target.target}"` : "";
-  const planned = destination.key === "intelligence"
-    ? `<span class="meridian-planned-mark" aria-label="${localization.translate("meridian.native.plannedFeature")}" title="${localization.translate("meridian.native.notConnected")}">•</span>` : "";
-  return `<div class="meridian-nav-destination" data-meridian-destination-group="${destination.group}">${groupLabel}<button type="button" class="ordax-rail-button os-nav-item" data-sidebar-app="${target.appId}" data-launch-app="${target.appId}" data-meridian-destination="${destination.key}"${appTarget} aria-label="${label}" title="${label}"><span class="ordax-rail-icon">${ICONS[destination.glyph]}</span><span>${label}</span>${planned}</button></div>`;
+  return `<div class="meridian-nav-destination" data-meridian-destination-group="${destination.group}">${groupLabel}<button type="button" class="ordax-rail-button os-nav-item" data-sidebar-app="${target.appId}" data-launch-app="${target.appId}" data-meridian-destination="${destination.key}"${appTarget} aria-label="${label}" title="${label}"><span class="ordax-rail-icon">${ICONS[destination.glyph]}</span><span>${label}</span></button></div>`;
 }
 
 function meridianNavigation(localization, t) {
-  const destinations = MERIDIAN_RAIL_DESTINATIONS.filter(item => item.key !== "home");
+  const destinations = MERIDIAN_NATIVE_NAVIGATION.filter(item => item.key !== "home");
   const primary = destinations.filter(item => item.group === "principal").map(item => meridianDestinationButton(item, localization)).join("");
   const ecosystem = destinations.filter(item => item.group === "ecossistema").map((item, index) => meridianDestinationButton(
     item,
@@ -168,11 +168,10 @@ function meridianNavigationMenu(localization, t) {
     if (destination.key === "apps") return `<button type="button" class="meridian-menu-item" data-nav-menu-item data-meridian-menu-destination="${destination.key}" data-launcher-toggle><span class="ordax-rail-icon">${ICONS.apps}</span><span>${label}</span></button>`;
     const target = MERIDIAN_NATIVE_DESTINATION_TARGETS[destination.key];
     if (!target) return "";
-    const unavailable = destination.key === "intelligence";
-    return `<button type="button" class="meridian-menu-item" data-nav-menu-item data-meridian-menu-destination="${destination.key}" data-launch-app="${target.appId}" data-nav-menu-app="${target.appId}"${target.target ? ` data-app-target="${target.target}"` : ""}${unavailable ? ` disabled aria-disabled="true" title="${t("meridian.native.notConnected")}"` : ""}><span class="ordax-rail-icon">${ICONS[destination.glyph]}</span><span>${label}</span>${unavailable ? `<small>${t("meridian.native.planned")}</small>` : ""}</button>`;
+    return `<button type="button" class="meridian-menu-item" data-nav-menu-item data-meridian-menu-destination="${destination.key}" data-launch-app="${target.appId}" data-nav-menu-app="${target.appId}"${target.target ? ` data-app-target="${target.target}"` : ""}><span class="ordax-rail-icon">${ICONS[destination.glyph]}</span><span>${label}</span></button>`;
   };
-  const principal = MERIDIAN_RAIL_DESTINATIONS.filter(item => item.key === "home" || item.group === "principal").map(destinationButton).join("");
-  const ecosystem = MERIDIAN_RAIL_DESTINATIONS.filter(item => item.group === "ecossistema").map(destinationButton).join("");
+  const principal = MERIDIAN_NATIVE_NAVIGATION.filter(item => item.key === "home" || item.group === "principal").map(destinationButton).join("");
+  const ecosystem = MERIDIAN_NATIVE_NAVIGATION.filter(item => item.group === "ecossistema").map(destinationButton).join("");
   const deviceApps = NAVIGATION_MENU_APP_IDS.map(id => `<button type="button" class="meridian-menu-item" data-nav-menu-item data-launch-app="${id}" data-nav-menu-app="${id}"><span class="ordax-rail-icon">${ICONS[id]}</span><span>${t(`app.${id}.title`)}</span></button>`).join("")
     + `<button type="button" class="meridian-menu-item" data-nav-menu-item data-launch-app="system" data-app-target="updates" data-nav-menu-app="system"><span class="ordax-rail-icon">${ICONS.system}</span><span>${t("system.updateShortcut.label")}</span></button>`;
   const english = localization.getLocale().toLowerCase().startsWith("en");
@@ -204,18 +203,9 @@ export function createDesktopShellMarkup(localization) {
             <section class="ordax-home-hero" aria-label="${t("shell.home.hero.aria")}">
               <img class="ordax-home-hero-image" data-home-scene src="../../surface/workspace/assets/alpine-day.jpg" alt="" loading="eager">
               <div class="ordax-home-hero-copy">
-                <div class="ordax-home-aura-heading"><span class="ordax-rail-icon" aria-hidden="true">${ICONS.aura}</span><strong>Aura</strong><span class="ordax-home-aura-state" data-home-aura-status data-state="loading" aria-live="polite">${t("home.aura.status.loading")}</span></div>
-                <h2 data-home-copy="home.aura.title">${t("home.aura.title")}</h2>
-                <p data-home-copy="home.aura.description">${t("home.aura.description")}</p>
-                <section class="meridian-command meridian-native-command" aria-label="${t("shell.home.aura.aria")}">
-                  <div class="meridian-command-input-row">
-                    <input type="text" data-native-aura-prompt aria-label="${t("shell.home.aura.aria")}" aria-describedby="ordax-home-aura-note" placeholder="${t("shell.home.aura.placeholder")}" autocomplete="off" maxlength="32000">
-                    <button type="button" class="meridian-command-send" data-home-aura-submit data-native-aura-send aria-label="${t("shell.home.aura.send")}" disabled>${ICONS.arrow}</button>
-                  </div>
-                </section>
-                <div class="ordax-home-suggestions">${[["summary","files"],["note","folder"],["plan","clock"],["image","studio"]].map(([key, icon]) => `<button type="button" data-home-aura-suggestion="home.aura.suggestion.${key}"><span class="ordax-rail-icon" aria-hidden="true">${ICONS[icon]}</span><span data-home-copy="home.aura.suggestion.${key}">${t(`home.aura.suggestion.${key}`)}</span></button>`).join("")}</div>
-                <div class="ordax-home-aura-response" data-home-aura-response data-state="busy" aria-live="polite" aria-atomic="true" hidden><strong data-home-copy="home.aura.response.title">${t("home.aura.response.title")}</strong><p data-home-aura-response-text></p></div>
-                <p id="ordax-home-aura-note" class="ordax-home-hero-note" data-home-aura-note aria-live="polite">${t("home.aura.note.loading")}</p>
+                <p>${t("shell.home.hero.label")}</p>
+                <h2>${t("shell.home.hero.title.first")} ${t("shell.home.hero.title.second")}</h2>
+                <p>${t("shell.home.hero.description.first")} ${t("shell.home.hero.description.second")}</p>
               </div>
             </section>
             ${concept.status}
@@ -390,13 +380,6 @@ export function syncDesktopShellLocalization(root, localization) {
   text("[data-native-session-account]", "shell.home.session.account");
   text("[data-native-session-store]", "shell.home.session.store");
   text("[data-native-session-pending]", "shell.home.session.pending");
-  aria(".meridian-native-command", "shell.home.aura.aria");
-  const nativeAuraPrompt = root.querySelector("[data-native-aura-prompt]");
-  if (nativeAuraPrompt) {
-    nativeAuraPrompt.placeholder = t("shell.home.aura.placeholder");
-    nativeAuraPrompt.setAttribute("aria-label", t("shell.home.aura.aria"));
-  }
-  aria("[data-native-aura-send]", "shell.home.aura.send");
   for (const button of root.querySelectorAll("[data-launcher-toggle]")) {
     if (button.hasAttribute("data-meridian-search")) continue;
     if (button.hasAttribute("data-meridian-application-launcher")) {

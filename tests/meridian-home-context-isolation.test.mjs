@@ -23,22 +23,20 @@ test("Meridian context key prevents separator collisions between subjects and Sp
   assert.equal(meridianHomeContextKey({state:"signed-out"},null),
     meridianHomeContextKey({state:"signed-out"},space("unused")));
 });
-test("Home remounts local prompt and mock checklist before presenting another context",async()=>{
+test("Home remounts contextual presentation without a second Aura composer",async()=>{
   const s=await readFile(new URL("../system/surface/workspace/components/central/meridian-home.tsx",import.meta.url),"utf8");
   const wrapper=s.slice(s.indexOf("export function MeridianHome("),s.indexOf("function MeridianHomeContext("));
   const content=s.slice(s.indexOf("function MeridianHomeContext("));
   assert.match(wrapper,/const \{identity,authorized\}=useWebAccount\(\)/);
   assert.match(wrapper,/key=\{meridianHomeContextKey\(identity, authorized\.activeSpace\)\}/);
   assert.doesNotMatch(wrapper,/setPrompt|setTasks|useEffect/);
-  assert.match(content,/const \[prompt,setPrompt\]=useState\(''\)/);
   assert.match(content,/const \[tasks,setTasks\]=useState<string\[\]>\(\[\]\)/);
-  assert.match(content,/const text=prompt\.trim\(\)/);
-  assert.match(content,/onPrompt\(\{text,scopeKey\}\)/);
+  assert.doesNotMatch(content,/onPrompt|meridian-prompt|Aura contextual/);
   assert.doesNotMatch(s,/localStorage|sessionStorage/);
 });
 test("Meridian Home status uses canonical identity presentation, not offline-first signout text",async()=>{
   const s=await readFile(new URL("../system/surface/workspace/components/central/meridian-home.tsx",import.meta.url),"utf8");
-  assert.match(s,/const \{session,identity,displayName,authorized,sidebarAccount\}=useWebAccount\(\)/);
+  assert.match(s,/const \{identity,displayName,authorized,sidebarAccount\}=useWebAccount\(\)/);
   assert.match(s,/Conta · \{sidebarAccount\.status\}/);
   assert.doesNotMatch(s,/\{offline\?'Conta sem conexão'/);
   const projection=await readFile(new URL("../system/surface/ui/sidebar-account.mjs",import.meta.url),"utf8");
