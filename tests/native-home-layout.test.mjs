@@ -6,6 +6,7 @@ const ui = (name) => new URL("../system/surface/ui/" + name, import.meta.url);
 const read = (name) => readFile(ui(name), "utf8");
 
 function narrowHomeRules(css) {
+  css = css.replace(/\r\n/g, "\n");
   const marker = "@container meridian-native-home (max-width: 38rem) {";
   const start = css.indexOf(marker);
   assert.ok(start >= 0, "Home must respond to the actual workspace width");
