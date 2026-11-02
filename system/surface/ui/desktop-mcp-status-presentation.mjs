@@ -1,13 +1,18 @@
 // Read-only UX mapping for the OS-owned MCP Supervisor observation.
 export function desktopMcpStatusPresentation(status, failed = false) {
-  if (status === null) {
+  if (status === null || status === undefined) {
     return {
       valueId: failed ? "system.overview.mcp.unavailable" : "system.overview.mcp.checking",
       detailId: "system.overview.mcp.noObservation",
     };
   }
-  if (status.state === "running" && status.mcpReady === true
-      && status.centralSessionAttested === true && status.capabilityDigest) {
+  if (status.schema === "ordax.product-runtime-supervisor-status/1"
+      && status.host === "ordax-desktop"
+      && status.state === "running" && status.processRunning === true
+      && Boolean(status.enrolled) && status.mcpReady === true
+      && status.centralSessionAttested === true
+      && typeof status.capabilityDigest === "string"
+      && /^[0-9a-f]{64}$/.test(status.capabilityDigest)) {
     return { valueId: "system.overview.mcp.attested",
       detailId: "system.overview.mcp.attestedDetail" };
   }

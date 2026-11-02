@@ -49,3 +49,26 @@ test("Native identity, unavailable and blocked statuses stay distinguishable", (
     reason: "runtime_exited",
   }).valueId, "system.overview.mcp.stopped");
 });
+
+test("Native status refuses fake attestation envelopes and malformed digests",()=>{
+  const supposed={...baseline,mcpReady:true,centralSessionAttested:true,
+    capabilityDigest:"b".repeat(64)};
+  assert.equal(desktopMcpStatusPresentation(supposed).valueId,
+    "system.overview.mcp.attested");
+  for(const spoofed of [
+    {...supposed,capabilityDigest:"fake"},
+    {...supposed,capabilityDigest:"B".repeat(64)},
+    {...supposed,capabilityDigest:"b".repeat(63)},
+    {...supposed,capabilityDigest:1234},
+    {...supposed,processRunning:false},
+    {...supposed,enrolled:null},
+    {...supposed,host:"windows-agent"},
+    {...supposed,schema:"untrusted"},
+    {...supposed,centralSessionAttested:false},
+  ]) {
+    assert.notEqual(desktopMcpStatusPresentation(spoofed).valueId,
+      "system.overview.mcp.attested");
+  }
+  assert.equal(desktopMcpStatusPresentation(undefined).valueId,
+    "system.overview.mcp.checking");
+});
