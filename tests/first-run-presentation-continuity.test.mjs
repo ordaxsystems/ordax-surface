@@ -70,3 +70,15 @@ test("Windows First Run has only welcome, account, security and review", async (
   assert.match(source, /const busy = identityPending !== null \|\| \(step === "account" && identityAvailabilityPending\)/);
   assert.match(source, /!STEPS\.includes\("name"\) && capabilitySnapshot\.deviceProfile/);
 });
+
+test("Desktop account keeps one local-use choice while USB retains its footer", async () => {
+  const source = await readFile(new URL("../system/surface/ui/first-run.mjs", import.meta.url), "utf8");
+  const css = await readFile(new URL("../system/surface/ui/first-run.css", import.meta.url), "utf8");
+  assert.match(source, /productMode === "desktop" && !signedIn/);
+  assert.match(source, /"ordax-first-run-local-choice-action"/);
+  assert.match(source, /if \(signedIn \|\| productMode !== "desktop"\)/);
+  assert.match(source, /"ordax-first-run-sign-in"/);
+  assert.match(source, /productMode === "desktop" \? "Começar a usar o OrdaX"/);
+  assert.match(css, /\.ordax-first-run-local-choice \{/);
+  assert.match(css, /\.ordax-first-run-local-choice-action \{ justify-self:start;/);
+});

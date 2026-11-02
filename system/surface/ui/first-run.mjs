@@ -494,6 +494,10 @@ export function mountFirstRunExperience(
         : "Use um PIN ou senha local para proteger a sessão do OrdaX. A credencial fica neste dispositivo e não criptografa os arquivos do pendrive.",
     ));
 
+    if (productMode === "desktop") {
+      body.append(el(documentObject, "p", "ordax-first-run-security-help",
+        "Opcional: configure a proteção agora ou depois em Ajustes."));
+    }
     if (!capabilitySnapshot.localSession || !localSessionSnapshot) {
       body.append(availabilityPanel(
         documentObject,
@@ -579,11 +583,25 @@ export function mountFirstRunExperience(
     const registering = identityFormMode === "register" && capabilitySnapshot.identityRegister;
     body.append(heading(
       "Conta OrdaX",
-      signedIn ? "Sua Conta OrdaX." : registering ? "Crie sua conta." : "Entre na sua conta.",
+      signedIn ? "Sua Conta OrdaX." : registering ? "Crie sua conta." : productMode === "desktop" ? "Como deseja começar?" : "Entre na sua conta.",
       signedIn
         ? "Confira a conta que será usada neste OrdaX e continue a configuração."
-        : "Entre com a mesma conta que você usa na Web. Se preferir, configure agora e entre depois.",
+        : productMode === "desktop" ? "Use o Desktop sem conta ou entre na sua Conta OrdaX." : "Entre com a mesma conta que você usa na Web. Se preferir, configure agora e entre depois.",
     ));
+    if (productMode === "desktop" && !signedIn) {
+      const choice = el(documentObject, "section", "ordax-first-run-local-choice");
+      choice.setAttribute("aria-label", translateFirstRunText(draft.locale, "Usar sem conta"));
+      const description = el(documentObject, "div", "ordax-first-run-local-copy");
+      description.append(
+        el(documentObject, "strong", "", "Usar sem conta"),
+        el(documentObject, "p", "", "Comece agora. Conecte sua conta depois em Ajustes."),
+      );
+      const local = action(documentObject, "Continuar sem conta", "account-local");
+      local.classList.add("ordax-first-run-local-choice-action");
+      local.disabled = identityPending !== null;
+      choice.append(description, local);
+      body.append(choice);
+    }
     if (signedIn) {
       const state = el(documentObject, "article", "ordax-first-run-account");
       const avatar = el(documentObject, "span", "ordax-first-run-avatar");
@@ -607,7 +625,7 @@ export function mountFirstRunExperience(
       manage.rel = "noopener noreferrer";
       body.append(manage);
       body.append(el(documentObject, "p", "ordax-first-run-account-help",
-        "Sua conta está identificada. A seguir, você configura a proteção local e o nome deste OrdaX."));
+        "Sua conta está identificada. Agora você pode configurar a proteção local e revisar suas escolhas."));
       if (isIdentityActionSupported(actionsSnapshot, "sign-out")) {
         const change = action(documentObject, identityPending === "sign-out" ? "Saindo…" : "Usar outra conta", "account-switch");
         change.classList.add("ordax-first-run-action-quiet");
@@ -679,7 +697,17 @@ export function mountFirstRunExperience(
             registrationPolicyPending ? "Carregando os documentos do cadastro…" : "Cadastro indisponível agora. Você pode entrar em uma conta existente ou continuar sem conta."));
         }
       }
-      body.append(form);
+      if (productMode === "desktop") {
+        const login = el(documentObject, "section", "ordax-first-run-sign-in");
+        login.append(
+          el(documentObject, "h2", "ordax-first-run-sign-in-heading",
+            registering ? "Criar conta" : "Entrar com a Conta OrdaX"),
+          form,
+        );
+        body.append(login);
+      } else {
+        body.append(form);
+      }
       if (capabilitySnapshot.identityRegister) {
         const mode = action(documentObject, registering ? "Já tenho conta" : "Criar conta", "account-mode");
         mode.classList.add("ordax-first-run-action-quiet");
@@ -897,14 +925,17 @@ export function mountFirstRunExperience(
     if (step === "account") {
       const signedIn = sessionSnapshot.state === "signed-in";
       const registering = identityFormMode === "register" && capabilitySnapshot.identityRegister;
-      const local = action(documentObject, signedIn ? "Sair e continuar sem conta" : "Continuar sem conta", "account-local",
+      // Desktop provides one visible local-use action in the account body; USB retains its footer.
+      if (signedIn || productMode !== "desktop") {
+        const local = action(documentObject, signedIn ? "Sair e continuar sem conta" : "Continuar sem conta", "account-local",
         !signedIn && !capabilitySnapshot.identitySignIn && !capabilitySnapshot.identityRegister);
       // A slow or unavailable account probe must not hold the local setup path
       // hostage. Only an active identity action or a signed-in session that
       // cannot be ended should block this choice.
       local.disabled = identityPending !== null
         || (signedIn && !isIdentityActionSupported(actionsSnapshot, "sign-out"));
-      footer.append(local);
+        footer.append(local);
+      }
       if (signedIn || (sessionSnapshot.state === "signed-out"
         && (capabilitySnapshot.identitySignIn || capabilitySnapshot.identityRegister))) {
         const primary = action(documentObject,
@@ -917,7 +948,7 @@ export function mountFirstRunExperience(
       }
     } else {
       const label = step === "ready"
-        ? finishing ? "Salvando…" : "Entrar no OrdaX"
+        ? finishing ? "Salvando…" : productMode === "desktop" ? "Começar a usar o OrdaX" : "Entrar no OrdaX"
         : step === "welcome" ? "Vamos começar"
         : step === "network" && !networkSnapshot?.currentSsid ? "Continuar offline" : "Continuar";
       const next = action(documentObject, label, step === "ready" ? "finish" : "next", true);

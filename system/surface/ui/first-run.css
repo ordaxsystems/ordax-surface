@@ -189,7 +189,8 @@
 .ordax-first-run-account + .ordax-first-run-form { margin-top:24px; }
 
 .ordax-first-run[data-first-run-step="account"] .ordax-first-run-body {
-  align-self:center;
+  align-self:start;
+  max-width:780px;
 }
 .ordax-first-run-account {
   grid-template-columns:auto minmax(0,1fr); align-items:center; gap:18px;
@@ -203,6 +204,25 @@
 .ordax-first-run-account-identity { display:grid; gap:4px; min-width:0; overflow-wrap:anywhere; }
 .ordax-first-run-account-identity > strong { font-size:1.15rem; }
 .ordax-first-run-connected { font-size:.75rem; color:var(--md-accent); font-weight:600; }
+.ordax-first-run-local-choice {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center;
+  padding:18px 20px; border:1px solid var(--md-border); border-radius:var(--md-radius);
+  background:var(--md-subtle);
+}
+.ordax-first-run-local-copy { display:grid; gap:5px; min-width:0; }
+.ordax-first-run-local-copy strong { font-size:.95rem; font-weight:650; }
+.ordax-first-run-local-copy p {
+  margin:0; color:var(--md-muted); font-size:.82rem; line-height:1.5;
+}
+.ordax-first-run-local-choice-action { justify-self:end; }
+.ordax-first-run-sign-in {
+  display:grid; gap:12px; margin-top:20px; padding-top:18px;
+  border-top:1px solid var(--md-border);
+}
+.ordax-first-run-sign-in-heading { margin:0; font-size:.9rem; font-weight:620; }
+.ordax-first-run-security-help {
+  margin:0 0 18px; color:var(--md-muted); font-size:.85rem; line-height:1.6;
+}
 .ordax-first-run-account-help {
   margin:16px 0; font-size:.85rem; line-height:1.55; color:var(--md-muted);
 }
@@ -664,4 +684,6 @@
   }
   .ordax-first-run-password-row { grid-template-columns: minmax(0, 1fr) auto; }
   .ordax-first-run-account-actions .ordax-first-run-action { min-width: 0; }
+  .ordax-first-run-local-choice { grid-template-columns:minmax(0,1fr); }
+  .ordax-first-run-local-choice-action { justify-self:start; }
 }
