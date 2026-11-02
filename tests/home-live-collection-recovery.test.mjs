@@ -7,8 +7,10 @@ const ui=new URL("../system/surface/ui/",import.meta.url);
 test("Home continuation takes projects and recent files from live validated OS snapshots",async()=>{
   const source=await readFile(new URL("home-continuation.mjs",ui),"utf8");
   const render=source.slice(source.indexOf("  const render = () => {"),source.indexOf("  const unsubscribeProjects ="));
-  assert.match(render,/const projectSnapshot = projectPort === null\s*\?\s*null : validateProjectCatalogSnapshot\(projectPort\.getSnapshot\(\)\)/);
-  assert.match(render,/const recentSnapshot = recentPort === null\s*\?\s*null : validateRecentFilesSnapshot\(recentPort\.getSnapshot\(\)\)/);
+  assert.match(render,/const projectSnapshot = projectPort\?\.getSnapshot\(\) \?\? null;/);
+  assert.match(render,/const recentSnapshot = recentPort\?\.getSnapshot\(\) \?\? null;/);
+  assert.match(source,/validateProjectCatalogSnapshot\(projects\)/);
+  assert.match(source,/validateRecentFilesSnapshot\(recentFiles\)/);
   assert.match(render,/projects: projectSnapshot/);
   assert.match(render,/recentFiles: recentSnapshot/);
   assert.match(source,/projectPort\?\.subscribe\(\(\) => \{\s*render\(\);/);
@@ -19,8 +21,10 @@ test("Home continuation takes projects and recent files from live validated OS s
 test("Home pending re-reads real unread notifications and Sync queue counts on every repaint",async()=>{
   const source=await readFile(new URL("home-pending.mjs",ui),"utf8");
   const render=source.slice(source.indexOf("  const render = () => {"),source.indexOf("  const unsubscribeNotifications ="));
-  assert.match(render,/const notificationsSnapshot = notificationsPort === null\s*\?\s*null : validateNotificationsSnapshot\(notificationsPort\.getSnapshot\(\)\)/);
-  assert.match(render,/const syncSnapshot = syncPort === null\s*\?\s*null : validateSyncRuntimeSnapshot\(syncPort\.getSnapshot\(\)\)/);
+  assert.match(render,/const notificationsSnapshot = notificationsPort\?\.getSnapshot\(\) \?\? null;/);
+  assert.match(render,/const syncSnapshot = syncPort\?\.getSnapshot\(\) \?\? null;/);
+  assert.match(source,/validateNotificationsSnapshot\(notifications\)/);
+  assert.match(source,/validateSyncRuntimeSnapshot\(syncRuntime\)/);
   assert.match(render,/notifications: notificationsSnapshot/);
   assert.match(render,/syncRuntime: syncSnapshot/);
   assert.match(source,/notificationsPort\?\.subscribe\(\(\) => \{\s*render\(\);/);

@@ -144,10 +144,9 @@ export function mountHomeContinuation(
     // Subscription events are notifications, never a second snapshot store.
     // Re-read the OS owners on every repaint so a delayed event cannot
     // recreate a project or recent file that a newer snapshot removed.
-    const projectSnapshot = projectPort === null
-      ? null : validateProjectCatalogSnapshot(projectPort.getSnapshot());
-    const recentSnapshot = recentPort === null
-      ? null : validateRecentFilesSnapshot(recentPort.getSnapshot());
+    // The existing presentation validates each snapshot exactly once.
+    const projectSnapshot = projectPort?.getSnapshot() ?? null;
+    const recentSnapshot = recentPort?.getSnapshot() ?? null;
     const activeElement = documentObject.activeElement;
     const focusedWithin = section?.contains?.(activeElement) === true;
     const focusedKey = focusedWithin ? activeElement?.dataset?.homeContinuationKey ?? null : null;

@@ -138,10 +138,9 @@ export function mountHomePending(
     if (destroyed) return;
     // The current OS snapshots override event payloads: a delayed unread
     // notification or Sync callback must not resurrect cleared pending work.
-    const notificationsSnapshot = notificationsPort === null
-      ? null : validateNotificationsSnapshot(notificationsPort.getSnapshot());
-    const syncSnapshot = syncPort === null
-      ? null : validateSyncRuntimeSnapshot(syncPort.getSnapshot());
+    // createHomePendingPresentation performs the contract validation.
+    const notificationsSnapshot = notificationsPort?.getSnapshot() ?? null;
+    const syncSnapshot = syncPort?.getSnapshot() ?? null;
     const activeElement = documentObject.activeElement;
     const focusedWithin = section?.contains?.(activeElement) === true;
     const focusedKey = focusedWithin ? activeElement?.dataset?.homePendingKey ?? null : null;
