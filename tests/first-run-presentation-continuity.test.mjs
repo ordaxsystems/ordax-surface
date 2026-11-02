@@ -62,3 +62,11 @@ test("First Run wiring respects authoritative login and offline setup",async()=>
   assert.match(css,/\.ordax-first-run-action \{\s*min-height: 44px;/);
   assert.match(css,/@container \(max-width: 420px\)/);
 });
+
+test("Windows First Run has only welcome, account, security and review", async () => {
+  const source = await readFile(new URL("../system/surface/ui/first-run.mjs", import.meta.url), "utf8");
+  assert.match(source, /productMode === "desktop"\s*\? FIRST_RUN_JOURNEY\.filter\(\(step\) => step\.id !== "network" && step\.id !== "name"\)/);
+  assert.match(source, /const STEPS = journey\.map\(\(step\) => step\.id\)/);
+  assert.match(source, /const busy = identityPending !== null \|\| \(step === "account" && identityAvailabilityPending\)/);
+  assert.match(source, /!STEPS\.includes\("name"\) && capabilitySnapshot\.deviceProfile/);
+});
