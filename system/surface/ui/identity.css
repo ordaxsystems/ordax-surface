@@ -586,8 +586,6 @@ body { background: var(--md-canvas); font-weight: 400; }
     min-height: 0;
     padding: var(--md-space-4);
   }
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .meridian-native-workspace .ordax-home-destination-grid,
   .meridian-native-workspace .ordax-home-panel > .ordax-space,
   .meridian-native-workspace .ordax-home-panel > .ordax-space[data-home-continuation] {
