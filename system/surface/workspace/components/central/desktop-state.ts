@@ -1,7 +1,7 @@
 export type WindowMode = 'normal' | 'maximized' | 'compact';
-export type DesktopWindow = { title: string; initialPrompt?: { text: string }; mode: WindowMode; minimized: boolean; expandedMode: Exclude<WindowMode, 'compact'> };
+export type DesktopWindow = { title: string; initialPrompt?: { text: string; scopeKey?: string }; mode: WindowMode; minimized: boolean; expandedMode: Exclude<WindowMode, 'compact'> };
 export type DesktopState = { windows: DesktopWindow[]; active: string | null; compactActive: string | null; compactCollapsed: boolean };
-export type DesktopAction = { type: 'open'; title: string; prompt?: string } | { type: 'close' | 'minimize' | 'maximize' | 'focus' | 'compact' | 'restore'; title: string } | { type: 'show-desktop' } | { type: 'toggle-compact'; collapsed?: boolean };
+export type DesktopAction = { type: 'open'; title: string; prompt?: string; promptScope?: string } | { type: 'close' | 'minimize' | 'maximize' | 'focus' | 'compact' | 'restore'; title: string } | { type: 'show-desktop' } | { type: 'toggle-compact'; collapsed?: boolean };
 export const initialDesktopState: DesktopState = { windows: [], active: null, compactActive: null, compactCollapsed: false };
 
 // Visibility is independent of size: minimizing never discards the current mode.
@@ -19,7 +19,7 @@ export function desktopReducer(state: DesktopState, action: DesktopAction): Desk
   }
   let window: DesktopWindow = existing ?? { title: action.title, mode: 'maximized', minimized: false, expandedMode: 'maximized' };
   switch (action.type) {
-    case 'open': window = { ...window, minimized: false, ...(action.prompt !== undefined ? { initialPrompt: { text: action.prompt } } : {}) }; break;
+    case 'open': window = { ...window, minimized: false, ...(action.prompt !== undefined ? { initialPrompt: { text: action.prompt, scopeKey: action.promptScope } } : {}) }; break;
     case 'focus': window = { ...window, minimized: false }; break;
     case 'minimize': window = { ...window, minimized: true }; break;
     case 'compact': window = { ...window, minimized: false, mode: 'compact', expandedMode: window.mode === 'compact' ? window.expandedMode : window.mode }; break;
