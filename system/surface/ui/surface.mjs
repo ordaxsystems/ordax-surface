@@ -37,6 +37,7 @@ import {
   createSurfaceState,
   createWorkspaceSnapshot,
   getActiveArea,
+  getActiveSurfaceAppId,
   reduceSurfaceState,
 } from "./surface-state.mjs";
 
@@ -1320,6 +1321,11 @@ export function mountSurface(
       catalog = next;
       dispatch({ type: "app.catalog.sync" });
       return catalog.list();
+    },
+    /** Read-only OS presentation projection shared by Native Intelligence and MCP.
+     * No DOM traversal, host credentials, or window instance IDs escape here. */
+    getActiveAppId() {
+      return getActiveSurfaceAppId(state);
     },
     getAppTarget(appId) {
       const area = getActiveArea(state);

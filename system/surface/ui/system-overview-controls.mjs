@@ -1,5 +1,6 @@
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
 import { markSurfaceFeedback } from "./surface-feedback.mjs";
+import { desktopMcpStatusPresentation } from "./desktop-mcp-status-presentation.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import {
   assertIntelligencePort,
@@ -316,6 +317,7 @@ export function mountSystemOverviewControls(
   componentManager = null,
   intelligence = null,
   recoveryStatus = null,
+  productRuntimeStatus = null,
 ) {
   if (!(root instanceof Element)) {
     throw new TypeError("System overview controls require a Surface root Element");
@@ -329,6 +331,10 @@ export function mountSystemOverviewControls(
   const componentPort = componentManager === null ? null : assertComponentManager(componentManager);
   const intelligencePort = intelligence === null ? null : assertIntelligencePort(intelligence);
   const recoveryPort = recoveryStatus === null ? null : assertRecoveryStatusPort(recoveryStatus);
+  if (productRuntimeStatus !== null && typeof productRuntimeStatus?.read !== "function") {
+    throw new TypeError("Desktop Product Runtime observation port requires read()");
+  }
+  const productRuntimePort = productRuntimeStatus;
   const lifecycle = assertSurfaceRenderLifecycle(surfaceLifecycle);
   const preferences = lifecycle.preferences == null
     ? null : assertPreferenceRuntimePort(lifecycle.preferences);
@@ -361,6 +367,11 @@ export function mountSystemOverviewControls(
   let recoveryPending = false;
   let recoveryMessageId = null;
   let recoveryOrdinal = 0;
+  let productRuntimeSnapshot = null;
+  let productRuntimePending = false;
+  let productRuntimeFailed = false;
+  let productRuntimeCheckedAt = 0;
+  let productRuntimeOrdinal = 0;
   let historyOrdinal = 0;
   let manualUpdatePending = false;
   let manualUpdateMessageId = null;
@@ -573,6 +584,14 @@ export function mountSystemOverviewControls(
       }),
     });
 
+    if (productRuntimePort) {
+      const state = desktopMcpStatusPresentation(productRuntimeSnapshot, productRuntimeFailed);
+      appendMetricCard(documentObject, grid, {
+        label: t("system.overview.mcp.card"),
+        value: t(state.valueId),
+        detail: t(state.detailId),
+      });
+    }
     const receivedAt = formatOverviewReceivedAt(
       metricsLastSuccessAt,
       localization.getLocale(),
@@ -1644,6 +1663,33 @@ export function mountSystemOverviewControls(
     }
   };
 
+  const refreshProductRuntime = async () => {
+    if (!productRuntimePort || productRuntimePending) return;
+    const ordinal = ++productRuntimeOrdinal;
+    productRuntimePending = true;
+    try {
+      const next = await productRuntimePort.read();
+      if (!next || next.schema !== "ordax.product-runtime-supervisor-status/1"
+          || next.host !== "ordax-desktop" || typeof next.processRunning !== "boolean"
+          || typeof next.mcpReady !== "boolean"
+          || typeof next.centralSessionAttested !== "boolean") {
+        throw new Error("Invalid Desktop MCP observation");
+      }
+      if (destroyed || ordinal !== productRuntimeOrdinal) return;
+      productRuntimeSnapshot = next;
+      productRuntimeFailed = false;
+    } catch {
+      if (destroyed || ordinal !== productRuntimeOrdinal) return;
+      productRuntimeSnapshot = null;
+      productRuntimeFailed = true;
+    } finally {
+      if (!destroyed && ordinal === productRuntimeOrdinal) {
+        productRuntimePending = false;
+        productRuntimeCheckedAt = Date.now();
+        replaceView();
+      }
+    }
+  };
   const refreshRecovery = async () => {
     if (!recoveryPort || recoveryPending) return;
     const ordinal = ++recoveryOrdinal;
@@ -1692,6 +1738,11 @@ export function mountSystemOverviewControls(
       && metricsPort && !metricsPrimed) {
       metricsPrimed = true;
       void refreshMetrics();
+    }
+    if (activeSection === "overview" && productRuntimePort && !productRuntimePending
+        && Date.now() - productRuntimeCheckedAt > 15000) {
+      // Only read while the native System window is visible and focused.
+      void refreshProductRuntime();
     }
     if (activeSection === "updates") {
       if (historyPort && !historyPrimed) {
@@ -1742,6 +1793,7 @@ export function mountSystemOverviewControls(
     const refresh = event.target.closest("[data-system-overview-refresh]");
     if (refresh && root.contains(refresh)) {
       void refreshMetrics();
+      void refreshProductRuntime();
       return;
     }
     const historyRefresh = event.target.closest("[data-system-history-refresh]");
@@ -1840,6 +1892,7 @@ export function mountSystemOverviewControls(
       metricsOrdinal += 1;
       historyOrdinal += 1;
       recoveryOrdinal += 1;
+      productRuntimeOrdinal += 1;
       disposeDiagnosticsReview();
       unsubscribeUpdate?.();
       unsubscribeIntelligence?.();
