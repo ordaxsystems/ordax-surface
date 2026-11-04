@@ -2,6 +2,19 @@
 
 **Repositório canônico da apresentação compartilhada** do OrdaX (Web, Desktop, USB e Native). O source visual pertence a este repositório; o host, os serviços e a distribuição do sistema operacional pertencem ao `ordaxsystems/ordax-os`.
 
+**Handoff de integração Aura/Fabric/MCP (04/11/2026):**
+a Surface é apenas owner da apresentação e do UX/consentimento
+sobre os ports reais do OS. O
+[`handoff ativo do OS`](https://github.com/ordaxsystems/ordax-os/blob/main/INTELLIGENCE-HANDOFF.md)
+explica a distinção entre a missão DEV Windows MCP
+[`Platform #291`](https://github.com/ordaxsystems/ordax-platform/issues/291)
+**encerrada**, a ponte Native
+[`OS #2400`](https://github.com/ordaxsystems/ordax-os/pull/2400)
+**pendente**, e a sincronização Store `CURRENT`/Aura/Runtime
+**ainda não implementada**. Não implementar na Surface outro
+registry, token, executor ou Device status; `activeAppId` é
+estado visual, nunca prova de instalação ou permissão.
+
 ## Estado da separação
 
 **Cutover de source concluído no OS, sem promoção física ou Stable.**

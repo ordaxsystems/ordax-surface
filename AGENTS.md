@@ -17,6 +17,30 @@ Este repositório é o owner canônico da interface visual compartilhada após o
 7. Não operar USB ou discos reais sem autorização específica.
 8. Atualizar documentação canônica apenas se contrato, arquitetura, estado real ou decisão mudou. Não gerar relatório, evidência duplicada nem novo workflow para cada correção.
 
+## Continuidade UI Aura/Fabric/MCP — 04/11/2026
+
+**Se a tarefa for capacidades ou controle pela Aura:** ler o
+[`INTELLIGENCE-HANDOFF.md` do OS](https://github.com/ordaxsystems/ordax-os/blob/main/INTELLIGENCE-HANDOFF.md)
+e a [matriz do Capability Fabric](https://github.com/ordaxsystems/ordax-os/blob/main/docs/CAPABILITY-FABRIC.md),
+verificando PRs/HEAD atuais. A Surface **apresenta** os ports
+reais do OS: estado de app/ações declaradas, permissões ou
+indisponibilidade derivadas. Nunca cria segundo catálogo
+`fabric.json`, executor, token de MCP, verificador de instalação
+ou grant na UI. `activeAppId` visual **não** prova app instalado
+nem autorização de ação.
+
+**Já concluído em outro owner:** a missão [Platform #291](https://github.com/ordaxsystems/ordax-platform/issues/291)
+de MCP no Windows físico e limpeza dos devices DEV foi fechada;
+não repeti-la como funcionalidade Surface. **Pendente:** a
+[OS #2400](https://github.com/ordaxsystems/ordax-os/pull/2400)
+ainda precisa integrar sua ponte Native Product; o port read-only
+para Store `CURRENT` e E2E de Aura/MCP não estão homologados.
+Exibir `unavailable`/não autorizado de forma honesta; não
+habilitar controle mouse/teclado global só porque o app possui
+botão. Quando o OS publicar um port funcional, a Surface fará
+somente a apresentação/consentimento e teste visual
+correspondentes, sem transportar o novo serviço para este repo.
+
 ## Handoff
 
 `README.md` registra o estado vigente e o procedimento de atualização; `provenance/` registra **somente** a importação histórica. Ownership e revisão operacional canônicos já são mantidos no OS em `docs/contracts/repository-ownership.json` e `docs/contracts/surface-source.json`. Não duplicar esses valores aqui, nem voltar a armazenar fonte visual no OS.
