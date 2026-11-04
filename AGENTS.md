@@ -1,5 +1,7 @@
 # AGENTS — OrdaX Surface
 
+> **Execução DEV — Evolução Rápida (regra transversal obrigatória):** aplicar a [política canônica OrdaX](https://github.com/ordaxsystems/ordax-os/blob/main/docs/DEVELOPMENT-WORKFLOW.md#regra-operacional-transversal--evolucao-rapida-dev-2026-11-04) antes de iniciar trabalho. Entregar a alteração no owner correto primeiro e validar com testes proporcionais depois; não ampliar escopo com auditorias, documentação, CI ou workflows sem causalidade. Preservar gates obrigatórios, integridade, segurança e autorização.
+
 ## Escopo e autoridade
 
 Este repositório é o owner canônico da interface visual compartilhada após o cutover integrado em `ordax-os#2198`. O `ordax-os` continua sendo a autoridade para serviços, host Native, contratos públicos, release, atualização/rollback e ativação. O source visual é consumido por SHA exato do contrato `ordax-os/docs/contracts/surface-source.json`, não pela ponta móvel de `main`. Cutover de source não autoriza hardware físico nem Stable.
