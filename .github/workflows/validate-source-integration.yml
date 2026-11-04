@@ -31,6 +31,8 @@ jobs:
   web-and-native-contracts:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    outputs:
+      publish_required: ${{ steps.publish-impact.outputs.publish_required }}
     steps:
       - name: Checkout Surface candidate
         uses: actions/checkout@v4
@@ -38,6 +40,37 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           path: surface
+
+      - name: Decide whether main changed Meridian source (fail closed)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: publish-impact
+        working-directory: surface
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # Keep the existing full contract suite for all changes. Only the
+          # signed Dev preview is skipped for a proven tests/-only main push.
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] &&
+             [[ ! "$BASE_SHA" =~ ^0{40}$ ]] &&
+             git fetch --no-tags --depth=1 origin "$BASE_SHA" &&
+             git diff --name-only --no-renames -z "$BASE_SHA" HEAD > "$RUNNER_TEMP/surface-changed-paths"; then
+            python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import sys
+          from pathlib import Path
+
+          raw = (Path(os.environ["RUNNER_TEMP"]) / "surface-changed-paths").read_bytes()
+          paths = [p for p in raw.split(b"\0") if p]
+          tests_only = bool(paths) and all(p.startswith(b"tests/") for p in paths)
+          print(f"publish_required={str(not tests_only).lower()}")
+          print(f"Meridian preview: tests_only={tests_only}; paths={paths!r}", file=sys.stderr)
+          PY
+          else
+            echo 'publish_required=true' >> "$GITHUB_OUTPUT"
+            echo 'Unproven source impact: keep signed preview gate'
+          fi
 
       - name: Checkout immutable OS import baseline (provenance only)
         uses: actions/checkout@v4
@@ -261,7 +294,7 @@ jobs:
   # Surface owns one durable signed Dev-only demonstration artifact.
   # This does not authorize production, Stable, Identity, USB or Site deployment.
   publish-meridian-dev-preview:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.web-and-native-contracts.outputs.publish_required != 'false'
     needs: web-and-native-contracts
     runs-on: ubuntu-24.04
     timeout-minutes: 15
