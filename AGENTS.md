@@ -8,14 +8,14 @@ Este repositório é o owner canônico da interface visual compartilhada após o
 
 ## Regras de execução
 
-1. Verifique a `main`, PRs relevantes dos repositórios `ordax-surface` e `ordax-os` e os contratos `docs/contracts/repository-ownership.json`, `docs/contracts/module-boundaries.json` e `docs/contracts/runtime-configuration.json` no OS.
+1. Localize na `main` os arquivos do pedido e eventuais PRs concorrentes relevantes. Consulte os contratos de ownership, limites de módulo e runtime do OS somente quando a mudança tocar essas fronteiras; não faça auditoria transversal para texto, CSS ou ajuste isolado.
 2. Preserve histórico de autoria e proveniência dos arquivos migrados, sem reescrever nenhuma `main`.
 3. Somente UI, presentation state, estilos e assets pertencem à Surface. Serviços Python, brokers, host nativo, boot, grants, storage e Supervisor pertencem ao OS ou ao owner existente.
 4. O OS consome um artefato/checkout imutável verificado e fornece capabilities através dos contratos públicos existentes. Não manter cópia source espelhada nem bridge permanente.
 5. Reconciliar modificações concorrentes em ambos os repositórios sem force-push; não absorver outras frentes.
-6. Para cada mudança visual, provar integração Web e Native com o host atual do OS, mantendo a proveniência histórica imutável. Qualquer novo SHA adotado pelo OS passa pelos gates canônicos de build/proveniência, QEMU, saúde do Supervisor e rollback/known-good; CI da Surface não equivale a promoção de release.
+6. **Validar por impacto após editar:** texto/CSS/ajuste visual isolado exige preview ou smoke específico; comportamento compartilhado exige testes existentes focados; mudança de integração Web/Native exige smoke dos modos afetados. **Não executar QEMU, rebuild de OS/USB, Supervisor ou prova física para cada mudança visual.** A adoção de novo SHA pelo OS ou promoção de release continua sujeita aos gates canônicos pertinentes ao impacto (incluindo proveniência, saúde, rollback e QEMU quando exigido); CI da Surface não equivale a promoção de release.
 7. Não operar USB ou discos reais sem autorização específica.
-8. Documentar baseline, evidências, decisões, merges e pendências nos owners correspondentes.
+8. Atualizar documentação canônica apenas se contrato, arquitetura, estado real ou decisão mudou. Não gerar relatório, evidência duplicada nem novo workflow para cada correção.
 
 ## Handoff
 
