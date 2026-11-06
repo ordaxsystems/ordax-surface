@@ -26,11 +26,13 @@ test('Space composition uses the shared Store status vocabulary, without a secon
   }
 });
 
-test('Space app panel exists only in the account view and not in sample spaces', () => {
+test('Spaces shows only the verified account view and its official profile/member composition', () => {
   const page = read('system/surface/workspace/components/central/spaces-experience.tsx');
-  assert.match(page, /mode==='account'&&<>\{children\}<SpaceProfileAppsPanel\/><SpaceMembersPanel\/><\/>/);
-  assert.match(page, /mode!=='examples'/);
-  assert.match(page, /const \[mode,setMode\]=useState<'account'\|'examples'>\('account'\)/);
+  assert.match(page, /const \{ authorized, identity, catalog, offline \} = useWebAccount\(\)/);
+  assert.match(page, /\{children\}[\s\S]*?<SpaceProfileAppsPanel\/>[\s\S]*?<SpaceMembersPanel\/>/);
+  assert.match(page, /authorized\.ready \? 'Catálogo confirmado pelo serviço da conta\.'/);
+  assert.doesNotMatch(page, /mountSpacesPresentation|SpacesPresentation|Ver exemplos completos|mode==='examples'|Dados fictícios|setVisited/);
+  assert.doesNotMatch(page, /fetch\(|localStorage|sessionStorage/);
 });
 
 test("Spaces is the sole user-facing destination for Profile composition in Native and Meridian", async () => {
