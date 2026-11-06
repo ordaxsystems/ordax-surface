@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, ShieldCheck, Monitor, Folder, Clock3, Layers3, ShoppingBag } from 'lucide-react';
 import { useWebAccount } from './account-context';
 import { StoreCatalogSummary } from '../store/catalog-summary';
+import { HomeSpacePicker } from './home-space-picker';
 import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { useWebPreferences } from './preferences-context';
 import { resolveRegionalTimeZone } from '../../../../services/preferences/regional.mjs';
@@ -35,7 +36,7 @@ function MeridianHomeContext({onOpen}:Props) {
   const date=new Intl.DateTimeFormat('pt-BR',{timeZone,weekday:'long',day:'numeric',month:'long'}).format(now);
   return <div className="meridian-home">
     <div className="meridian-page">
-      <section className="meridian-welcome"><div><p className="meridian-eyebrow"><time dateTime={now.toISOString()}>{date}</time><span>·</span>{authorized.activeSpace?.name??'Seu espaço'}</p><h1>{greeting}{identity.state==='signed-in'?', '+displayName:''}.</h1><p>{homeCopy('shell.home.tagline')}</p></div><button className="meridian-context" onClick={()=>onOpen('Espaços')}><Layers3/><span><small>NO SEU CONTEXTO</small><strong>{authorized.activeSpace?.name??'Escolher um Space'}</strong></span><ArrowUpRight size={16}/></button></section>
+      <section className="meridian-welcome"><div><p className="meridian-eyebrow"><time dateTime={now.toISOString()}>{date}</time><span>·</span>{authorized.activeSpace?.name??'Seu espaço'}</p><h1>{greeting}{identity.state==='signed-in'?', '+displayName:''}.</h1><p>{homeCopy('shell.home.tagline')}</p></div><HomeSpacePicker onManage={()=>onOpen('Espaços')}/></section>
       <section className="meridian-hero" aria-label={homeCopy('shell.home.hero.aria')}><img src={scene.period==='night'?nightWallpaper:dayWallpaper} alt={scene.period==='night'?'Lago alpino sob a luz da lua':'Lago alpino ao amanhecer'} width={1920} height={768}/><div><p className="meridian-eyebrow">{homeCopy('shell.home.hero.label')}</p><h2>{homeCopy('shell.home.hero.title.first')}<br/>{homeCopy('shell.home.hero.title.second')}</h2><p>{homeCopy('shell.home.hero.description.first')}<br/>{homeCopy('shell.home.hero.description.second')}</p><button onClick={()=>setTab('work')}>Encontre seu próximo passo <ArrowRight size={17}/></button></div><span className="meridian-hero-caption">OrdaX · Central</span></section>
       <div className="meridian-session-strip" aria-label="Estado da sessão"><span><Monitor size={15}/>Web · sessão do navegador</span><button onClick={()=>onOpen('Minha conta')}><ShieldCheck size={15}/>Conta · {sidebarAccount.status}</button><button onClick={()=>onOpen('Loja')}><ShoppingBag size={15}/>Loja e recursos</button><button className="meridian-integration-status" onClick={()=>onOpen('Configurações')}>Recursos pendentes · consultar Ajustes</button></div>
       <nav className="meridian-tabs" aria-label="Perspectivas da Central">{[{id:'day' as const,label:'Visão do dia'},{id:'work' as const,label:'Seu trabalho'},{id:'ecosystem' as const,label:'Ecossistema'}].map(item=><button key={item.id} aria-pressed={tab===item.id} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
