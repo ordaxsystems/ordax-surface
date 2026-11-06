@@ -12,7 +12,8 @@ test('Home selects only current authorized, active Spaces via canonical Account 
   assert.match(source, /session\.surface\.getSnapshot\(\)\.connectivity === 'offline'/);
   assert.match(source, /deriveAuthorizedSpaces\(\s*session\.identity\.getSnapshot\(\), session\.spaces\.getSnapshot\(\), session\.selection\.getSnapshot\(\)/);
   assert.match(source, /if \(!live\.ready\)/);
-  assert.match(source, /live\.visibleSpaces\.find\(space => space\.id === spaceId && space\.state === 'active'\)/);
+  assert.match(source, /const liveSpaces: typeof authorized\.visibleSpaces = live\.visibleSpaces/);
+  assert.match(source, /liveSpaces\.find\(space => space\.id === spaceId && space\.state === 'active'\)/);
   assert.match(source, /session\.selection\.select\(match\.id\)/);
   assert.match(source, /session\.selection\.clear\(\)/);
   assert.doesNotMatch(source, /(?:fetch\(|localStorage|sessionStorage|indexedDB|\.save\(|\.grant\(|\.activate\()/);
