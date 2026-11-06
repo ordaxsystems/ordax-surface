@@ -216,6 +216,7 @@ export function createDesktopShellMarkup(localization) {
                 ${CENTRAL_QUICK_ACCESS_APP_IDS.map((id) => railButton(id, t(`app.${id}.title`), ICONS[id], t, "ordax-home-action")).join("")}
                 <button type="button" class="ordax-home-action ordax-home-add-app" data-launcher-toggle><span class="ordax-rail-icon ordax-home-plus" aria-hidden="true">+</span><span data-home-copy="home.apps.add">${t("home.apps.add")}</span></button>
               </div>
+              <div class="ordax-store-preview" data-native-store-catalog-preview="home" role="status" aria-live="polite"></div>
             </section>
             <section class="ordax-home-explore" aria-labelledby="ordax-home-explore-title">
               <div class="ordax-home-section-heading"><h2 id="ordax-home-explore-title" data-home-copy="shell.home.explore.title">${t("shell.home.explore.title")}</h2><p data-home-copy="shell.home.explore.description">${t("shell.home.explore.description")}</p></div>
@@ -254,6 +255,7 @@ export function createDesktopShellMarkup(localization) {
             <kbd>Esc</kbd>
           </label>
           <div class="ordax-launcher-grid" data-app-launcher></div>
+          <div class="ordax-store-preview ordax-launcher-store-preview" data-native-store-catalog-preview="launcher" role="status" aria-live="polite"></div>
         </div>
       </div>
 
