@@ -1,4 +1,5 @@
 import { useStoreCatalog } from './catalog-context';
+import { useWebAccount } from '../central/account-context';
 import { storeAppStatusLabel } from './app-status-labels';
 import { projectStoreCatalogPreview, storeEntryVisualState } from '../../../ui/store-entry-presentation.mjs';
 
@@ -6,6 +7,15 @@ import { projectStoreCatalogPreview, storeEntryVisualState } from '../../../ui/s
 // register an executable app, grant permissions, or issue lifecycle requests.
 export function StoreCatalogSummary({ limit = 6 }: { limit?: number }) {
   const snapshot = useStoreCatalog();
+  const { identity, offline } = useWebAccount();
+  // The catalog is an OS-owned read-only port, not an authentication grant.
+  // Never retain its rendered rows after this Web session loses authority.
+  if (identity.state !== 'signed-in' || offline) {
+    const message = offline ? 'Sem conexão. Os aplicativos serão consultados novamente quando o serviço voltar.'
+      : identity.state === 'signed-out' ? 'Sessão encerrada. Entre na Conta OrdaX para consultar os aplicativos.'
+      : 'O serviço de Conta OrdaX está indisponível. Nenhum aplicativo desta sessão será exibido.';
+    return <p className="service-state" role="status" data-store-session-state={offline ? 'offline' : identity.state}>{message}</p>;
+  }
   if (snapshot.state !== 'ready') {
     return <p className="service-state" role="status">Catálogo oficial indisponível nesta sessão. Nenhuma instalação pode ser confirmada.</p>;
   }

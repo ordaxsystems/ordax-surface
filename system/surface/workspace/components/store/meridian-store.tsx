@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useWebPreferences } from '../central/preferences-context';
+import { useWebAccount } from '../central/account-context';
 import { useStoreCatalogPort } from './catalog-context';
 import { mountStoreExperience } from '../../../ui/store-experience.mjs';
 import { createStoreViewLifecycle } from '../../../ui/store-view-lifecycle.mjs';
@@ -13,8 +14,21 @@ import { ACCESSIBILITY_CONTRAST_PREFERENCE_ID, ACCESSIBILITY_MOTION_PREFERENCE_I
 
 const presentationAssets = { template, styles, tokens };
 
-/** Web composes the same Store as Native; availability comes only from its port. */
+/** Web composition uses only canonical Account and Store ports; no new session. */
 export function StoreExperience() {
+  const { identity, offline } = useWebAccount();
+  if (identity.state !== 'signed-in' || offline) {
+    const message = offline ? 'A Loja está indisponível sem conexão. Reconecte e consulte novamente.'
+      : identity.state === 'signed-out' ? 'Sessão encerrada. Entre na Conta OrdaX para consultar a Loja.'
+      : 'O serviço de Conta OrdaX está indisponível. A Loja não exibirá estados anteriores.';
+    return <div className="service-state" role="status" data-store-session-state={offline ? 'offline' : identity.state}>{message}</div>;
+  }
+  // Owner change destroys the previous Store instance, including unconfirmed
+  // UI request receipts, focus and modal state. No lifecycle action is replayed.
+  return <AuthenticatedStoreExperience key={identity.subjectId}/>;
+}
+
+function AuthenticatedStoreExperience() {
   const host = useRef<HTMLDivElement>(null);
   const instance = useRef<ReturnType<typeof mountStoreExperience> | null>(null);
   const catalogPort = useStoreCatalogPort();
