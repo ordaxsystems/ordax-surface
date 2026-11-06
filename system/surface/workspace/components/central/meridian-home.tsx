@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, ShieldCheck, Monitor, Folder, Clock3, Layers3, ShoppingBag } from 'lucide-react';
 import { useWebAccount } from './account-context';
+import { StoreCatalogSummary } from '../store/catalog-summary';
 import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { useWebPreferences } from './preferences-context';
 import { resolveRegionalTimeZone } from '../../../../services/preferences/regional.mjs';
@@ -46,6 +47,10 @@ function MeridianHomeContext({onOpen}:Props) {
         <section className="meridian-section">
           <header><h2>Arquivos e documentos</h2><button onClick={()=>onOpen('Arquivos')}>Abrir Arquivos<ArrowUpRight size={15}/></button></header>
           <div className="meridian-activity" role="status"><Folder size={18}/><p>Arquivos ainda não conectados.<small>O acesso a arquivos depende de um dispositivo e de uma autorização real.</small></p></div>
+        </section>
+        <section className="meridian-section" aria-label="Aplicativos do catálogo oficial">
+          <header><h2>Aplicativos do dispositivo</h2><button onClick={()=>onOpen('Loja')}>Ver na Loja<ArrowUpRight size={15}/></button></header>
+          <StoreCatalogSummary limit={4}/>
         </section>
         <section className="meridian-section">
           <header><h2>O que se moveu</h2><button onClick={()=>onOpen('Atividades')}>Atividade<ArrowUpRight size={15}/></button></header>

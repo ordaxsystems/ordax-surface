@@ -380,3 +380,10 @@ details.oi-demo-commands{display:block;margin-top:6px;text-align:center}details.
 .web-compact .web-space-switch{flex-direction:column}.web-compact .web-space-switch>button:first-child{width:36px;padding:0}.web-compact .web-space-switch>button:first-child span,.web-compact .web-space-switch>button:first-child>svg:last-child{display:none}
 
 @media(min-width:821px){.web-pages,.web-window-maximized>.web-window-content{padding-bottom:var(--web-footer-height)}.web-window.web-window-compact{bottom:calc(var(--web-footer-height) + 10px)}}
+
+/* The Store port owns lifecycle state; these rows cannot launch anything. */
+.ordax-web-catalog-summary {min-width:0;display:grid;gap:8px;margin-block:10px;}
+.ordax-web-catalog-list {list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;}
+.ordax-web-catalog-list li {display:flex;min-width:0;flex-direction:column;gap:3px;padding:10px;border:1px solid var(--md-border);border-radius:var(--md-radius-small);background:var(--md-surface);}
+.ordax-web-catalog-list li strong {font-size:.8rem;overflow-wrap:anywhere;}
+.ordax-web-catalog-list li small {color:var(--md-muted);font-size:.72rem;}

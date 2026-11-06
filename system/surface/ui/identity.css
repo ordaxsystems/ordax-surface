@@ -662,3 +662,12 @@ body { background: var(--md-canvas); font-weight: 400; }
   }
   .meridian-native-workspace > .ordax-rail.ordax-product-sidebar .meridian-rail-context { display:none; }
 }
+
+/* Read-only Store state summary; never styled as an executable app shortcut. */
+.ordax-store-preview { display:grid;gap:8px;min-width:0;margin-top:12px;padding:12px;border:1px solid var(--md-border);border-radius:var(--md-radius-small);background:var(--md-surface);color:var(--md-ink);font-size:.78rem; }
+.ordax-store-preview-heading { font-size:.8rem;font-weight:650; }
+.ordax-store-preview p,.ordax-store-preview small { margin:0;color:var(--md-muted);font-size:.72rem; }
+.ordax-store-preview-list { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:6px;list-style:none;padding:0;margin:0; }
+.ordax-store-preview-list li { display:flex;flex-direction:column;min-width:0;gap:2px;padding:7px 9px;border:1px solid var(--md-border);border-radius:var(--md-radius-small);background:var(--md-canvas); }
+.ordax-store-preview-list li span {overflow-wrap:anywhere;font-weight:550;}
+.ordax-launcher-store-preview {max-height:220px;overflow:auto;}

@@ -1,4 +1,5 @@
 import { mountStoreOverviewControls } from './store-overview-controls.mjs';
+import { mountNativeStoreCatalogPreview } from './native-store-catalog-preview.mjs';
 
 const presentationTemplate = new URL('../workspace/components/store/presentation/template.html', import.meta.url);
 // Vite otherwise serves a CSS file fetched with fetch() as a JavaScript HMR module.
@@ -108,6 +109,8 @@ export function mountStoreExperience(host, {
 export function mountStoreWindows(root, catalogPort, surfaceLifecycle,
   lifecycleRequestPort = null, modelHardwareReader = null, modelMetricsPort = null, appActivationPort = null) {
   let slot = null, instance = null;
+  // Shares the same verified read-only Store port as the Store window.
+  const nativePreview = mountNativeStoreCatalogPreview(root, catalogPort, surfaceLifecycle);
   function render() {
     const next = root.querySelector('[data-window-id="store"] [data-app-extension="store-overview"]');
     if (next !== slot) {
@@ -124,5 +127,5 @@ export function mountStoreWindows(root, catalogPort, surfaceLifecycle,
   }
   const unsubscribe = surfaceLifecycle.subscribeRender(render);
   render();
-  return Object.freeze({destroy() {unsubscribe?.();instance?.destroy();instance = null;slot = null;}});
+  return Object.freeze({destroy() {unsubscribe?.();nativePreview.destroy();instance?.destroy();instance = null;slot = null;}});
 }
