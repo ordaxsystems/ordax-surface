@@ -1,20 +1,12 @@
 import { assertAppStoreCatalogPort, validateAppStoreCatalogSnapshot } from "../../contracts/app-store.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { projectStoreCatalogPreview } from "./store-entry-presentation.mjs";
 
 // Read-only projection of the exact Store catalog already mounted by the OS.
 // A catalog entry is never a launch grant; Native app activation remains owned
 // by the host's separately verified installed-app runtime and authorization.
 export function projectNativeStorePreview(snapshot, limit = 6) {
-  const verified = validateAppStoreCatalogSnapshot(snapshot);
-  if (verified.state !== "ready") return Object.freeze({ state: "unavailable", entries: Object.freeze([]), total: 0 });
-  const sorted = [...verified.entries].sort((a, b) =>
-    Number(b.installedVersion !== null) - Number(a.installedVersion !== null)
-    || a.title.localeCompare(b.title, "pt-BR"));
-  return Object.freeze({
-    state: "ready",
-    total: sorted.length,
-    entries: Object.freeze(sorted.slice(0, limit)),
-  });
+  return projectStoreCatalogPreview(validateAppStoreCatalogSnapshot(snapshot), limit);
 }
 
 function renderPreview(slot, catalog, t) {
