@@ -30,5 +30,9 @@ export const webNavigation: { id: WebView; title: string; icon: typeof House; ki
   { id: 'store', title: 'Loja', icon: ShoppingBag, kind: 'page' },
 ];
 export const webServices = { identity: account.connection, intelligence: 'unavailable', fileSpace: 'unavailable', projects: 'unavailable', spaces: 'unavailable', lifecycle: 'unavailable', sync: 'unavailable' } as const;
+// Web-only presentation projection: these destinations have an actionable UI in
+// this browser session. This is NOT an installed-app inventory or OS catalog.
+// Store availability remains entirely governed by its authoritative Store port.
+export const webWorkspaceEntries = webApps.filter(app => app.id === 'internet' || app.id === 'settings' || app.id === 'store');
 export const getWebApp = (id: WebAppId) => webApps.find(app => app.id === id) ?? webApps[0];
 export const normalizeWebView = (value: unknown): WebView => webViews.find(view => view === value) ?? 'home';
