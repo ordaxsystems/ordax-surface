@@ -237,7 +237,7 @@ export function SpaceMembersPanel() {
           const actions = member.actions;
           // The current role is displayed separately. A change selector must
           // never pretend that a current, non-assignable role is its first option.
-          const assignableRoles = actions.assignableRoles.filter(role => role !== member.role);
+          const assignableRoles = actions.assignableRoles.filter((role: ActionRole) => role !== member.role);
           const editable = canManageMembers && ((actions.canChangeRole && assignableRoles.length > 0) || actions.canSuspend || actions.canReactivate || actions.canRemove);
           return <article key={member.userId} role="listitem" className="meridian-space-member-row" data-state={memberState}>
             <span className="meridian-space-member-avatar" aria-hidden="true"><UsersRound/></span>
