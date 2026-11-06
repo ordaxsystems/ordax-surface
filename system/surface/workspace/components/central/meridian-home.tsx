@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, ArrowRight, Sparkles, ShieldCheck, Monitor, Folder, FileText, Clock3, Smartphone, Layers3, ShoppingBag, Moon, Sun, Plus, Check } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, ShieldCheck, Monitor, Folder, Clock3, Layers3, ShoppingBag } from 'lucide-react';
 import { useWebAccount } from './account-context';
 import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { useWebPreferences } from './preferences-context';
@@ -10,7 +10,6 @@ import dayWallpaper from '@/assets/alpine-day.jpg';
 import nightWallpaper from '@/assets/alpine-night.jpg';
 
 type Props = {theme:'light'|'dark'; onOpen:(title:string)=>void; onExample:(title:string)=>void};
-const exampleFiles = [{name:'Direção visual',kind:'Documento · exemplo',icon:FileText},{name:'Referências do projeto',kind:'Pasta · exemplo',icon:Folder},{name:'Ideias para o próximo passo',kind:'Notas · exemplo',icon:FileText}];
 const ecosystems = [{name:'Spaces',note:'Contextos diferentes. O mesmo fio.',icon:Layers3,target:'Espaços'},{name:'Dispositivos',note:'Cada tela pode fazer mais.',icon:Monitor,target:'Dispositivos'},{name:'Descobrir',note:'Novas peças para o seu mundo.',icon:ShoppingBag,target:'Loja'}];
 const homeCopy = (messageId:string) => translateSurfaceMessage(SURFACE_SOURCE_LOCALE, messageId);
 // A keyed island removes presentation-only drafts *before* the next identity
@@ -23,13 +22,12 @@ export function MeridianHome(props:Props) {
   />;
 }
 
-function MeridianHomeContext({onOpen,onExample}:Props) {
+function MeridianHomeContext({onOpen}:Props) {
   const {identity,displayName,authorized,sidebarAccount}=useWebAccount();
   const {snapshot:preferences}=useWebPreferences();
   const timeZone=resolveRegionalTimeZone(preferences);
   const [tab,setTab]=useState<'day'|'work'|'ecosystem'>('day');
   const [now,setNow]=useState(()=>new Date());
-  const [tasks,setTasks]=useState<string[]>([]);
   useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60000);return()=>window.clearInterval(timer);},[]);
   const scene=resolveHomeScene(now,timeZone);
   const greeting=homeCopy(scene.greetingId).replace(/\.$/,'');
@@ -40,13 +38,24 @@ function MeridianHomeContext({onOpen,onExample}:Props) {
       <section className="meridian-hero" aria-label={homeCopy('shell.home.hero.aria')}><img src={scene.period==='night'?nightWallpaper:dayWallpaper} alt={scene.period==='night'?'Lago alpino sob a luz da lua':'Lago alpino ao amanhecer'} width={1920} height={768}/><div><p className="meridian-eyebrow">{homeCopy('shell.home.hero.label')}</p><h2>{homeCopy('shell.home.hero.title.first')}<br/>{homeCopy('shell.home.hero.title.second')}</h2><p>{homeCopy('shell.home.hero.description.first')}<br/>{homeCopy('shell.home.hero.description.second')}</p><button onClick={()=>setTab('work')}>Encontre seu próximo passo <ArrowRight size={17}/></button></div><span className="meridian-hero-caption">OrdaX · Central</span></section>
       <div className="meridian-session-strip" aria-label="Estado da sessão"><span><Monitor size={15}/>Web · sessão do navegador</span><button onClick={()=>onOpen('Minha conta')}><ShieldCheck size={15}/>Conta · {sidebarAccount.status}</button><button onClick={()=>onOpen('Loja')}><ShoppingBag size={15}/>Loja e recursos</button><button className="meridian-integration-status" onClick={()=>onOpen('Configurações')}>Recursos pendentes · consultar Ajustes</button></div>
       <nav className="meridian-tabs" aria-label="Perspectivas da Central">{[{id:'day' as const,label:'Visão do dia'},{id:'work' as const,label:'Seu trabalho'},{id:'ecosystem' as const,label:'Ecossistema'}].map(item=><button key={item.id} aria-pressed={tab===item.id} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
-      {tab==='ecosystem'?<section className="meridian-ecosystem"><div><p className="meridian-eyebrow">UM SISTEMA. MUITAS POSSIBILIDADES.</p><h2>O seu jeito de fazer,<br/>com as ferramentas certas.</h2><p>Cada Space reúne seu contexto e a composição profissional.<br/>Seus dispositivos completam a experiência.</p></div><div>{ecosystems.map(item=><button key={item.name} onClick={()=>item.target?onOpen(item.target):onExample(item.name)}><item.icon size={27}/><span><strong>{item.name}</strong><small>{item.note}</small></span><ArrowUpRight size={19}/></button>)}</div></section>:<div className="meridian-columns"><div>
-        <section className="meridian-section"><header><h2>{tab==='work'?'Projetos com contexto':'Retome o fio.'}</h2><button onClick={()=>onOpen('Projetos')}>{tab==='work'?'Seus projetos':'Ver tudo'}<ArrowUpRight size={15}/></button></header><button className="meridian-project" onClick={()=>onExample('Projeto Atlas')}><span className="meridian-project-art"><span>ATLAS<small>ESTUDO 04 / FORMA</small></span><i/><b>Exemplo</b></span><span className="meridian-project-copy"><small className="meridian-eyebrow">PROJETO DE EXEMPLO</small><strong>Uma identidade<br/>em construção.</strong><span>Suas ideias, referências e ferramentas.<br/>Um lugar para retomar.</span><span className="meridian-project-people">LM <i>RC</i><i>AN</i><small>Colaboração · mock</small></span><b>Explorar projeto <ArrowRight size={17}/></b></span></button></section>
-        {tab==='work'&&<section className="meridian-section"><header><h2>O próximo passo</h2><span className="meridian-mock-badge">Checklist de exemplo · nesta sessão</span></header>{['Reunir referências','Desenvolver a primeira ideia','Revisar o próximo passo'].map(task=><button className="meridian-task" key={task} role="checkbox" aria-checked={tasks.includes(task)} onClick={()=>setTasks(value=>value.includes(task)?value.filter(t=>t!==task):[...value,task])}><span>{tasks.includes(task)&&<Check size={14}/>}</span>{task}</button>)}</section>}
-        <section className="meridian-section"><header><h2>A um passo de continuar</h2><button onClick={()=>onOpen('Arquivos')}>Arquivos<ArrowUpRight size={15}/></button></header>{exampleFiles.map(file=><button className="meridian-file" key={file.name} onClick={()=>onExample(file.name)}><span><file.icon size={21}/></span><strong>{file.name}<small>{file.kind}</small></strong><ArrowUpRight size={17}/></button>)}</section>
-        <section className="meridian-section"><header><h2>O que se moveu</h2><button onClick={()=>onOpen('Atividades')}>Atividade<ArrowUpRight size={15}/></button></header><div className="meridian-activity"><Clock3 size={18}/><p>Sua atividade, no seu contexto.<small>A conexão com o histórico ainda está em desenvolvimento.</small></p><span className="meridian-mock-badge">Planejado</span></div></section>
-      </div><aside className="meridian-day" aria-label="Seu dia e dispositivos"><section><header><h2>No seu horizonte</h2><span className="meridian-mock-badge">Exemplo</span></header><button className="meridian-agenda" onClick={()=>onExample('Agenda e compromissos')}><time>09:30</time><span><strong>Um momento para criar</strong><small>Agenda ilustrativa · sem compromisso real</small></span></button><button className="meridian-agenda" onClick={()=>onExample('Agenda e compromissos')}><time>14:00</time><span><strong>Revisar o próximo passo</strong><small>Agenda ilustrativa · sem compromisso real</small></span></button><button className="meridian-agenda-action" onClick={()=>onExample('Contexto da próxima reunião')}><Sparkles size={16}/>Prepare o contexto da reunião<ArrowUpRight size={15}/></button></section><section><header><h2>Ao seu alcance</h2><ArrowUpRight size={16}/></header><button className="meridian-phone" onClick={()=>onOpen('Dispositivos')}><Smartphone size={58}/><span><strong>Seu telefone.<br/>Uma nova ferramenta.</strong><small>Câmera, áudio ou segunda tela.<br/>Integração planejada.</small></span></button><small className="meridian-example-note">Mock visual · nenhum dispositivo conectado por este card.</small></section><section className="meridian-flow"><p className="meridian-eyebrow">INTELIGÊNCIA NO CONTEXTO</p><h2>Menos preparação.<br/>Mais criação.</h2><p>Rotinas para reunir o que você precisa antes de começar.</p><button onClick={()=>onExample('Rotinas do seu Space')}>Conheça suas rotinas<ArrowRight size={16}/></button><span className="meridian-mock-badge">Planejado</span></section></aside></div>}
-      <footer className="meridian-page-footer">OrdaX <span>Os exemplos mantêm os próximos recursos à vista. Dados reais continuam nos seus serviços.</span><button onClick={()=>onOpen('Loja')}>Explorar a Loja<ArrowRight size={15}/></button></footer>
+      {tab==='ecosystem'?<section className="meridian-ecosystem"><div><p className="meridian-eyebrow">UM SISTEMA. MUITAS POSSIBILIDADES.</p><h2>O seu jeito de fazer,<br/>com as ferramentas certas.</h2><p>Cada Space reúne seu contexto e a composição profissional.<br/>Seus dispositivos completam a experiência.</p></div><div>{ecosystems.map(item=><button key={item.name} onClick={()=>onOpen(item.target)}><item.icon size={27}/><span><strong>{item.name}</strong><small>{item.note}</small></span><ArrowUpRight size={19}/></button>)}</div></section>:<div className="meridian-columns"><div>
+        <section className="meridian-section">
+          <header><h2>{tab==='work'?'Seus projetos':'Retome o fio.'}</h2><button onClick={()=>onOpen('Projetos')}>Abrir Projetos<ArrowUpRight size={15}/></button></header>
+          <div className="meridian-activity" role="status"><Folder size={18}/><p>Nenhum projeto disponível nesta sessão.<small>O registro de projetos ainda não está conectado. Nenhum projeto demonstrativo é apresentado como seu.</small></p></div>
+        </section>
+        <section className="meridian-section">
+          <header><h2>Arquivos e documentos</h2><button onClick={()=>onOpen('Arquivos')}>Abrir Arquivos<ArrowUpRight size={15}/></button></header>
+          <div className="meridian-activity" role="status"><Folder size={18}/><p>Arquivos ainda não conectados.<small>O acesso a arquivos depende de um dispositivo e de uma autorização real.</small></p></div>
+        </section>
+        <section className="meridian-section">
+          <header><h2>O que se moveu</h2><button onClick={()=>onOpen('Atividades')}>Atividade<ArrowUpRight size={15}/></button></header>
+          <div className="meridian-activity"><Clock3 size={18}/><p>Sua atividade, no seu contexto.<small>O histórico de atividades ainda não está conectado nesta sessão.</small></p></div>
+        </section>
+      </div><aside className="meridian-day" aria-label="Seu dia e dispositivos">
+        <section><header><h2>No seu horizonte</h2></header><div className="meridian-activity" role="status"><Clock3 size={18}/><p>Nenhum compromisso disponível.<small>Não há uma agenda autorizada conectada nesta sessão.</small></p></div></section>
+        <section><header><h2>Dispositivos</h2></header><button className="meridian-phone" onClick={()=>onOpen('Dispositivos')}><Monitor size={58}/><span><strong>Seus dispositivos.</strong><small>Consulte a disponibilidade pelo serviço oficial. Nenhum dispositivo foi presumido como conectado.</small></span></button></section>
+      </aside></div>}
+      <footer className="meridian-page-footer">OrdaX <span>A Central apresenta apenas o que está disponível ou identificado como não conectado.</span><button onClick={()=>onOpen('Loja')}>Explorar a Loja<ArrowRight size={15}/></button></footer>
     </div>
   </div>;
 }

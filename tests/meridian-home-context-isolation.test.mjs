@@ -30,7 +30,8 @@ test("Home remounts contextual presentation without a second Aura composer",asyn
   assert.match(wrapper,/const \{identity,authorized\}=useWebAccount\(\)/);
   assert.match(wrapper,/key=\{meridianHomeContextKey\(identity, authorized\.activeSpace\)\}/);
   assert.doesNotMatch(wrapper,/setPrompt|setTasks|useEffect/);
-  assert.match(content,/const \[tasks,setTasks\]=useState<string\[\]>\(\[\]\)/);
+  assert.doesNotMatch(content,/const \[tasks,setTasks\]=useState<string\[\]>\(\[\]\)/);
+  assert.match(content,/Nenhum projeto disponível nesta sessão/);
   assert.doesNotMatch(content,/onPrompt|meridian-prompt|Aura contextual/);
   assert.doesNotMatch(s,/localStorage|sessionStorage/);
 });
