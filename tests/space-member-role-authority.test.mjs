@@ -35,3 +35,24 @@ test('role change selector reflects only actual changes allowed by server, never
   assert.match(source, /Modo somente leitura; sem permissão para gerenciar membros/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|fetch\(/);
 });
+
+test('member mutations revalidate official actor capability before recording any attempt or sending writes', () => {
+  const flow = source.slice(source.indexOf('async function runAction('), source.indexOf('// A lost connection is not a sign-out'));
+  const read = flow.indexOf('const verified = await actorCapability.read({ spaceId })');
+  const attempt = flow.indexOf('const attempt = attempts.current.begin(');
+  const mutation = flow.indexOf('await membershipActions.changeMemberRole(');
+  assert.ok(read > 0 && attempt > read && mutation > attempt, 'authorization read must precede idempotency and mutation');
+  assert.match(flow, /if \(!isCurrent\(\)\) return;/);
+  assert.match(flow, /verified\.spaceId !== spaceId \|\| verified\.userId !== subjectId/);
+  assert.match(flow, /verified\.state !== 'active' \|\| !verified\.canManageMembers/);
+  assert.match(flow, /setCapability\(verified\)/);
+  assert.match(flow, /setCapabilityState\('ready'\)/);
+  assert.match(flow, /A permissão de gerenciar membros foi revogada ou suspensa\. Nenhuma alteração foi enviada/);
+  assert.match(flow, /Não foi possível confirmar a permissão da conta atual\. Nenhuma alteração foi enviada/);
+  assert.match(flow, /if \(!mutationStarted\) \{\s*setCapability\(null\);\s*setCapabilityState\('error'\)/);
+  assert.match(flow, /Não foi possível revalidar suas permissões\. Nenhuma alteração foi enviada/);
+  assert.match(flow, /mutationStarted = true/);
+  assert.match(flow, /current\.actorCapability === actorCapability/);
+  assert.match(flow, /attempt\.confirm\(\)/);
+  assert.doesNotMatch(flow, /fetch\(|localStorage|sessionStorage/);
+});
