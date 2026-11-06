@@ -8,6 +8,10 @@ const LABELS: Readonly<Record<string, string>> = Object.freeze({
   blocked: 'Bloqueado',
   'failed-retained': 'Falha; versão preservada',
   'in-progress': 'Operação em andamento',
+  installing: 'Instalando',
+  updating: 'Atualizando',
+  removing: 'Removendo',
+  staged: 'Preparando atualização',
   unavailable: 'Indisponível',
 });
 
