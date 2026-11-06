@@ -1,6 +1,6 @@
 import { assertAppStoreCatalogPort, validateAppStoreCatalogSnapshot } from "../../contracts/app-store.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
-import { projectStoreCatalogPreview } from "./store-entry-presentation.mjs";
+import { projectStoreCatalogPreview, storeEntryVisualState } from "./store-entry-presentation.mjs";
 
 // Read-only projection of the exact Store catalog already mounted by the OS.
 // A catalog entry is never a launch grant; Native app activation remains owned
@@ -38,14 +38,31 @@ function renderPreview(slot, catalog, t) {
   const list = doc.createElement("ul");
   list.className = "ordax-store-preview-list";
   for (const entry of result.entries) {
+    const visual = storeEntryVisualState(entry);
     const row = doc.createElement("li");
-    row.dataset.storeEntryState = entry.state;
+    row.dataset.storeEntryState = visual.state;
+    row.dataset.storeUpdateAvailable = String(visual.updateAvailable);
     const title = doc.createElement("span");
     title.textContent = entry.title;
     const detail = doc.createElement("small");
-    const stateLabel = entry.updatable ? t("store.section.updates") : t("store.state." + entry.state);
-    detail.textContent = stateLabel + (entry.installedVersion ? " · " + entry.installedVersion : "");
+    detail.textContent = visual.updateAvailable ? t("store.section.updates") : t("store.state." + visual.state);
     row.append(title, detail);
+    if (entry.installedVersion !== null || entry.availableVersion !== null) {
+      const versions = doc.createElement("small");
+      versions.className = "ordax-store-preview-versions";
+      versions.textContent = entry.installedVersion !== null && entry.availableVersion !== null
+        ? t("store.version.update", { installedVersion: entry.installedVersion, availableVersion: entry.availableVersion })
+        : entry.installedVersion !== null
+          ? t("store.version.installed", { version: entry.installedVersion })
+          : t("store.version.available", { version: entry.availableVersion });
+      row.append(versions);
+    }
+    if (visual.blockedReason !== null) {
+      const reason = doc.createElement("small");
+      reason.className = "ordax-store-preview-warning";
+      reason.textContent = t("store.details.blocked") + " " + visual.blockedReason;
+      row.append(reason);
+    }
     list.append(row);
   }
   slot.append(list);
