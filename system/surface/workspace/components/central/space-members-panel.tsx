@@ -24,7 +24,7 @@ const stateLabels: Readonly<Record<string, string>> = Object.freeze({ active: 'A
 
 function isProjectedActionAllowed(member: SpaceMember, action: ActionKind, role?: ActionRole) {
   if (action === 'change-role') {
-    return role !== undefined && member.actions.canChangeRole && member.actions.assignableRoles.includes(role);
+    return role !== undefined && role !== member.role && member.actions.canChangeRole && member.actions.assignableRoles.includes(role);
   }
   if (action === 'suspend') return member.actions.canSuspend;
   if (action === 'reactivate') return member.actions.canReactivate;
@@ -124,7 +124,12 @@ export function SpaceMembersPanel() {
   }
 
   async function runAction(action: ActionKind, member: SpaceMember, role?: ActionRole) {
-    if (spaceId === null || subjectId === null || offline || !capability?.canManageMembers || pendingAction.current || actionPending !== null || !isProjectedActionAllowed(member, action, role)) return;
+    if (spaceId === null || subjectId === null || offline || identity.state !== 'signed-in'
+      || authorized.activeSpace?.id !== spaceId || capabilityState !== 'ready'
+      || capability?.spaceId !== spaceId || capability.userId !== subjectId
+      || capability.state !== 'active' || !capability.canManageMembers
+      || pendingAction.current || actionPending !== null
+      || !isProjectedActionAllowed(member, action, role)) return;
     const generation = actionGeneration.current;
     const isCurrent = () => {
       const current = currentContext.current;
@@ -204,7 +209,11 @@ export function SpaceMembersPanel() {
 
   const initialLoading = loadState === 'loading' && items.length === 0;
   const loadingMore = loadState === 'loading' && items.length > 0;
-  const canManageMembers = capabilityState === 'ready' && capability?.canManageMembers === true;
+  // The actor capability is advisory UI data; only the current signed-in subject
+  // and authorized Space can enable actions, and the server remains authoritative.
+  const capabilityCurrent = capabilityState === 'ready' && capability?.spaceId === spaceId
+    && capability.userId === subjectId && identity.state === 'signed-in' && !offline;
+  const canManageMembers = capabilityCurrent && capability.state === 'active' && capability.canManageMembers === true;
   return <section className="meridian-space-members" aria-labelledby="space-members-title">
     <header>
       <span className="meridian-space-symbol"><UsersRound aria-hidden="true"/></span>
@@ -213,8 +222,8 @@ export function SpaceMembersPanel() {
     {!offline && <div className="meridian-space-members-capability" data-state={capabilityState}>
       {capabilityState === 'loading' ? <span>Verificando permissões no servidor…</span>
         : capabilityState === 'error' ? <><span>Não foi possível confirmar permissões administrativas.</span><Button variant="outline" onClick={() => void readCapability(spaceId)}>Tentar novamente</Button></>
-        : canManageMembers ? <span>Gestão de membros autorizada pelo servidor para esta sessão.</span>
-        : capabilityState === 'ready' ? <span>Modo somente leitura para esta sessão.</span> : null}
+        : capabilityCurrent ? <span>Sua função: <strong>{roleLabels[capability.role] ?? 'Função não reconhecida'}</strong>. {canManageMembers ? 'Gestão de membros autorizada pelo servidor para esta sessão.' : capability.state === 'suspended' ? 'Acesso suspenso; ações de gestão indisponíveis.' : 'Modo somente leitura; sem permissão para gerenciar membros.'}</span>
+        : capabilityState === 'ready' ? <span>Não foi possível validar suas permissões para esta conta e Space. Nenhuma ação habilitada.</span> : null}
     </div>}
     {actionError && <div className="meridian-space-members-action-error" role="alert">{actionError}</div>}
     {actionNotice && <p className="meridian-space-members-confirmation" role="status">{actionNotice}</p>}
@@ -226,14 +235,17 @@ export function SpaceMembersPanel() {
           const memberRole = String(member.role);
           const memberState = String(member.state);
           const actions = member.actions;
-          const editable = canManageMembers && (actions.canChangeRole || actions.canSuspend || actions.canReactivate || actions.canRemove);
+          // The current role is displayed separately. A change selector must
+          // never pretend that a current, non-assignable role is its first option.
+          const assignableRoles = actions.assignableRoles.filter((role: ActionRole) => role !== member.role);
+          const editable = canManageMembers && ((actions.canChangeRole && assignableRoles.length > 0) || actions.canSuspend || actions.canReactivate || actions.canRemove);
           return <article key={member.userId} role="listitem" className="meridian-space-member-row" data-state={memberState}>
             <span className="meridian-space-member-avatar" aria-hidden="true"><UsersRound/></span>
             <div className="meridian-space-member-identity"><strong>{member.userId}</strong><small>Identificador da Conta OrdaX</small></div>
             <span className="meridian-space-member-role">{roleLabels[memberRole] ?? 'Função não reconhecida'}</span>
             <span className="meridian-space-member-state">{stateLabels[memberState] ?? 'Estado não reconhecido'}</span>
             {editable && <div className="meridian-space-member-actions" aria-label={`Ações para ${member.userId}`}>
-              {actions.canChangeRole && <label><span>Função</span><select value={memberRole} disabled={actionPending !== null} onChange={event => void runAction('change-role', member, event.currentTarget.value as ActionRole)}>{actions.assignableRoles.map((role: ActionRole) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>}
+              {actions.canChangeRole && assignableRoles.length > 0 && <label><span>Alterar função</span><select value="" disabled={actionPending !== null} aria-label={`Alterar função de ${member.userId}`} onChange={event => void runAction('change-role', member, event.currentTarget.value as ActionRole)}><option value="" disabled>Escolha uma função</option>{assignableRoles.map((role: ActionRole) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>}
               {actions.canSuspend && <Button variant="outline" disabled={actionPending !== null} onClick={() => void runAction('suspend', member)}>Suspender</Button>}
               {actions.canReactivate && <Button variant="outline" disabled={actionPending !== null} onClick={() => void runAction('reactivate', member)}>Reativar</Button>}
               {actions.canRemove && <Button variant="outline" disabled={actionPending !== null} onClick={() => { if (window.confirm('Remover este membro do Space?')) void runAction('remove', member); }}>Remover</Button>}
