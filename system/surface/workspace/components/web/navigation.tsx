@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
-import { Plus, Settings2, Unplug } from 'lucide-react';
+import { Settings2, Unplug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getWebApp, webNavigation, type WebAppId, type WebView } from '@/lib/web/model';
+import { getWebApp, webNavigation, webWorkspaceEntries, type WebAppId, type WebView } from '@/lib/web/model';
 import { AppIcon } from './primitives';
 
 type Props = {
@@ -27,8 +27,8 @@ export function WorkspaceNavigation({ page, intelligence, active, onOpen, onNavi
       })}
     </nav>
     <div className="web-sidebar-favorites">
-      <span>Favoritos</span>
-      {(['studio', 'files', 'notes'] as const).map(id => <Button key={id} variant="ghost" className="web-favorite" title={`Abrir ${getWebApp(id).name}`} onClick={() => onOpen(id)}><AppIcon id={id} small/><span>{getWebApp(id).name}</span><Plus/></Button>)}
+      <span>Acesso rápido</span>
+      {webWorkspaceEntries.map(app => <Button key={app.id} variant="ghost" className="web-favorite" title={`Abrir ${getWebApp(app.id).name}`} onClick={() => onOpen(app.id)}><AppIcon id={app.id} small/><span>{app.name}</span></Button>)}
     </div>
     <div className="web-sidebar-bottom">
       <Button variant="ghost" className="web-favorite" title="Ajustes do ambiente" onClick={() => onOpen('settings')}><Settings2/><span>Ajustes</span></Button>
