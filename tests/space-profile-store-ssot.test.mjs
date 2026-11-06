@@ -174,7 +174,8 @@ test("Space member UI discards async results outside its committed account and p
   assert.match(action, /current\.membershipActions === membershipActions/);
   assert.match(action, /actionGeneration\.current === generation/);
   assert.match(action, /if \(isCurrent\(\)\) \{\s*await reloadRemoteState\(/);
-  assert.match(action, /if \(isCurrent\(\)\) \{\s*setActionError/);
+  assert.match(action, /if \(isCurrent\(\)\) \{\s*if \(!mutationStarted\)/);
+  assert.match(action, /setActionError\('A ação não foi confirmada pelo servidor/);
   assert.match(action, /if \(isCurrent\(\)\) \{\s*pendingAction\.current = false/);
   assert.match(members, /\[spaceId, subjectId, offline, members, actorCapability, membershipActions\]/);
 });

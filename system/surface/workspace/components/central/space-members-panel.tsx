@@ -137,16 +137,40 @@ export function SpaceMembersPanel() {
         && current.spaceId === spaceId
         && !current.offline
         && current.membershipActions === membershipActions
+        && current.actorCapability === actorCapability
         && actionGeneration.current === generation;
     };
     const returnCursor = pageAnchors.current.cursorFor(member.userId);
-    const attempt = attempts.current.begin({ subjectId, spaceId, action, targetUserId: member.userId, role: role ?? null });
     const key = [action, member.userId, role ?? null].join(':');
     pendingAction.current = true;
     setActionPending(key);
     setActionError(null);
     setActionNotice(null);
+    // The capability displayed when the page was loaded may have been revoked.
+    // Re-read the existing Account port immediately before any mutation. A
+    // failed authorization read cannot create an idempotency attempt or write.
+    setCapabilityState('loading');
+    let mutationStarted = false;
     try {
+      const verified = await actorCapability.read({ spaceId });
+      if (!isCurrent()) return;
+      if (verified.spaceId !== spaceId || verified.userId !== subjectId) {
+        setCapability(null);
+        setCapabilityState('error');
+        setActionError('Não foi possível confirmar a permissão da conta atual. Nenhuma alteração foi enviada.');
+        return;
+      }
+      setCapability(verified);
+      setCapabilityState('ready');
+      if (verified.state !== 'active' || !verified.canManageMembers) {
+        setActionError('A permissão de gerenciar membros foi revogada ou suspensa. Nenhuma alteração foi enviada.');
+        return;
+      }
+      // The server remains the final authority if row-level grants changed
+      // after this check. Retain the original idempotency key for uncertain
+      // attempts, and never submit automatically.
+      const attempt = attempts.current.begin({ subjectId, spaceId, action, targetUserId: member.userId, role: role ?? null });
+      mutationStarted = true;
       if (action === 'change-role' && role) await membershipActions.changeMemberRole(spaceId, member.userId, role, attempt.idempotencyKey);
       else if (action === 'suspend') await membershipActions.suspendMember(spaceId, member.userId, attempt.idempotencyKey);
       else if (action === 'reactivate') await membershipActions.reactivateMember(spaceId, member.userId, attempt.idempotencyKey);
@@ -158,8 +182,14 @@ export function SpaceMembersPanel() {
       }
     } catch {
       if (isCurrent()) {
-        setActionError('A ação não foi confirmada pelo servidor. Você pode tentar novamente; a mesma tentativa reutilizará a chave de idempotência.');
-        await readCapability(spaceId);
+        if (!mutationStarted) {
+          setCapability(null);
+          setCapabilityState('error');
+          setActionError('Não foi possível revalidar suas permissões. Nenhuma alteração foi enviada.');
+        } else {
+          setActionError('A ação não foi confirmada pelo servidor. Você pode tentar novamente; a mesma tentativa reutilizará a chave de idempotência.');
+          await readCapability(spaceId);
+        }
       }
     } finally {
       if (isCurrent()) {
