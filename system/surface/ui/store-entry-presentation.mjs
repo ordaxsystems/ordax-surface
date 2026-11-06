@@ -36,3 +36,21 @@ export function storeEmptyPresentation(totalEntries, visibleEntries, view, query
     descriptionId: "store.section.description." + view,
   });
 }
+
+// Reuse this read-only ordering in Native and Web. Callers receive the same
+// validated Store port snapshot and never infer installation from UI targets.
+export function projectStoreCatalogPreview(snapshot, limit = 6) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 24) {
+    throw new TypeError("Store preview limit must be bounded");
+  }
+  if (snapshot.state !== "ready") return Object.freeze({
+    state: "unavailable", total: 0, entries: Object.freeze([]),
+  });
+  const sorted = [...snapshot.entries].sort((a, b) =>
+    Number(b.installedVersion !== null) - Number(a.installedVersion !== null)
+    || a.title.localeCompare(b.title, "pt-BR"));
+  return Object.freeze({
+    state: "ready", total: sorted.length,
+    entries: Object.freeze(sorted.slice(0, limit)),
+  });
+}
