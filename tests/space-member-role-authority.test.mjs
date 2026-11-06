@@ -25,7 +25,7 @@ test('Space management is fail closed when actor differs, was suspended, or the 
 });
 
 test('role change selector reflects only actual changes allowed by server, never a foreign current role', () => {
-  assert.match(source, /const assignableRoles = actions\.assignableRoles\.filter\(role => role !== member\.role\)/);
+  assert.match(source, /const assignableRoles = actions\.assignableRoles\.filter\(\(role: ActionRole\) => role !== member\.role\)/);
   assert.match(source, /actions\.canChangeRole && assignableRoles\.length > 0/);
   assert.match(source, /<select value="" disabled=\{actionPending !== null\}/);
   assert.match(source, /<option value="" disabled>Escolha uma função<\/option>/);
