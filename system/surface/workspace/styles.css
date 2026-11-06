@@ -387,3 +387,8 @@ details.oi-demo-commands{display:block;margin-top:6px;text-align:center}details.
 .ordax-web-catalog-list li {display:flex;min-width:0;flex-direction:column;gap:3px;padding:10px;border:1px solid var(--md-border);border-radius:var(--md-radius-small);background:var(--md-surface);}
 .ordax-web-catalog-list li strong {font-size:.8rem;overflow-wrap:anywhere;}
 .ordax-web-catalog-list li small {color:var(--md-muted);font-size:.72rem;}
+
+.ordax-web-catalog-versions {overflow-wrap:anywhere;}
+.ordax-web-catalog-blocked {color:var(--md-danger)!important;overflow-wrap:anywhere;}
+.ordax-web-catalog-list li[data-store-entry-state="blocked"] {border-color:color-mix(in srgb,var(--md-danger) 36%,var(--md-border));}
+.ordax-web-catalog-list li[data-store-update-available="true"] {border-color:color-mix(in srgb,var(--md-sage) 48%,var(--md-border));}
