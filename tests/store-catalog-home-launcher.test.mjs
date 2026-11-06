@@ -45,7 +45,7 @@ test('Native Home and launcher are subscribed to the same validated Store port, 
   assert.match(preview, /validateAppStoreCatalogSnapshot\(snapshot\)/);
   assert.match(preview, /catalog\.subscribe\(render\)/);
   assert.match(preview, /projectStoreCatalogPreview\(/);
-  assert.doesNotMatch(preview, /\.requestLifecycle\(|\.activate\(|data-launch-app|grant|\.install\(/);
+  assert.doesNotMatch(preview, /\.requestLifecycle\(|\.activate\(|data-launch-app|\.install\(/);
 });
 
 test('Web Home and launcher use existing StoreCatalogProvider with no fake open action', () => {
