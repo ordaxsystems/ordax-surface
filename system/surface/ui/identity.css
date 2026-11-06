@@ -671,3 +671,7 @@ body { background: var(--md-canvas); font-weight: 400; }
 .ordax-store-preview-list li { display:flex;flex-direction:column;min-width:0;gap:2px;padding:7px 9px;border:1px solid var(--md-border);border-radius:var(--md-radius-small);background:var(--md-canvas); }
 .ordax-store-preview-list li span {overflow-wrap:anywhere;font-weight:550;}
 .ordax-launcher-store-preview {max-height:220px;overflow:auto;}
+
+.ordax-store-preview-warning {color:var(--md-danger)!important;overflow-wrap:anywhere;}
+.ordax-store-preview-list li[data-store-entry-state="blocked"] {border-color:color-mix(in srgb,var(--md-danger) 36%,var(--md-border));}
+.ordax-store-preview-list li[data-store-update-available="true"] {border-color:color-mix(in srgb,var(--md-sage) 48%,var(--md-border));}
