@@ -32,7 +32,8 @@ export function HomeSpacePicker({ onManage }: { onManage: () => void }) {
     try {
       if (spaceId === '') session.selection.clear();
       else {
-        const match = live.visibleSpaces.find(space => space.id === spaceId && space.state === 'active');
+        const liveSpaces: typeof authorized.visibleSpaces = live.visibleSpaces;
+        const match = liveSpaces.find(space => space.id === spaceId && space.state === 'active');
         if (!match) throw new Error('Space no longer authorized');
         session.selection.select(match.id);
       }
