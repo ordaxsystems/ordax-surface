@@ -59,6 +59,17 @@ export function DesktopContent({ title, open }: PresentationProps & { initialPro
 export { WorkspaceNavigation } from './meridian-navigation';
 
 export function SpacesPanel() {
+  const { identity, catalog, authorized } = useWebAccount();
+  // Discard owner/Space-scoped search text and stale recovery notices before
+  // a different authorized context is presented. No parallel Space storage.
+  const scopeKey = JSON.stringify([
+    identity.state, identity.subjectId, catalog.state, authorized.ready,
+    authorized.activeSpace?.id ?? null,
+  ]);
+  return <ScopedSpacesPanel key={scopeKey}/>;
+}
+
+function ScopedSpacesPanel() {
   const { session, identity, catalog, selection, authorized, offline } = useWebAccount();
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
