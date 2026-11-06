@@ -2,7 +2,7 @@ import { ArrowUpRight, FolderKanban, Layers3, Monitor, ShieldCheck, Bell, Chevro
 import { Button } from '@/components/ui/button';
 import { AppTile, PanelHeading } from './primitives';
 import { IntelligenceSurface } from '@/components/intelligence/surface';
-import { getWebApp, type WebAppId } from '@/lib/web/model';
+import { getWebApp, webWorkspaceEntries, type WebAppId } from '@/lib/web/model';
 
 export function WorkspaceHome({ onOpen, onLauncher }: { onOpen: (id: WebAppId) => void; onLauncher: () => void }) {
   return <div className="web-home">
@@ -10,7 +10,7 @@ export function WorkspaceHome({ onOpen, onLauncher }: { onOpen: (id: WebAppId) =
       <div>
         <span className="web-overline">SEU AMBIENTE DE TRABALHO</span>
         <h1>Bem-vindo ao seu OrdaX.</h1>
-        <p>Seus aplicativos, projetos e atividades. Tudo em um só lugar.</p>
+        <p>Acesse os recursos do navegador e consulte os serviços conectados em um só lugar.</p>
       </div>
       <Button variant="outline" className="web-home-space" onClick={() => onOpen('spaces')}>
         <Layers3/><span>Sem Space ativo</span><ChevronDown/>
@@ -41,10 +41,10 @@ export function WorkspaceHome({ onOpen, onLauncher }: { onOpen: (id: WebAppId) =
       </section>
     </div>
 
-    <section className="web-featured" aria-label="Seus aplicativos">
-      <PanelHeading title="Seus aplicativos" onOpen={onLauncher}/>
+    <section className="web-featured" aria-label="Recursos do ambiente">
+      <PanelHeading title="Recursos do ambiente" onOpen={onLauncher}/>
       <div className="web-featured-apps">
-        {(['studio', 'files', 'internet', 'image-viewer', 'notes', 'settings'] as const).map(id => <AppTile key={id} id={id} onOpen={onOpen}/>)}
+        {webWorkspaceEntries.map(app => <AppTile key={app.id} id={app.id} onOpen={onOpen}/>)}
       </div>
     </section>
 
