@@ -34,9 +34,13 @@ export function mountUpdateControls(root, updatePort, appActivation, surfaceLife
   button.setAttribute("aria-label", t("system.updateShortcut.aria"));
   slot.append(button);
 
-  let snapshot = updatePort.getSnapshot();
+  let destroyed = false;
 
   const render = () => {
+    if (destroyed) return;
+    // Watcher events are only invalidation signals. Always use the latest
+    // authoritative update state instead of a potentially delayed payload.
+    const snapshot = updatePort.getSnapshot();
     const alerting = updateIsAlerting(snapshot);
     button.setAttribute("aria-label", t("system.updateShortcut.aria"));
     button.dataset.alerting = String(alerting);
@@ -50,21 +54,21 @@ export function mountUpdateControls(root, updatePort, appActivation, surfaceLife
   };
 
   const onClick = (event) => {
+    if (destroyed) return;
     const target = event.target.closest("[data-update-open-system]");
     if (!target || !root.contains(target)) return;
     activationPort.publish({ appId: "system", target: "updates" });
   };
 
   root.addEventListener("click", onClick);
-  const unsubscribe = updatePort.subscribe((nextSnapshot) => {
-    snapshot = nextSnapshot;
-    render();
-  });
+  const unsubscribe = updatePort.subscribe(() => render());
   const unsubscribeLocalization = localization.subscribe(() => render());
   render();
 
   return Object.freeze({
     destroy() {
+      if (destroyed) return;
+      destroyed = true;
       unsubscribeLocalization?.();
       unsubscribe?.();
       root.removeEventListener("click", onClick);
