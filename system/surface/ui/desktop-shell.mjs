@@ -214,6 +214,7 @@ export function createDesktopShellMarkup(localization) {
               <div class="ordax-home-section-heading"><h2 id="ordax-home-actions-title" data-home-copy="home.apps.title">${t("home.apps.title")}</h2><button type="button" data-launcher-toggle><span data-home-copy="home.apps.openAll">${t("home.apps.openAll")}</span> ↗</button></div>
               <div class="ordax-home-action-grid">
                 ${CENTRAL_QUICK_ACCESS_APP_IDS.map((id) => railButton(id, t(`app.${id}.title`), ICONS[id], t, "ordax-home-action")).join("")}
+                <button type="button" class="ordax-home-action" data-native-home-assistant hidden disabled><span class="ordax-rail-icon" aria-hidden="true">${ICONS.aura}</span><span data-native-home-assistant-label></span></button>
                 <button type="button" class="ordax-home-action ordax-home-add-app" data-launcher-toggle><span class="ordax-rail-icon ordax-home-plus" aria-hidden="true">+</span><span data-home-copy="home.apps.add">${t("home.apps.add")}</span></button>
               </div>
               <div class="ordax-store-preview" data-native-store-catalog-preview="home" role="status" aria-live="polite"></div>
