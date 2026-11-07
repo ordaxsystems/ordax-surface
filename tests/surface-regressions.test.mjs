@@ -1041,3 +1041,62 @@ test("Native notification events never restore stale OS entries or execute detac
   assert.match(click, /const entry = snapshot\.entries\.find\(candidate => candidate\.id === button\.dataset\.notificationOpen\)/);
   assert.match(click, /if \(!entry\?\.destination\) return;/);
 });
+
+test("Native display ignores delayed read and write results after UI teardown", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("display-output-controls.mjs");
+  const start = source.indexOf("  const refresh = async () => {");
+  const end = source.indexOf("  const handleRetry =", start);
+  assert.ok(start !== -1 && end > start, "canonical display handlers");
+
+  const deferred = () => {
+    let resolve;
+    let reject;
+    const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+    return { promise, resolve, reject };
+  };
+  const harness = (readValue) => runInNewContext([
+    'let destroyed = false;',
+    'let pending = false;',
+    'let snapshot = { id: "initial" };',
+    'let statusMessageId = "initial";',
+    'let repaintCount = 0;',
+    'const render = () => { repaintCount += 1; };',
+    'const validateDisplayOutputsSnapshot = (value) => value;',
+    'const outputPort = { read: () => readValue() };',
+    source.slice(start, end),
+    '({ refresh, run, destroy() { destroyed = true; },',
+    '  state() { return { id: snapshot?.id, statusMessageId, repaintCount }; } });',
+  ].join("\n"), { readValue });
+
+  const slowRead = deferred();
+  const reading = harness(() => slowRead.promise);
+  const readingTask = reading.refresh();
+  reading.destroy();
+  slowRead.resolve({ id: "late-read" });
+  await readingTask;
+  assert.equal(reading.state().id, "initial");
+  assert.equal(reading.state().statusMessageId, "initial");
+  assert.equal(reading.state().repaintCount, 1);
+
+  const slowWrite = deferred();
+  let readbackCount = 0;
+  const writing = harness(() => { readbackCount += 1; return Promise.resolve({ id: "readback" }); });
+  const writingTask = writing.run(() => slowWrite.promise);
+  writing.destroy();
+  slowWrite.resolve({ id: "late-write" });
+  await writingTask;
+  assert.equal(writing.state().id, "initial");
+  assert.equal(writing.state().repaintCount, 1);
+
+  const failedWrite = deferred();
+  const failure = harness(() => { readbackCount += 1; return Promise.resolve({ id: "fallback" }); });
+  const failureTask = failure.run(() => failedWrite.promise);
+  failure.destroy();
+  failedWrite.reject(new Error("old display operation"));
+  await failureTask;
+  assert.equal(failure.state().id, "initial");
+  assert.equal(failure.state().statusMessageId, "initial");
+  assert.equal(failure.state().repaintCount, 1);
+  assert.equal(readbackCount, 0, "destroyed controls must not initiate a recovery read");
+});
