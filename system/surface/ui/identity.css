@@ -675,3 +675,6 @@ body { background: var(--md-canvas); font-weight: 400; }
 .ordax-store-preview-warning {color:var(--md-danger)!important;overflow-wrap:anywhere;}
 .ordax-store-preview-list li[data-store-entry-state="blocked"] {border-color:color-mix(in srgb,var(--md-danger) 36%,var(--md-border));}
 .ordax-store-preview-list li[data-store-update-available="true"] {border-color:color-mix(in srgb,var(--md-sage) 48%,var(--md-border));}
+
+/* Do not reserve a Home quick-access tile for an app not attested by the OS catalog. */
+.ordax-home-action[data-native-home-assistant][hidden] { display: none !important; }
