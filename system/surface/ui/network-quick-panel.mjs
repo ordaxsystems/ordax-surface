@@ -242,7 +242,7 @@ export function mountNetworkQuickPanel(
       );
       button.type = "button";
       button.dataset.quickNetworkAction = action;
-      button.disabled = pending;
+      button.disabled = pending || (managementReadFailed && action !== "scan");
       actions.append(button);
     };
     addAction(
@@ -322,7 +322,7 @@ export function mountNetworkQuickPanel(
         button.dataset.quickWifiSsid = entry.ssid;
         button.dataset.selected = String(selectedSsid === entry.ssid);
         button.dataset.connected = String(entry.connected);
-        button.disabled = pending || entry.connected;
+        button.disabled = pending || managementReadFailed || entry.connected;
         button.setAttribute("aria-pressed", String(selectedSsid === entry.ssid));
         const copy = node(documentObject, "span", "ordax-quick-network-copy");
         const stateMessageId = entry.connected
@@ -379,7 +379,7 @@ export function mountNetworkQuickPanel(
       connect.type = "button";
       connect.dataset.quickNetworkAction = "connect";
       connect.dataset.quickWifiSsid = selected.ssid;
-      connect.disabled = pending;
+      connect.disabled = pending || managementReadFailed;
       form.append(label, connect);
       content.append(form);
     }
@@ -435,6 +435,10 @@ export function mountNetworkQuickPanel(
     } catch {
       if (destroyed || ordinal !== managementOrdinal) return;
       managementReadFailed = true;
+      // Revoke any saved credential draft once the authoritative network list
+      // becomes unavailable. Stale scan results remain informational only.
+      selectedSsid = null;
+      clearPasswordDraft();
       if (managementSnapshot === null) {
         messageId = "network.quick.managementTemporaryUnavailable";
       }
@@ -447,7 +451,9 @@ export function mountNetworkQuickPanel(
   };
 
   const runAction = async (action, credentials = null) => {
-    if (!managementPort || pending || destroyed) return;
+    // Stale management snapshots are read-only. Scan is the explicit recovery
+    // operation; connect, reconnect and disconnect need a current observation.
+    if (!managementPort || pending || destroyed || (managementReadFailed && action !== "scan")) return;
     const ordinal = ++actionOrdinal;
     managementOrdinal += 1;
     pending = true;
@@ -493,7 +499,7 @@ export function mountNetworkQuickPanel(
 
   const onClick = (event) => {
     const network = event.target.closest("[data-quick-wifi-ssid]");
-    if (network && panel.contains(network)) {
+    if (network && panel.contains(network) && !managementReadFailed) {
       const nextSsid = network.dataset.quickWifiSsid ?? null;
       if (nextSsid !== selectedSsid) clearPasswordDraft();
       selectedSsid = nextSsid;
