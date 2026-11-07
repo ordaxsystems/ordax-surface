@@ -1148,3 +1148,69 @@ test("Native Wi-Fi refuses stale management mutations while allowing a fresh sca
   const refresh = source.slice(source.indexOf("  const refreshManagement = async () => {"), start);
   assert.match(refresh, /managementReadFailed = true;[\s\S]*?selectedSsid = null;\s*clearPasswordDraft\(\);/);
 });
+
+test("Native update shortcut projects the latest watcher state despite late events", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("update-controls.mjs");
+  const start = source.indexOf("  let destroyed = false;");
+  const end = source.lastIndexOf("\n}");
+  assert.ok(start !== -1 && end > start, "canonical update shortcut view");
+
+  const script = [
+    'let current = { alerting: false, bootRefreshRequired: false };',
+    'let watcher = null, localizationListener = null, clickHandler = null;',
+    'const launches = [];',
+    'const button = { dataset: {}, title: "", attributes: {}, removed: false,',
+    '  setAttribute(key, value) { this.attributes[key] = value; },',
+    '  remove() { this.removed = true; } };',
+    'const updatePort = { getSnapshot() { return current; },',
+    '  subscribe(callback) { watcher = callback; return () => { watcher = null; }; } };',
+    'const localization = { subscribe(callback) { localizationListener = callback;',
+    '  return () => { localizationListener = null; }; } };',
+    'const t = (id) => id;',
+    'const updateIsAlerting = (snapshot) => snapshot.alerting;',
+    'const activationPort = { publish(value) { launches.push(value); } };',
+    'const root = { contains: () => true,',
+    '  addEventListener(_name, callback) { clickHandler = callback; },',
+    '  removeEventListener() { clickHandler = null; } };',
+    source.slice(start, end).replace("  return Object.freeze({", "  return Object.freeze({"),
+    '({ setCurrent(value) { current = value; },',
+    '  notify(payload) { watcher?.(payload); },',
+    '  callClick() { clickHandler?.({ target: { closest: () => button } }); },',
+    '  view() { return { alerting: button.dataset.alerting, title: button.title,',
+    '    removed: button.removed, launches: launches.length }; },',
+    '  control: undefined });',
+  ].join("\n");
+
+  // Put the real mount tail inside a function so its return/destroy method
+  // remain executable while ports and DOM nodes are controlled test doubles.
+  const mountBody = source.slice(start, end);
+  const wrapper = script.replace(mountBody, [
+    "const createControl = () => {",
+    mountBody,
+    "};",
+    "const control = createControl();",
+  ].join("\n")).replace("  control: undefined", "  control");
+
+  const fixture = runInNewContext(wrapper);
+  assert.equal(fixture.view().alerting, "false");
+
+  fixture.setCurrent({ alerting: true, bootRefreshRequired: false });
+  fixture.notify({ alerting: false });
+  assert.equal(fixture.view().alerting, "true", "delayed normal event cannot hide update warning");
+  assert.equal(fixture.view().title, "system.updateShortcut.title.attention");
+
+  fixture.setCurrent({ alerting: false, bootRefreshRequired: true });
+  fixture.notify({ alerting: true });
+  assert.equal(fixture.view().alerting, "false");
+  assert.equal(fixture.view().title, "system.updateShortcut.title.basePending");
+
+  fixture.callClick();
+  assert.equal(fixture.view().launches, 1);
+  const lateEvent = fixture.notify;
+  fixture.control.destroy();
+  assert.equal(fixture.view().removed, true);
+  lateEvent({ alerting: true });
+  fixture.callClick();
+  assert.equal(fixture.view().launches, 1, "destroyed controls cannot launch System");
+});
