@@ -164,14 +164,19 @@ export function mountDisplayOutputControls(container, {
     pending = true;
     render();
     try {
-      snapshot = validateDisplayOutputsSnapshot(await outputPort.read());
+      const result = await outputPort.read();
+      if (destroyed) return;
+      snapshot = validateDisplayOutputsSnapshot(result);
       statusMessageId = null;
     } catch {
+      if (destroyed) return;
       snapshot = null;
       statusMessageId = "settings.display.host.readFailed";
     } finally {
-      pending = false;
-      render();
+      if (!destroyed) {
+        pending = false;
+        render();
+      }
     }
   };
 
@@ -180,14 +185,26 @@ export function mountDisplayOutputControls(container, {
     pending = true;
     render();
     try {
-      snapshot = validateDisplayOutputsSnapshot(await operation(...args));
+      const result = await operation(...args);
+      if (destroyed) return;
+      snapshot = validateDisplayOutputsSnapshot(result);
       statusMessageId = null;
     } catch {
+      if (destroyed) return;
       statusMessageId = "settings.display.host.applyFailed";
-      try { snapshot = validateDisplayOutputsSnapshot(await outputPort.read()); } catch { snapshot = null; }
+      try {
+        const result = await outputPort.read();
+        if (destroyed) return;
+        snapshot = validateDisplayOutputsSnapshot(result);
+      } catch {
+        if (destroyed) return;
+        snapshot = null;
+      }
     } finally {
-      pending = false;
-      render();
+      if (!destroyed) {
+        pending = false;
+        render();
+      }
     }
   };
 
