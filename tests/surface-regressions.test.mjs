@@ -1100,3 +1100,51 @@ test("Native display ignores delayed read and write results after UI teardown", 
   assert.equal(failure.state().repaintCount, 1);
   assert.equal(readbackCount, 0, "destroyed controls must not initiate a recovery read");
 });
+
+test("Native Wi-Fi refuses stale management mutations while allowing a fresh scan", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("network-quick-panel.mjs");
+  const start = source.indexOf("  const runAction = async (action, credentials = null) => {");
+  const end = source.indexOf("  const onOpen = () => {", start);
+  assert.ok(start !== -1 && end > start, "canonical Native network handler");
+  const actions = [];
+  const harness = runInNewContext([
+    "let destroyed = false;",
+    "let pending = false;",
+    "let managementReadFailed = true;",
+    "let managementOrdinal = 0;",
+    "let actionOrdinal = 0;",
+    "let messageId = null;",
+    "let managementSnapshot = null;",
+    "let managementLastSuccessAt = null;",
+    "let selectedSsid = null;",
+    "const managementPort = {};",
+    "const render = () => {};",
+    "const clearPasswordDraft = () => {};",
+    "const refreshStatus = async () => {};",
+    "const validateNetworkManagementSnapshot = (value) => value;",
+    "const networkManagementActionMessageId = () => null;",
+    "const networkManagementFailureMessageId = () => 'failed';",
+    "const runNetworkManagementAction = (port, action) => providerAction(action);",
+    source.slice(start, end),
+    "({ runAction, current() { return { managementReadFailed, pending }; } })",
+  ].join("\n"), {
+    providerAction: async (action) => { actions.push(action); return { networks: [], currentSsid: null }; },
+  });
+
+  for (const action of ["connect", "reconnect", "disconnect"]) {
+    await harness.runAction(action, { ssid: "old-network", password: "unused" });
+  }
+  assert.equal(actions.length, 0, "no mutation can use a failed management read");
+  await harness.runAction("scan");
+  assert.equal(actions.join(","), "scan");
+  assert.equal(harness.current().managementReadFailed, false);
+  await harness.runAction("disconnect");
+  assert.equal(actions.join(","), "scan,disconnect", "fresh management state permits Native actions");
+
+  assert.match(source, /button\.disabled = pending \|\| \(managementReadFailed && action !== "scan"\)/);
+  assert.match(source, /button\.disabled = pending \|\| managementReadFailed \|\| entry\.connected;/);
+  assert.match(source, /connect\.disabled = pending \|\| managementReadFailed;/);
+  const refresh = source.slice(source.indexOf("  const refreshManagement = async () => {"), start);
+  assert.match(refresh, /managementReadFailed = true;[\s\S]*?selectedSsid = null;\s*clearPasswordDraft\(\);/);
+});
