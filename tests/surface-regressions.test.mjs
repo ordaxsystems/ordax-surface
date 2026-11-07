@@ -1027,3 +1027,17 @@ test("Native MCP receives the canonical Surface state port, never a DOM selector
   assert.match(surface,/getActiveAppId\(\)\s*\{\s*return getActiveSurfaceAppId\(state\)/);
   assert.doesNotMatch(surface,/getActiveAppId\(\)\s*\{[^}]*querySelector/);
 });
+
+test("Native notification events never restore stale OS entries or execute detached actions", async () => {
+  const source = await read("notification-center-controls.mjs");
+  const render = source.slice(source.indexOf("  const render = () => {"), source.indexOf("  const onClick ="));
+  const click = source.slice(source.indexOf("  const onClick ="), source.indexOf("  const unsubscribeNotifications ="));
+
+  assert.match(render, /snapshot = center\?\.getSnapshot\(\) \?\? null;/);
+  assert.doesNotMatch(render, /snapshot = nextSnapshot/);
+  assert.match(source, /center\?\.subscribe\(\(\) => render\(\)\)/);
+  assert.doesNotMatch(source, /center\?\.subscribe\(render\)/);
+  assert.match(click, /render\(\);\s*if \(!view\.contains\(button\) \|\| button\.hidden \|\| button\.disabled\) return;/);
+  assert.match(click, /const entry = snapshot\.entries\.find\(candidate => candidate\.id === button\.dataset\.notificationOpen\)/);
+  assert.match(click, /if \(!entry\?\.destination\) return;/);
+});

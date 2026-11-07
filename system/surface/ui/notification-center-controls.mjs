@@ -262,14 +262,16 @@ export function mountNotificationCenterView(
   const markup = createViewMarkup(root);
   const { view, list, empty, persistence, doNotDisturb, markAllRead, clearRead } = markup;
   const entryNodes = new Map();
-  let snapshot = center?.getSnapshot() ?? null;
+  let snapshot = null;
   let filter = "all";
   let destroyed = false;
   let observedTimeZone = resolveRegionalTimeZone(preferences.getSnapshot());
 
-  const render = (nextSnapshot) => {
+  const render = () => {
     if (destroyed) return;
-    snapshot = nextSnapshot;
+    // Event payloads are only signals: an older notification event must not
+    // restore entries or destinations already removed by the OS port.
+    snapshot = center?.getSnapshot() ?? null;
     const entries = snapshot?.entries ?? [];
     const unread = snapshot?.unreadCount ?? 0;
     const visible = entries.filter(entry => filter !== "unread" || !entry.read);
@@ -341,13 +343,17 @@ export function mountNotificationCenterView(
     const filterButton = target?.closest("[data-notification-filter]");
     if (filterButton && view.contains(filterButton) && center) {
       filter = filterButton.dataset.notificationFilter;
-      render(center.getSnapshot()); return;
+      render(); return;
     }
     if (!center) return;
     const button = target?.closest("button");
     if (!button || !view.contains(button) || button.disabled) return;
     markup.error.hidden = true;
     try {
+      // Reconcile the clicked row against the live OS snapshot before acting.
+      // A stale destination, dismissed row or now-disabled action is inert.
+      render();
+      if (!view.contains(button) || button.hidden || button.disabled) return;
       if (button.hasAttribute("data-notification-do-not-disturb")) center.setDoNotDisturb(!snapshot.doNotDisturb);
       else if (button.hasAttribute("data-notification-mark-all-read")) center.markAllRead();
       else if (button.hasAttribute("data-notification-clear-read")) center.clearRead();
@@ -366,14 +372,14 @@ export function mountNotificationCenterView(
     }
   };
 
-  const unsubscribeNotifications = center?.subscribe(render);
-  const unsubscribeLocalization = localization.subscribe(() => render(center?.getSnapshot() ?? null));
+  const unsubscribeNotifications = center?.subscribe(() => render());
+  const unsubscribeLocalization = localization.subscribe(() => render());
   const unsubscribePreferences = preferences.subscribe(preferenceSnapshot => {
     const nextTimeZone = resolveRegionalTimeZone(preferenceSnapshot);
-    if (nextTimeZone !== observedTimeZone) { observedTimeZone = nextTimeZone; render(center?.getSnapshot() ?? null); }
+    if (nextTimeZone !== observedTimeZone) { observedTimeZone = nextTimeZone; render(); }
   });
   view.addEventListener("click", onClick);
-  render(snapshot);
+  render();
   return Object.freeze({ destroy() {
     if (destroyed) return;
     destroyed = true;
