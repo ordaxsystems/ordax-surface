@@ -1214,3 +1214,73 @@ test("Native update shortcut projects the latest watcher state despite late even
   fixture.callClick();
   assert.equal(fixture.view().launches, 1, "destroyed controls cannot launch System");
 });
+
+test("Native diagnostic review rejects stale events and outdated copy/export buttons", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("system-diagnostics-review.mjs");
+  const mount = source.indexOf("export function mountSystemDiagnosticsReview(");
+  const start = source.indexOf("  const render = () => {", mount);
+  const end = source.indexOf('  container.addEventListener("click", click);', start);
+  assert.ok(mount > 0 && start > mount && end > start);
+
+  const fragment = source.slice(start, end);
+  const fixture = runInNewContext([
+    'let destroyed = false;',
+    'let state = { id: "a", phase: "ready", doc: true, copy: true, export: true };',
+    'const actions = [];',
+    'const painted = [];',
+    'const controller = { getSnapshot: () => state,',
+    ' prepare: () => actions.push("prepare"),',
+    ' copyPreparedSummary: () => actions.push("copy"),',
+    ' exportPrepared: () => actions.push("export") };',
+    'const localization = {};',
+    'const preferences = null;',
+    'const resolveRegionalTimeZone = () => "UTC";',
+    'const documentObject = { activeElement: null };',
+    'const node = () => ({ dataset: {}, querySelector: () => null });',
+    'const renderReview = (_doc, section, presentation) => { section.id = presentation.id; };',
+    'const container = { contains: () => true, replaceChildren: (section) => painted.push(section.id) };',
+    'const createDiagnosticReviewPresentation = (snapshot) => ({',
+    ' id: snapshot.id, prepare: { disabled: snapshot.phase !== "ready" },',
+    ' copy: { visible: snapshot.doc, disabled: snapshot.phase !== "ready" || !snapshot.copy },',
+    ' export: { visible: snapshot.doc, disabled: snapshot.phase !== "ready" || !snapshot.export }',
+    '});',
+    fragment,
+    '({ render, click, setState: (value) => { state = value; },',
+    '  destroy: () => { destroyed = true; },',
+    '  painted: () => painted.at(-1), actions: () => actions.join(",") });',
+  ].join("\n"));
+
+  const click = (kind) => fixture.click({ target: { closest: () => ({
+    dataset: { [kind]: "" }, disabled: false,
+  }) } });
+  fixture.render();
+  assert.equal(fixture.painted(), "a");
+
+  fixture.setState({ id: "b", phase: "preparing", doc: false, copy: false, export: false });
+  fixture.render({ id: "a", phase: "ready" });
+  assert.equal(fixture.painted(), "b", "delayed payload cannot restore the older report");
+  click("systemDiagnosticsCopy");
+  click("systemDiagnosticsExport");
+  click("systemDiagnosticsPrepare");
+  assert.equal(fixture.actions(), "", "actions based on a stale button must not execute");
+
+  fixture.setState({ id: "c", phase: "ready", doc: true, copy: false, export: false });
+  click("systemDiagnosticsCopy");
+  click("systemDiagnosticsExport");
+  assert.equal(fixture.actions(), "", "revoked capabilities stay unavailable");
+
+  fixture.setState({ id: "d", phase: "ready", doc: true, copy: true, export: true });
+  click("systemDiagnosticsCopy");
+  click("systemDiagnosticsExport");
+  click("systemDiagnosticsPrepare");
+  assert.equal(fixture.actions(), "copy,export,prepare");
+
+  fixture.destroy();
+  fixture.render({ id: "old" });
+  click("systemDiagnosticsExport");
+  assert.equal(fixture.actions(), "copy,export,prepare");
+  assert.equal(fixture.painted(), "c", "disposed view must not repaint");
+  assert.match(source.slice(mount), /controller\.subscribe\(\(\) => render\(\)\)/);
+  assert.doesNotMatch(source.slice(mount), /controller\.subscribe\(render\)/);
+});
