@@ -635,8 +635,11 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
   const documentObject = container.ownerDocument;
   let destroyed = false;
 
-  const render = (stateValue) => {
+  const render = () => {
     if (destroyed) return;
+    // The controller is the authority; delayed events only request a fresh
+    // projection and must not resurrect an older prepared diagnostic report.
+    const stateValue = controller.getSnapshot();
     const focused = documentObject.activeElement?.dataset?.systemDiagnosticsPrepare !== undefined
       ? "prepare"
       : documentObject.activeElement?.dataset?.systemDiagnosticsCopy !== undefined
@@ -667,20 +670,29 @@ export function mountSystemDiagnosticsReview(container, controllerValue, surface
     if (destroyed) return;
     const target = event.target?.closest?.("button");
     if (!target || !container.contains(target) || target.disabled) return;
+    // A button can outlive a state transition until the next render.
+    // Recheck the existing presentation gates before any copy/export action.
+    const current = createDiagnosticReviewPresentation(
+      controller.getSnapshot(), localization,
+      resolveRegionalTimeZone(preferences?.getSnapshot() ?? {}),
+    );
     if (target.dataset.systemDiagnosticsPrepare !== undefined) {
+      if (current.prepare.disabled) { render(); return; }
       void controller.prepare();
     } else if (target.dataset.systemDiagnosticsCopy !== undefined) {
+      if (!current.copy.visible || current.copy.disabled) { render(); return; }
       void controller.copyPreparedSummary();
     } else if (target.dataset.systemDiagnosticsExport !== undefined) {
+      if (!current.export.visible || current.export.disabled) { render(); return; }
       void controller.exportPrepared();
     }
   };
 
   container.addEventListener("click", click);
-  render(controller.getSnapshot());
-  const unsubscribeController = controller.subscribe(render);
+  render();
+  const unsubscribeController = controller.subscribe(() => render());
   const rerender = () => {
-    if (!destroyed) render(controller.getSnapshot());
+    if (!destroyed) render();
   };
   const unsubscribeLocalization = localization.subscribe(rerender);
   const unsubscribePreferences = preferences?.subscribe(rerender);
