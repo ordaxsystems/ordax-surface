@@ -149,7 +149,11 @@ test("Native power controls appear on live Host authorization and disappear on r
   root.emit("click", shutdown);
   assert.equal(executeCount, 0, "revocation invalidates previous confirmation");
 
-  shutdown.focus();
+  // Confirmation re-renders the grid, so focus the current attached
+  // action rather than an old detached button from the previous render.
+  const currentShutdown = overlay.querySelectorAll("[data-power-action]")
+    .find(button => button.dataset.powerAction === "shutdown");
+  currentShutdown.focus();
   publish({ allowed: [] });
   assert.equal(toggle.hidden, true, "revoked power button disappears");
   assert.equal(toggle.disabled, true);
