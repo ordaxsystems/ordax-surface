@@ -3,6 +3,7 @@ import {
   validateLocalSessionSnapshot,
 } from "../../contracts/local-session.mjs";
 import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lifecycle.mjs";
+import { trapModalKeyboardFocus } from "./first-run-keyboard-focus.mjs";
 
 export function mountLocalSessionLock(
   root,
@@ -164,6 +165,15 @@ export function mountLocalSessionLock(
     });
   };
 
+  // Unlike a normal page, a locked Surface is a modal security boundary.
+  // Keep keyboard traversal on the unlock controls, even if focus begins
+  // outside the overlay or the UI has been rebuilt for a locale change.
+  const onKeyDown = (event) => {
+    if (destroyed || snapshot.state !== "locked" || !overlay) return;
+    trapModalKeyboardFocus(event, overlay, documentObject.activeElement);
+  };
+
+  documentObject.addEventListener("keydown", onKeyDown, true);
   documentObject.addEventListener("submit", onSubmit);
   const unsubscribeSession = port.subscribe((next) => {
     const previousState = snapshot.state;
@@ -191,6 +201,7 @@ export function mountLocalSessionLock(
       attemptRevision += 1;
       unsubscribeSession();
       unsubscribeLocalization();
+      documentObject.removeEventListener("keydown", onKeyDown, true);
       documentObject.removeEventListener("submit", onSubmit);
       removeOverlay();
     },
