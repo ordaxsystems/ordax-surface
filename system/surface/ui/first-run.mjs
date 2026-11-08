@@ -1131,10 +1131,20 @@ export function mountFirstRunExperience(
     const operationSecret = secret;
     secret = "";
     try {
-      localSessionSnapshot = validateLocalSessionSnapshot(
+      const receipt = validateLocalSessionSnapshot(
         await localSessionPort.configureCredential(operationSecret),
       );
       if (destroyed) return;
+      // A resolved configuration request alone is not evidence that a
+      // credential protects this session. Both the host reply and the
+      // currently published local-session authority must confirm it.
+      // Never advance into Review after a no-op or stale positive receipt.
+      const verified = validateLocalSessionSnapshot(localSessionPort.getSnapshot());
+      localSessionSnapshot = verified;
+      if (!receipt.credentialConfigured || !verified.credentialConfigured
+          || verified.state !== "unlocked") {
+        throw new Error("Local credential configuration was not confirmed");
+      }
       localSessionMessage = "";
       go(stepIndex + 1);
     } catch {
