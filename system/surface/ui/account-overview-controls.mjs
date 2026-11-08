@@ -1591,6 +1591,7 @@ export function mountAccountOverviewControls(
     const ordinal = ++createOrdinal;
     createPending = true;
     createMessage = "";
+    spaceMessage = "";
     replaceView();
     void (async () => {
       try {
@@ -1605,12 +1606,21 @@ export function mountAccountOverviewControls(
         const match = authorized.ready && authorized.visibleSpaces.find(space =>
           space.id === receipt.space.id && space.ownerId === subjectId && space.state === "active");
         if (!match) throw new Error("Space not visible in refreshed authorized catalog");
-        if (spaceSelectionPort) spaceSelectionPort.select(match.id);
+        // Confirmation and authorized catalog visibility complete creation.
+        // Selecting that Space is a separate optional navigation operation:
+        // its failure must never ask the user to retry an already-created Space.
         createMessage = t("account.spaces.create.createdPending");
         createMessageTone = "information";
         createUnconfirmed = false;
         createNameDraft = "";
         createIdempotencyKey = null;
+        if (spaceSelectionPort) {
+          try {
+            spaceSelectionPort.select(match.id);
+          } catch {
+            spaceMessage = t("account.spaces.selection.failed");
+          }
+        }
       } catch {
         if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
         // Keep the original fields and UUID fixed until a canonical confirmation.
