@@ -15,7 +15,7 @@ import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
 import { STORE_OPERATIONS, storeEntryVisualState, storeEmptyPresentation } from "./store-entry-presentation.mjs";
 import { captureStoreControlFocus, restoreStoreControlFocus } from "./store-control-focus.mjs";
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
-import { createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
+import { STORE_UPDATE_BATCH_SCHEMA, createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
 import { listFirstRunDefaultAppIds } from "../../services/apps/first-run-selection.mjs";
 
 const STORE_WINDOW_SELECTOR = '[data-window-id="store"]';
@@ -400,6 +400,39 @@ export function mountStoreOverviewControls(
     }
   };
 
+  // Batch and individual updates share no host-level receipt registry.
+  // Until the OS batch supports candidate exclusions, fail closed on bulk
+  // submission when an individually accepted update could be sent twice.
+  // Other applications retain their individual lifecycle actions.
+  const hasAcceptedUpdateRequest = () => snapshot.state === "ready"
+    && Array.from(acceptedRequests).some(([appId, receipt]) =>
+      receipt.operation === "update"
+      && sameLifecycleCandidate(snapshot, appId, "update", receipt.candidateSignature));
+
+  // Import only genuine accepted outcomes from the OS-owned batch.
+  // A receipt never means that the installed version or app grants changed.
+  const recordBatchAcceptedUpdates = (report) => {
+    if (report?.schema !== STORE_UPDATE_BATCH_SCHEMA || report.authority !== "none"
+      || !Array.isArray(report.outcomes) || report.outcomes.length > 256
+      || snapshot.state !== "ready") return;
+    for (const outcome of report.outcomes) {
+      if (outcome?.state !== "accepted" || typeof outcome.requestId !== "string") continue;
+      const entry = snapshot.entries.find((candidate) =>
+        candidate.appId === outcome.appId
+        && candidate.state === "installed" && candidate.updatable
+        && candidate.artifactIdentityVerified && candidate.provenanceVerified
+        && candidate.installedVersion === outcome.fromVersion
+        && candidate.availableVersion === outcome.toVersion);
+      if (!entry) continue;
+      acceptedRequests.set(entry.appId, Object.freeze({
+        appId: entry.appId, operation: "update",
+        candidateSignature: lifecycleCandidateSignature(entry, "update"),
+        requestId: outcome.requestId, phase: "accepted",
+      }));
+    }
+    reconcileAcceptedRequest();
+  };
+
   const requestForEntry = (entry) => {
     // Preserve the Host contract: Update All is a global in-flight lock,
     // while accepted individual requests are scoped to their own app.
@@ -595,9 +628,14 @@ export function mountStoreOverviewControls(
             t(batchInFlight ? "store.updateAll.requesting" : "store.updateAll.action"),
             "storeUpdateAll", "true");
           action.disabled = updateAll === null || batchInFlight || pendingRequest !== null
+            || hasAcceptedUpdateRequest()
             || !snapshot.entries.some((entry) => entry.updatable
               && entry.state === "installed"
               && entry.artifactIdentityVerified && entry.provenanceVerified);
+          if (hasAcceptedUpdateRequest()) {
+            action.dataset.storeUpdateAllBlocked = "accepted-individual-update";
+            action.title = t("store.request.update.accepted");
+          }
           updateActions.append(action);
           if (batchInFlight) {
             const cancel = makeButton(documentObject, "ordax-store-action ordax-store-action-secondary",
@@ -665,7 +703,7 @@ export function mountStoreOverviewControls(
     if (submitUpdateAll && mountedSlot.contains(submitUpdateAll)
       && activeView === "updates" && selectedAppId === null
       && !batchInFlight && pendingRequest === null && updateAll !== null
-      && snapshot.state === "ready"
+      && snapshot.state === "ready" && !hasAcceptedUpdateRequest()
       && snapshot.entries.some((entry) => entry.state === "installed"
         && entry.updatable && entry.artifactIdentityVerified && entry.provenanceVerified)) {
       batchInFlight = true;
@@ -675,6 +713,9 @@ export function mountStoreOverviewControls(
       void updateAll.submitAvailableUpdates().then((report) => {
         if (destroyed) return;
         batchInFlight = false;
+        // Even when the user navigated away and the visible batch report was
+        // discarded, already forwarded requests must not become repeatable.
+        recordBatchAcceptedUpdates(report);
         if (generation === batchPresentationGeneration) batchReport = report;
         render();
       }, () => {
