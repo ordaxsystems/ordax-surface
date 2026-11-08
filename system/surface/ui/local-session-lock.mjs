@@ -173,8 +173,8 @@ export function mountLocalSessionLock(
     trapModalKeyboardFocus(event, overlay, documentObject.activeElement);
   };
 
-  documentObject.addEventListener("keydown", onKeyDown, true);
   documentObject.addEventListener("submit", onSubmit);
+  documentObject.addEventListener("keydown", onKeyDown, true);
   const unsubscribeSession = port.subscribe((next) => {
     const previousState = snapshot.state;
     snapshot = validateLocalSessionSnapshot(next);
