@@ -63,6 +63,7 @@ function fixture() {
     render() { renderCount += 1; },
     lifecycleRequests: { requestLifecycle() { throw Error("must not use individual request"); } },
     requestSessionId: "a".repeat(32),
+    OPERATIONS: new Set(["install", "update", "remove"]),
   };
   const program = [
     source.slice(operationStart, operationEnd),
