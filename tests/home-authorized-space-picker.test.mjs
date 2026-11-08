@@ -14,7 +14,8 @@ test('Home selects only current authorized, active Spaces via canonical Account 
   assert.match(source, /deriveAuthorizedSpaces\(\s*liveIdentity, session\.spaces\.getSnapshot\(\), session\.selection\.getSnapshot\(\)/);
   assert.match(source, /meridianHomeContextKey\(liveIdentity, live\.activeSpace\)/);
   assert.match(source, /meridianHomeContextKey\(identity, active\)/);
-  assert.match(source, /if \(!live\.ready\)/);
+  assert.match(source, /if \(!live\.ready \|\| !authorized\.ready/);
+  assert.match(source, /meridianHomeContextKey\(liveIdentity, live\.activeSpace\)/);
   assert.match(source, /const liveSpaces: typeof authorized\.visibleSpaces = live\.visibleSpaces/);
   assert.match(source, /liveSpaces\.find\(space => space\.id === spaceId && space\.state === 'active'\)/);
   assert.match(source, /session\.selection\.select\(match\.id\)/);
