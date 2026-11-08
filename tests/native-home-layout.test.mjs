@@ -260,6 +260,7 @@ test("Ctrl+K keeps the active search and arrows traverse only visible enabled re
     source.slice(openStart, closeStart) + "\n({ openNativeNavigation, trigger: () => navigationMenuTrigger });",
     {
       document: { activeElement: trigger }, HTMLElement: Focusable,
+      state: { launcherOpen: false }, areaMenu: { hidden: true },
       navigationMenu, navigationQuery: query,
       root: { querySelectorAll: () => [{ setAttribute: (_key, value) => expanded.push(value) }] },
       filterNativeNavigation: (value) => filtered.push(value),
