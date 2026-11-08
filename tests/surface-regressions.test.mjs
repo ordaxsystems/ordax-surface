@@ -781,8 +781,8 @@ test("First Run revalidates authenticated subject after the last awaited device 
   assert.ok(actualFinish.indexOf("await deviceProfilePort.rename(nextName)")
     < actualFinish.indexOf("await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId)"));
   assert.ok(actualFinish.indexOf("await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId)")
-    < actualFinish.indexOf("await store.save(completion)"));
-  assert.ok(actualFinish.indexOf("await store.save(completion)")
+    < actualFinish.indexOf("await store.save(completeFirstRunState(draft))"));
+  assert.ok(actualFinish.indexOf("await store.save(completeFirstRunState(draft))")
     < actualFinish.indexOf("validateFirstRunState(store.load())"),
     "the canonical store must publish the completion receipt before the wizard closes");
 
