@@ -105,7 +105,10 @@ export function mountDisplayOutputControls(container, {
       ? translate(statusMessageId)
       : available ? translate("settings.display.host.available") : unavailableText;
     status.dataset.capabilityState = available ? "available" : "unavailable";
-    retryButton.hidden = !outputPort || statusMessageId !== "settings.display.host.readFailed";
+    // An unavailable Host snapshot and an application failure with failed
+    // readback both hide the display controls. Always leave a recovery path
+    // when the Native port exists, including after display hotplug.
+    retryButton.hidden = !outputPort || available;
     retryButton.disabled = pending;
     controls.hidden = !available;
     outputLabel.hidden = !available;
