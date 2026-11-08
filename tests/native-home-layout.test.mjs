@@ -155,9 +155,11 @@ test("Ctrl+K Native navigation projects, searches and revokes installed apps in 
   assert.match(shell, /data-native-navigation-installed-apps/);
   assert.match(surface, /renderNativeNavigationInstalledApps\(\);\s*const activeNavigationWindow/);
   assert.match(surface, /if \(!navigationMenu.hidden\) filterNativeNavigation\(navigationQuery.value\)/);
-  assert.match(surface, /event.target === navigationQuery && !navigationMenu.hidden[\s\S]*?event.key === "ArrowDown"[\s\S]*?event.key === "Enter"/);
-  assert.match(surface, /if \(event.key === "Enter"\) first.click\(\)/);
-  assert.match(surface, /first.focus\(\{ preventScroll: true \}\)/);
+  assert.match(surface, /const handleNativeNavigationArrow = \(event\) => \{/);
+  assert.match(surface, /if \(handleNativeNavigationArrow\(event\)\) return;/);
+  assert.match(surface, /event.target === navigationQuery && !navigationMenu.hidden\s*&& event.key === "Enter"/);
+  assert.match(surface, /if \(first\) \{\s*first.click\(\);/);
+  assert.match(surface, /next.focus\(\{ preventScroll: true \}\)/);
   const start = surface.indexOf("  const renderNativeNavigationInstalledApps = () => {");
   const end = surface.indexOf("\n  const renderSidebar = () => {", start);
   assert.ok(start > 0 && end > start, "reuse the actual Native navigation renderer");
