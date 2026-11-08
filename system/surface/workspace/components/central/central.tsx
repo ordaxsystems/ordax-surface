@@ -6,8 +6,21 @@ import { desktopReducer, initialDesktopState } from './desktop-state';
 import { WindowLayer } from './window-layer';
 import { MeridianHome } from './meridian-home';
 import { useWebPreferences } from './preferences-context';
+import { useWebAccount } from './account-context';
+import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 
+// Windows and their contents are presentation state, not portable account
+// data. Remount the entire Web workspace when its authoritative identity or
+// active authorized Space changes, before an old window can appear as a new
+// person's context. Reconnection alone must not discard the workspace.
 export function Central() {
+  const {identity, authorized} = useWebAccount();
+  return <SessionScopedCentral
+    key={meridianHomeContextKey(identity, authorized.activeSpace)}
+  />;
+}
+
+function SessionScopedCentral() {
   const {theme} = useWebPreferences();
   const [windows, dispatch] = useReducer(desktopReducer, initialDesktopState);
   const compact = windows.windows.some(window => !window.minimized && window.mode === 'compact');
