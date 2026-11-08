@@ -18,6 +18,14 @@ function identityPresentationContextChanged(previous, next) {
     || (next.state === "signed-in" && previous.subjectId !== next.subjectId);
 }
 
+// Search is a display-only filter over the already authorized catalog.
+// Neither text matching nor a search hit confers Space selection authority.
+function spaceSwitcherMatchesName(name, query, locale = "pt-BR") {
+  const fold = (value) => String(value).normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
+  return fold(name).includes(fold(query).trim());
+}
+
 // One presentation for the existing Account-owned Spaces catalog and selection.
 // Selecting a Space is navigation context, never a permission grant.
 export function deriveSpaceSwitcherView(identity, catalog, selection, activation = null) {
@@ -90,9 +98,25 @@ export function mountSpaceSwitcherControls(
   let loading = false;
   let error = false;
   let selectionFailed = false;
+  let searchQuery = "";
   let destroyed = false;
   let refreshRevision = 0;
   let observedIdentity = identityPort.getSnapshot();
+
+  const filterSearchResults = () => {
+    if (!open) return;
+    let matching = 0;
+    for (const option of menu.querySelectorAll("[data-space-switcher-select]")) {
+      option.hidden = !spaceSwitcherMatchesName(
+        option.dataset.spaceSwitcherName ?? "",
+        searchQuery,
+        lifecycle.localization.getLocale(),
+      );
+      if (!option.hidden) matching += 1;
+    }
+    const empty = menu.querySelector("[data-space-switcher-search-empty]");
+    if (empty) empty.hidden = matching > 0 || searchQuery.trim() === "";
+  };
 
   const render = () => {
     if (destroyed) return;
@@ -102,6 +126,10 @@ export function mountSpaceSwitcherControls(
     const hadMenuFocus = menu.contains(focusedElement);
     const focusedSpaceId = hadMenuFocus
       ? focusedElement?.dataset?.spaceSwitcherSelect ?? null : null;
+    const hadSearchFocus = hadMenuFocus
+      && focusedElement?.hasAttribute?.("data-space-switcher-search");
+    const searchCaret = hadSearchFocus && Number.isInteger(focusedElement.selectionStart)
+      ? focusedElement.selectionStart : null;
     const hadManageFocus = hadMenuFocus
       && focusedElement?.hasAttribute?.("data-space-switcher-manage");
     const identity = identityPort.getSnapshot();
@@ -162,6 +190,20 @@ export function mountSpaceSwitcherControls(
     );
     menu.append(head);
 
+    const showSearch = identity.state === "signed-in" && ready
+      && selectionPort !== null && spacesVisible.length > 1;
+    let searchInput = null;
+    if (showSearch) {
+      searchInput = element("input", "ordax-space-switcher-search");
+      searchInput.type = "search";
+      searchInput.dataset.spaceSwitcherSearch = "";
+      searchInput.placeholder = english ? "Search Spaces" : "Buscar Spaces";
+      searchInput.setAttribute("aria-label", searchInput.placeholder);
+      searchInput.autocomplete = "off";
+      searchInput.value = searchQuery;
+      menu.append(searchInput);
+    }
+
     const list = element("div", "ordax-space-switcher-list");
     if (identity.state !== "signed-in") {
       list.append(element("p", "ordax-space-switcher-empty", t("account.spaces.signIn.detail")));
@@ -180,6 +222,7 @@ export function mountSpaceSwitcherControls(
         const isCurrent = active?.id === space.id;
         const item = button("ordax-space-switcher-option");
         item.dataset.spaceSwitcherSelect = space.id;
+        item.dataset.spaceSwitcherName = space.name;
         item.disabled = space.state !== "active" || selected?.state === "unavailable" || loading || isCurrent;
         item.setAttribute("aria-current", isCurrent ? "true" : "false");
         item.dataset.selected = String(isCurrent);
@@ -206,6 +249,15 @@ export function mountSpaceSwitcherControls(
         }
         list.append(item);
       }
+      if (showSearch) {
+        const noMatches = element("p", "ordax-space-switcher-empty",
+          english ? "No matching Spaces" : "Nenhum Space encontrado");
+        noMatches.dataset.spaceSwitcherSearchEmpty = "";
+        noMatches.setAttribute("role", "status");
+        noMatches.setAttribute("aria-live", "polite");
+        noMatches.hidden = true;
+        list.append(noMatches);
+      }
     }
     menu.append(list);
     if (selectionFailed) {
@@ -216,6 +268,12 @@ export function mountSpaceSwitcherControls(
     const manage = button("ordax-space-switcher-manage", t("account.spaces.switcher.manage"));
     manage.dataset.spaceSwitcherManage = "";
     menu.append(manage);
+    filterSearchResults();
+    if (hadSearchFocus && searchInput) {
+      searchInput.focus({ preventScroll: true });
+      if (searchCaret !== null) searchInput.setSelectionRange(searchCaret, searchCaret);
+      return;
+    }
     // Preserve only an option that is still present and enabled. Loading,
     // session changes or a revoked Space return keyboard focus to the
     // stable trigger; they never focus a different Space or run select().
@@ -254,6 +312,7 @@ export function mountSpaceSwitcherControls(
     if (trigger.contains(event.target)) {
       open = !open;
       if (open) { error = false; selectionFailed = false; }
+      searchQuery = "";
       render();
       if (open && spacesPort.getSnapshot().state !== "ready") refreshCatalog();
       return;
@@ -297,7 +356,8 @@ export function mountSpaceSwitcherControls(
     if (open && !originatedInside(event)) close();
   };
   const focusOption = (key) => {
-    const enabled = [...menu.querySelectorAll("button:not(:disabled)")];
+    const enabled = [...menu.querySelectorAll("button:not(:disabled):not([hidden])")]
+      .filter(item => !item.closest("[hidden]"));
     if (!enabled.length) return;
     const currentIndex = enabled.indexOf(doc.activeElement);
     const targetIndex = key === "Home" ? 0
@@ -307,18 +367,22 @@ export function mountSpaceSwitcherControls(
     enabled[targetIndex].focus();
   };
   const onKeyDown = (event) => {
-    if (open && event.key === "Escape") {
+    if (open && event.key === "Escape" && control.contains(event.target)) {
       event.preventDefault();
       close(true);
       return;
     }
     if (!control.contains(event.target)) return;
+    // Home/End should move the text caret while typing, not jump to a Space.
+    if (event.target.matches?.("[data-space-switcher-search]")
+      && (event.key === "Home" || event.key === "End")) return;
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     if (!open) {
       open = true;
       error = false;
       selectionFailed = false;
+      searchQuery = "";
       render();
       if (spacesPort.getSnapshot().state !== "ready") refreshCatalog();
     }
@@ -327,7 +391,13 @@ export function mountSpaceSwitcherControls(
   const onFocusIn = (event) => {
     if (open && !originatedInside(event)) close();
   };
+  const onInput = (event) => {
+    if (!open || !event.target.matches?.("[data-space-switcher-search]")) return;
+    searchQuery = event.target.value;
+    filterSearchResults();
+  };
   control.addEventListener("click", onClick);
+  control.addEventListener("input", onInput);
   doc.addEventListener("click", onOutside);
   doc.addEventListener("keydown", onKeyDown);
   doc.addEventListener("focusin", onFocusIn);
@@ -345,6 +415,7 @@ export function mountSpaceSwitcherControls(
         open = false;
         error = false;
         selectionFailed = false;
+        searchQuery = "";
       }
       render();
     }),
@@ -361,6 +432,7 @@ export function mountSpaceSwitcherControls(
       if (destroyed) return;
       destroyed = true;
       control.removeEventListener("click", onClick);
+      control.removeEventListener("input", onInput);
       doc.removeEventListener("click", onOutside);
       doc.removeEventListener("keydown", onKeyDown);
       doc.removeEventListener("focusin", onFocusIn);

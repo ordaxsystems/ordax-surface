@@ -137,6 +137,31 @@
   font-size: 0.69rem;
 }
 
+.ordax-space-switcher-search {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  margin-top: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-small);
+  background: var(--md-subtle);
+  color: var(--md-ink);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.ordax-space-switcher-search:focus-visible {
+  outline: 2px solid var(--md-focus);
+  outline-offset: 2px;
+}
+
+.ordax-space-switcher-option[hidden],
+.ordax-space-switcher-empty[hidden] {
+  display: none;
+}
+
 .ordax-space-switcher-list {
   display: grid;
   max-height: min(320px, 44vh);
