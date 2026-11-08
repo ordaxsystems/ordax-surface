@@ -10,7 +10,9 @@ const source = await readFile(
 const begin = source.indexOf("  function selectSpace(id: string) {");
 const end = source.indexOf("\n  return <Panel", begin);
 assert.ok(begin >= 0 && end > begin, "exercise the actual full Web Spaces panel action");
-const handler = source.slice(begin, end).replace("function selectSpace(id: string)", "function selectSpace(id)");
+const handler = source.slice(begin, end)
+  .replace("function selectSpace(id: string)", "function selectSpace(id)")
+  .replace("const liveSpaces: typeof authorized.visibleSpaces =", "const liveSpaces =");
 
 const space = (id, state = "active") => ({ id, kind: "work", state, name: id });
 const subject = subjectId => ({ state: "signed-in", subjectId, displayName: "Pessoa" });
