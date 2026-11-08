@@ -1,8 +1,9 @@
-// Keep keyboard navigation within the one First Run modal. The Surface root
-// remains inert while setup is open; this handles the dialog's own tab cycle.
+// Shared keyboard focus trap for the Surface's genuine modal dialogs.
+// First Run and the local session lock both make the Surface root inert.
+// Keep one implementation, never a second unlock-specific focus algorithm.
 const TABBABLE_SELECTOR = "a[href], button, input, select, textarea, summary, [tabindex]";
 
-export function trapFirstRunKeyboardFocus(event, overlay, activeElement) {
+export function trapModalKeyboardFocus(event, overlay, activeElement) {
   if (event.key !== "Tab") return false;
 
   const candidates = [...overlay.querySelectorAll(TABBABLE_SELECTOR)]
@@ -32,3 +33,6 @@ export function trapFirstRunKeyboardFocus(event, overlay, activeElement) {
   target.focus({ preventScroll: true });
   return true;
 }
+
+// Preserve the existing First Run import and its OS-owned source contracts.
+export const trapFirstRunKeyboardFocus = trapModalKeyboardFocus;
