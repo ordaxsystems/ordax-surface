@@ -382,6 +382,7 @@ export function mountSpaceSwitcherControls(
       open = true;
       error = false;
       selectionFailed = false;
+      searchQuery = "";
       render();
       if (spacesPort.getSnapshot().state !== "ready") refreshCatalog();
     }
