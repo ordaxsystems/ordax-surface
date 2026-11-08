@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { AccountPanel, AppIcon, Panel } from './primitives';
 import { favorites, shortcuts, type AppItem } from './config';
 import { useWebAccount } from './account-context';
+import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
+import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { WindowResourceLoadError } from './window-resource-error.mjs';
 import type { DesktopAction, DesktopState } from './desktop-state';
 import { getDesktopShortcutGlyphMarkup } from '../../../../services/surface/desktop-shortcut-glyphs.mjs';
@@ -87,12 +89,36 @@ function ScopedSpacesPanel() {
       setError('Reconecte antes de escolher um Space.');
       return;
     }
-    try { session.selection.select(id); }
-    catch { setError('Este Space não está disponível. Atualize a conexão e escolha novamente.'); }
+    // An event from an obsolete Space window must not change the new
+    // Account or selected Space. Use the same canonical context key as
+    // the Home picker and the keyed Web workspace.
+    const liveIdentity = session.identity.getSnapshot();
+    const live = deriveAuthorizedSpaces(
+      liveIdentity, session.spaces.getSnapshot(), session.selection.getSnapshot(),
+    );
+    if (!authorized.ready || !live.ready
+      || meridianHomeContextKey(liveIdentity, live.activeSpace)
+        !== meridianHomeContextKey(identity, authorized.activeSpace)) {
+      setError('O contexto da conta mudou. Atualize seus Spaces para continuar.');
+      return;
+    }
+    try {
+      if (id === '') {
+        if (!live.activeSpace) throw new Error('There is no active Space to clear');
+        session.selection.clear();
+      } else {
+        const presented = authorized.visibleSpaces.find(space => space.id === id && space.state === 'active');
+        const current = live.visibleSpaces.find(space => space.id === id && space.state === 'active');
+        if (!presented || !current) throw new Error('Space is no longer authorized');
+        session.selection.select(id);
+      }
+    } catch {
+      setError('Este Space não está disponível. Atualize a conexão e escolha novamente.');
+    }
   }
   return <Panel title="Seus Spaces" className="meridian-account-spaces" actionControl={<Button variant="outline" disabled={offline || loading} onClick={() => { setError(null); void session.refresh().catch(() => setError('Não foi possível atualizar a conexão. Tente novamente.')); }}>{loading ? 'Consultando…' : 'Atualizar conexão'}</Button>}>
     <p className="meridian-account-spaces-scope">Spaces autorizados pela sua conta. A seleção atual vale apenas enquanto esta página estiver aberta; após recarregar, escolha o Space novamente.</p>
-    {authorized.activeSpace && <section className="meridian-account-space-active" aria-label="Espaço em uso"><span className="meridian-space-symbol"><WalletCards aria-hidden="true"/></span><div><small>ESPAÇO EM USO</small><h3>{authorized.activeSpace.name}</h3><p>{kinds[authorized.activeSpace.kind as keyof typeof kinds]} · Contexto selecionado nesta sessão</p></div><Button variant="outline" onClick={() => { session.selection.clear(); setError(null); }}>Limpar seleção</Button></section>}
+    {authorized.activeSpace && <section className="meridian-account-space-active" aria-label="Espaço em uso"><span className="meridian-space-symbol"><WalletCards aria-hidden="true"/></span><div><small>ESPAÇO EM USO</small><h3>{authorized.activeSpace.name}</h3><p>{kinds[authorized.activeSpace.kind as keyof typeof kinds]} · Contexto selecionado nesta sessão</p></div><Button variant="outline" onClick={() => selectSpace('')}>Limpar seleção</Button></section>}
     {authorized.ready && authorized.visibleSpaces.length > 0 ? <>
       <div className="meridian-account-spaces-tools"><label>Buscar nos meus espaços<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Nome do espaço"/></label><span>{visible.length} de {authorized.visibleSpaces.length} espaços</span></div>
       {visible.length ? <div className="meridian-account-space-grid">{visible.map(space => <article key={space.id} className="meridian-account-space-card" data-selected={authorized.activeSpace?.id === space.id}>
