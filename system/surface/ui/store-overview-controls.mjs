@@ -965,7 +965,6 @@ export function mountStoreOverviewControls(
       root.removeEventListener("input", onInput);
       root.removeEventListener("keydown", onKeyDown);
       acceptedRequests.clear();
-      uncertainRequestIds.clear();
       mountedSlot = null;
     },
   });
