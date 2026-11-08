@@ -95,14 +95,15 @@ export function mountSystemTrayQuickPanels(root) {
   };
 
   const onKeyDown = (event) => {
-    if (event.key !== "Escape" || activeId === null) return;
-    const panel = panelFor(activeId);
-    const trigger = triggerFor(activeId);
-    // Another overlay (notably Ctrl+K or the launcher) may have keyboard
-    // focus while a tray panel is still open. Do not close it or steal focus.
-    if (!panel?.contains(event.target) && !trigger?.contains(event.target)) return;
-    event.preventDefault();
-    close();
+    if (event.key === "Escape" && activeId !== null) {
+      const panel = panelFor(activeId);
+      const trigger = triggerFor(activeId);
+      // Another overlay (notably Ctrl+K or the launcher) may have keyboard
+      // focus while a tray panel is still open. Do not close it or steal focus.
+      if (!panel?.contains(event.target) && !trigger?.contains(event.target)) return;
+      event.preventDefault();
+      close();
+    }
   };
 
   root.addEventListener("click", onClick, true);
