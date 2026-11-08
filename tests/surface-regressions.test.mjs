@@ -541,6 +541,7 @@ test("Space switcher preserves same-user selection and closes only on identity t
     helper,
     'let identitySnapshot = { state: "signed-in", subjectId: "owner-a", displayName: "Original" };',
     'let observedIdentity = identitySnapshot;',
+    'let searchQuery = "Cafe";',
     'let refreshRevision = 0;',
     'let loading = true;',
     'let open = true;',
@@ -556,7 +557,7 @@ test("Space switcher preserves same-user selection and closes only on identity t
     actualSubscribe + ";",
     '({',
     '  publish(value) { identitySnapshot = value; identityListener(); },',
-    '  state() { return { refreshRevision, loading, open, error, selectionFailed, repaintCount }; },',
+    '  state() { return { refreshRevision, loading, open, error, selectionFailed, repaintCount, searchQuery }; },',
     '});',
   ].join("\n"));
   assert.equal(harness.state().refreshRevision, 0, "initial replay is not a session change");
@@ -566,12 +567,14 @@ test("Space switcher preserves same-user selection and closes only on identity t
   assert.equal(harness.state().loading, true, "an in-flight catalog read remains valid");
   assert.equal(harness.state().selectionFailed, true, "presentation feedback is preserved");
   assert.equal(harness.state().refreshRevision, 0, "same-subject refresh cannot revoke a read");
+  assert.equal(harness.state().searchQuery, "Cafe", "same-user refresh keeps the in-progress Space search");
   harness.publish({ state: "signed-in", subjectId: "owner-b", displayName: "Another" });
   assert.equal(harness.state().open, false, "account switch dismisses previous menu");
   assert.equal(harness.state().loading, false, "old catalog wait is invalidated");
   assert.equal(harness.state().error, false);
   assert.equal(harness.state().selectionFailed, false);
   assert.equal(harness.state().refreshRevision, 1);
+  assert.equal(harness.state().searchQuery, "", "switching Accounts discards the prior user's search");
   harness.publish({ state: "signed-in", subjectId: "owner-b", displayName: "Another" });
   assert.equal(harness.state().refreshRevision, 1, "duplicate event must not revoke again");
   harness.publish({ state: "signed-out", subjectId: null });
