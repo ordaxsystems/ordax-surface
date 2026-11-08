@@ -400,9 +400,12 @@ export function mountStoreOverviewControls(
     }
   };
 
-  const requestForEntry = (entry) => batchInFlight
-    ? { appId: "", operation: "update", phase: "requesting" }
-    : pendingRequest ?? acceptedRequests.get(entry.appId) ?? null;
+  const requestForEntry = (entry) => {
+    // Preserve the Host contract: Update All is a global in-flight lock,
+    // while accepted individual requests are scoped to their own app.
+    const inFlight = batchInFlight ? { appId: "", operation: "update" } : pendingRequest;
+    return inFlight ?? acceptedRequests.get(entry.appId) ?? null;
+  };
 
   const refreshResults = () => {
     if (!mountedSlot || activeView === "models" || snapshot.state !== "ready" || selectedAppId !== null) return;
