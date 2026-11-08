@@ -324,10 +324,11 @@ test("Native Home continuation reads the OS regional time-zone SSOT and reacts t
 
 test("Native audio refresh cannot invalidate an in-flight write and leave controls locked", async () => {
   const source = await read("audio-output-controls.mjs");
-  const refresh = source.slice(source.indexOf("  const refresh = async () => {"), source.indexOf("  const apply = async (action) => {"));
+  const refresh = source.slice(source.indexOf("  const refresh = async ("), source.indexOf("  const apply = async (action) => {"));
   const apply = source.slice(source.indexOf("  const apply = async (action) => {"), source.indexOf("  const handleOutputChange ="));
   assert.ok(refresh.length > 0 && apply.length > 0, "Canonical audio read/write handlers must exist");
   assert.match(refresh, /if \(destroyed \|\| audioPort === null \|\| pending\) return;/);
+  assert.match(refresh, /preserveActionFailure = false/);
   assert.match(refresh, /const currentOperation = \+\+operation;/);
   assert.match(refresh, /if \(destroyed \|\| currentOperation !== operation\) return;/);
   assert.match(apply, /if \(destroyed \|\| pending \|\| audioPort === null \|\| !selectedOutputId\) return;/);

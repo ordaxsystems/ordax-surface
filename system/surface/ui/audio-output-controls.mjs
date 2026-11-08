@@ -96,6 +96,7 @@ export function mountAudioOutputControls(root, {
   let destroyed = false;
   let pending = false;
   let operation = 0;
+  let statusMessageId = null;
 
   const selectedOutput = () => snapshot?.outputs.find((output) => output.id === selectedOutputId) ?? null;
   const render = () => {
@@ -117,8 +118,8 @@ export function mountAudioOutputControls(root, {
     refreshButton.hidden = false;
     refreshButton.disabled = pending;
     if (!snapshot) {
-      status.textContent = translate("settings.audio.host.reading");
-      status.dataset.capabilityState = "reading";
+      status.textContent = translate(statusMessageId ?? "settings.audio.host.reading");
+      status.dataset.capabilityState = statusMessageId ? "unavailable" : "reading";
       controls.hidden = true;
       return;
     }
@@ -128,8 +129,11 @@ export function mountAudioOutputControls(root, {
       controls.hidden = true;
       return;
     }
-    status.textContent = translate("settings.audio.host.available");
-    status.dataset.capabilityState = "available";
+    // A successful readback can restore usable controls without confirming
+    // the action that just failed. Keep that error visible until a new
+    // explicit refresh or a successful write.
+    status.textContent = translate(statusMessageId ?? "settings.audio.host.available");
+    status.dataset.capabilityState = statusMessageId ? "error" : "available";
     controls.hidden = false;
     const preferred = snapshot.outputs.find((output) => output.id === snapshot.defaultOutputId)
       ?? snapshot.outputs[0];
@@ -154,7 +158,7 @@ export function mountAudioOutputControls(root, {
     muteButton.setAttribute("aria-pressed", String(current.muted));
   };
 
-  const refresh = async () => {
+  const refresh = async ({ preserveActionFailure = false } = {}) => {
     // A public/manual refresh must not supersede an in-flight Native write.
     // Its completion would invalidate the write's generation and strand
     // pending=true, leaving all audio controls disabled indefinitely.
@@ -165,13 +169,13 @@ export function mountAudioOutputControls(root, {
       if (destroyed || currentOperation !== operation) return;
       snapshot = next;
       selectedOutputId = next.defaultOutputId;
+      if (!preserveActionFailure) statusMessageId = null;
       render();
     } catch {
       if (destroyed || currentOperation !== operation) return;
       snapshot = null;
-      status.textContent = translate("settings.audio.host.readFailed");
-      status.dataset.capabilityState = "unavailable";
-      controls.hidden = true;
+      statusMessageId = "settings.audio.host.readFailed";
+      render();
     }
   };
 
@@ -186,14 +190,14 @@ export function mountAudioOutputControls(root, {
       // A stale/destroyed control must not accept even a transient readback.
       snapshot = validateAudioOutputsSnapshot(result);
       selectedOutputId = snapshot.defaultOutputId;
+      statusMessageId = null;
     } catch {
       if (destroyed || currentOperation !== operation) return;
       snapshot = null;
-      status.textContent = translate("settings.audio.host.applyFailed");
-      status.dataset.capabilityState = "unavailable";
-      controls.hidden = true;
+      statusMessageId = "settings.audio.host.applyFailed";
       pending = false;
-      await refresh();
+      render();
+      await refresh({ preserveActionFailure: true });
       return;
     }
     pending = false;
