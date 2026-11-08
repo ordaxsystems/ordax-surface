@@ -57,10 +57,9 @@ export function mountPowerControls(root, powerActions = null, surfaceLifecycle =
     throw new Error("Surface power controls require the shared shell power slot");
   }
 
+  // A valid Native port can become authorized after the Surface mounts.
+  // Keep the one subscription alive even when no action is initially exposed.
   const availableActions = () => ACTIONS.filter((item) => isPowerActionSupported(snapshot, item.id));
-  if (availableActions().length === 0) {
-    return Object.freeze({ destroy() {} });
-  }
 
   const toggle = node(documentObject, "button", "ordax-rail-button ordax-rail-power");
   toggle.type = "button";
@@ -123,6 +122,11 @@ export function mountPowerControls(root, powerActions = null, surfaceLifecycle =
 
   const render = () => {
     const focusedAction = captureFocusedAction();
+    const actions = availableActions();
+    const available = actions.length > 0;
+    if (!available) open = false;
+    toggle.hidden = !available;
+    toggle.disabled = !available || pending !== null;
     overlay.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", t("power.controls.open"));
@@ -131,7 +135,7 @@ export function mountPowerControls(root, powerActions = null, surfaceLifecycle =
     headingTitle.textContent = t("power.controls.heading");
     headingDetail.textContent = t("power.controls.hostAction");
     grid.replaceChildren();
-    for (const item of availableActions()) {
+    for (const item of actions) {
       const button = node(documentObject, "button", "ordax-launcher-app");
       button.type = "button";
       button.dataset.powerAction = item.id;
@@ -206,7 +210,7 @@ export function mountPowerControls(root, powerActions = null, surfaceLifecycle =
   };
 
   const onToggle = () => {
-    if (pending !== null) return;
+    if (pending !== null || availableActions().length === 0) return;
     open = !open;
     if (!open) {
       confirming = null;
@@ -247,11 +251,23 @@ export function mountPowerControls(root, powerActions = null, surfaceLifecycle =
   root.addEventListener("keydown", onRootKeyDown);
   const unsubscribe = port.subscribe((nextSnapshot) => {
     if (destroyed) return;
+    const focused = documentObject.activeElement;
+    const focusWillBeHidden = focused === toggle || (open && overlay.contains(focused));
     snapshot = validatePowerActionsSnapshot(nextSnapshot);
     if (availableActions().length === 0) {
       open = false;
+      confirming = null;
+      // A request already accepted by the Host is not canceled by the
+      // loss of presentation authority. Never re-enable its action here.
+      if (pending === null) messageId = null;
+    } else if (confirming !== null && !isPowerActionSupported(snapshot, confirming)) {
+      confirming = null;
+      messageId = null;
     }
     render();
+    if (toggle.hidden && focusWillBeHidden) {
+      root.querySelector("[data-workspace]")?.focus({ preventScroll: true });
+    }
   });
   const unsubscribePowerStatus = updatePort?.subscribe((nextSnapshot) => {
     if (destroyed) return;
