@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { ArrowUpRight, Layers3 } from 'lucide-react';
 import { deriveAuthorizedSpaces } from '../../../../services/spaces/authorized-view.mjs';
+import { meridianHomeContextKey } from '../../../ui/meridian-home-context.mjs';
 import { useWebAccount } from './account-context';
 
 // Navigation context only: the Account-owned selection runtime validates the
@@ -22,10 +23,16 @@ export function HomeSpacePicker({ onManage }: { onManage: () => void }) {
       setError('Reconecte para selecionar um Space.');
       return;
     }
+    const liveIdentity = session.identity.getSnapshot();
     const live = deriveAuthorizedSpaces(
-      session.identity.getSnapshot(), session.spaces.getSnapshot(), session.selection.getSnapshot(),
+      liveIdentity, session.spaces.getSnapshot(), session.selection.getSnapshot(),
     );
-    if (!live.ready) {
+    // A queued change from an old render must not select or clear a Space in
+    // a different account or previously selected Space. The same canonical
+    // context key already scopes the entire Web workspace.
+    if (!live.ready || !authorized.ready
+      || meridianHomeContextKey(liveIdentity, live.activeSpace)
+        !== meridianHomeContextKey(identity, active)) {
       setError('O contexto da conta mudou. Atualize seus Spaces para continuar.');
       return;
     }
