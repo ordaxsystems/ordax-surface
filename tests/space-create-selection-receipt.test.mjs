@@ -136,5 +136,37 @@ test("An unverified catalog never converts a mutation receipt into selection aut
     assert.equal(state().createMessage, "account.spaces.create.retryUnconfirmed");
     assert.equal(state().createIdempotencyKey, "uuid-1");
     assert.equal(scenario.selects.length, 0, "unverified Space cannot be selected");
+    assert.equal(scenario.intents.length, 1, "the original command was sent once");
+
+    scenario.failRefresh = false;
+    scenario.authorized = true;
+    controller.submit();
+    await flush();
+    assert.equal(scenario.intents.length, 1,
+      "an accepted receipt must not trigger a second Host creation command");
+    assert.equal(scenario.refreshes, 2,
+      "retry verifies authoritative catalog instead of repeating the mutation");
+    assert.deepEqual(scenario.selects, ["space-1"],
+      "selection becomes available only after the authorized catalog confirms it");
+    assert.equal(state().createUnconfirmed, false);
+    assert.equal(state().createIdempotencyKey, null);
   }
+});
+
+test("A cached Space creation receipt is scoped to the current subject and unchanged intent", () => {
+  const onSubmit = source.slice(start, end);
+  const onInput = source.slice(source.indexOf("  const onInput = (event) => {"), start);
+  const onChange = source.slice(source.indexOf("  const onChange = (event) => {"),
+    source.indexOf("  const onInput = (event) => {"));
+  const onSessionChange = source.slice(source.indexOf("  const unsubscribeSession = "),
+    source.indexOf("  const unsubscribeAccountLifecycle = "));
+  const onDestroy = source.slice(source.indexOf("    destroy() {"), source.length);
+
+  assert.match(onSubmit, /const receipt = createReceipt \?\? await spaceCreatePort\.create\(intent\)/);
+  assert.match(onSubmit, /createReceipt = receipt;\s*await spacesPort\.refresh\(\)/);
+  assert.match(onSubmit, /typeof receipt\?\.space\?\.id !== "string"/);
+  assert.match(onInput, /createNameDraft = input\.value;\s*createIdempotencyKey = null;\s*createReceipt = null;/);
+  assert.match(onChange, /createTypeDraft = control\.value;\s*createIdempotencyKey = null;\s*createReceipt = null;/);
+  assert.match(onSessionChange, /createOrdinal \+= 1;\s*createPending = false;\s*createIdempotencyKey = null;\s*createUnconfirmed = false;\s*createNameDraft = "";\s*createReceipt = null;/);
+  assert.match(onDestroy, /spaceCreatePort\?\.dispose\(\);\s*createOrdinal \+= 1;\s*createReceipt = null;/);
 });
