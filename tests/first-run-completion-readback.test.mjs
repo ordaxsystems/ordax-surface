@@ -164,10 +164,11 @@ test("In-flight completion cannot be submitted twice", async () => {
 
 test("Closing after save does not require a second first-run store", () => {
   const block = source.slice(finishStart, finishEnd);
-  assert.match(block, /await store\.save\(completion\)/);
+  assert.match(block, /await store\.save\(completeFirstRunState\(draft\)\)/);
   assert.match(block, /validateFirstRunState\(store\.load\(\)\)/);
   assert.match(block, /confirmed\.completed/);
   assert.match(block, /confirmed\.systemTerms\?\.version/);
+  assert.match(block, /confirmed\.systemTerms\?\.version !== draft\.systemTerms\?\.version/);
   assert.match(block, /close\(\)/);
   assert.doesNotMatch(block, /localStorage|sessionStorage|indexedDB|fetch\(/);
 });
