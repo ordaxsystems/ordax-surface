@@ -1033,15 +1033,23 @@ export function mountSurface(
     }
   };
 
-  const openLauncher = () => {
+  let launcherOpener = null;
+  const openLauncher = (trigger = null) => {
+    launcherOpener = trigger instanceof HTMLElement ? trigger : null;
     if (!state.launcherOpen) dispatch({ type: "launcher.toggle" });
     queueMicrotask(() => {
-      launcherQuery.focus();
-      launcherQuery.select();
+      if (state.launcherOpen) {
+        launcherQuery.focus({ preventScroll: true });
+        launcherQuery.select();
+      }
     });
   };
   let navigationMenuTrigger = null;
   const openNativeNavigation = (trigger = document.activeElement) => {
+    // The launcher and Ctrl+K are alternate entry points to the same
+    // app catalog. Never leave both transient overlays open together.
+    if (state.launcherOpen) dispatch({ type: "launcher.close" });
+    if (!areaMenu.hidden) setAreaMenuOpen(false);
     if (!navigationMenu.hidden) {
       // Repeating Ctrl+K should return to the search field, not erase a
       // partially typed query or replace the original Escape focus target.
@@ -1145,7 +1153,7 @@ export function mountSurface(
       if (state.launcherOpen) {
         dispatch({ type: "launcher.close" });
       } else {
-        openLauncher();
+        openLauncher(launcherButton);
       }
       return;
     }
@@ -1354,6 +1362,36 @@ export function mountSurface(
     dispatch({ type: "window.maximize", windowId: windowNode.dataset.windowId });
   };
 
+  const handleLauncherKeyboard = (event) => {
+    if (!state.launcherOpen || !launcher.contains(event.target)) return false;
+    if (event.target !== launcherQuery && !appLauncher.contains(event.target)) return false;
+    const options = Array.from(appLauncher.querySelectorAll("button:not(:disabled):not([hidden])"))
+      .filter(button => !button.closest("[hidden]"));
+    if (event.target === launcherQuery && event.key === "Enter" && options.length > 0) {
+      event.preventDefault();
+      options[0].click();
+      return true;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
+    // Home and End are normal text cursor commands while the search has focus.
+    if (event.target === launcherQuery && (event.key === "Home" || event.key === "End")) {
+      return false;
+    }
+    if (options.length === 0) return false;
+    const current = options.indexOf(root.ownerDocument.activeElement);
+    let index;
+    if (event.key === "Home") index = 0;
+    else if (event.key === "End") index = options.length - 1;
+    else if (event.key === "ArrowUp") {
+      index = current < 0 ? options.length - 1 : (current - 1 + options.length) % options.length;
+    } else {
+      index = current < 0 ? 0 : (current + 1) % options.length;
+    }
+    event.preventDefault();
+    options[index].focus({ preventScroll: true });
+    return true;
+  };
+
   const onKeyDown = (event) => {
     if (moveDockFocus(event, nativeDock, "button", revealDockButton)) return;
     if (moveDesktopShortcutFocus(event, root, "[data-desktop-app]")) return;
@@ -1377,9 +1415,16 @@ export function mountSurface(
       return;
     }
 
-    if (event.key === "Escape" && state.launcherOpen) {
+    if (event.key === "Escape" && state.launcherOpen
+        && (launcher.contains(event.target) || launcherOpener?.contains(event.target))) {
+      event.preventDefault();
       dispatch({ type: "launcher.close" });
-      launcherToggle.focus();
+      // Other transient interfaces may own focus now. Restore only a
+      // mounted visible opener; never jump into a hidden sidebar item.
+      const opener = launcherOpener?.isConnected && !launcherOpener.hidden
+        && !launcherOpener.disabled && !launcherOpener.closest("[hidden]")
+        ? launcherOpener : workspace;
+      opener.focus({ preventScroll: true });
       return;
     }
 
@@ -1395,19 +1440,7 @@ export function mountSurface(
       }
     }
 
-    if (event.target === launcherQuery && state.launcherOpen) {
-      const firstApp = appLauncher.querySelector("button:not(:disabled):not([hidden])");
-      if (event.key === "ArrowDown" && firstApp) {
-        firstApp.focus();
-        event.preventDefault();
-        return;
-      }
-      if (event.key === "Enter" && firstApp) {
-        firstApp.click();
-        event.preventDefault();
-        return;
-      }
-    }
+    if (handleLauncherKeyboard(event)) return;
 
     if (!event.altKey || !isMovableWorkspace()) return;
     const deltas = {
