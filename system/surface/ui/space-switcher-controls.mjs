@@ -311,7 +311,8 @@ export function mountSpaceSwitcherControls(
   const onClick = (event) => {
     if (trigger.contains(event.target)) {
       open = !open;
-      if (open) { error = false; selectionFailed = false; searchQuery = ""; }
+      if (open) { error = false; selectionFailed = false; }
+      searchQuery = "";
       render();
       if (open && spacesPort.getSnapshot().state !== "ready") refreshCatalog();
       return;
