@@ -51,6 +51,8 @@ function keyboardHarness() {
     appLauncher, launcherQuery: query,
   });
   const key = (target, name) => {
+    // A real keyboard event originates from the document's focused element.
+    doc.activeElement = target;
     const event = {
       target, key: name, prevented: false,
       preventDefault() { this.prevented = true; },
