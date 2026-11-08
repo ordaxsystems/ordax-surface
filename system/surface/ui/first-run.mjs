@@ -1387,6 +1387,21 @@ export function mountFirstRunExperience(
       preferencePort.set(REGIONAL_TIME_ZONE_PREFERENCE_ID, draft.timeZone);
       draft.systemTerms = createSystemTermsAcceptance(systemTermsAccepted);
       await store.save(completeFirstRunState(draft));
+      // A resolved save is not sufficient if a compatible port still
+      // publishes an incomplete or different first-use receipt. Validate the
+      // current canonical store projection before dismissing the wizard.
+      // The Native adapter updates this projection only after HTTP success.
+      const confirmed = validateFirstRunState(store.load());
+      if (!confirmed.completed
+          || confirmed.locale !== draft.locale
+          || confirmed.timeZone !== draft.timeZone
+          || confirmed.accountMode !== draft.accountMode
+          || confirmed.systemTerms?.documentId !== draft.systemTerms?.documentId
+          || confirmed.systemTerms?.version !== draft.systemTerms?.version
+          || confirmed.systemTerms?.status !== draft.systemTerms?.status
+          || confirmed.systemTerms?.accepted !== draft.systemTerms?.accepted) {
+        throw new Error("First Run completion receipt was not confirmed");
+      }
       close();
     } catch (error) {
       if (destroyed) return;
