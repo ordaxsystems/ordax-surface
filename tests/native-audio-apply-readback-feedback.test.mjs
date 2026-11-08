@@ -161,6 +161,7 @@ test("Destroyed audio ignores late recovery readbacks", async () => {
   const h = fixture({ replies: [deferred] });
   h.render();
   const pending = h.apply(async () => { throw new Error("Host write rejected"); });
+  await Promise.resolve(); // allow rejected Host write to enter its recovery read
   assert.equal(h.status.textContent, "settings.audio.host.applyFailed");
   h.destroy();
   release(available(70));
