@@ -334,3 +334,66 @@ test("Ctrl+K keeps the active search and arrows traverse only visible enabled re
   assert.match(source, /if \(handleNativeNavigationArrow\(event\)\) return;/);
   assert.match(source, /if \(event.key === "Escape" && !navigationMenu.hidden\) \{\s*event.preventDefault\(\)/);
 });
+
+test("Native Ctrl+K announces zero matches and restores focus when a result is hidden or revoked", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const [source, markup, css] = await Promise.all([
+    read("surface.mjs"), read("desktop-shell.mjs"), read("identity.css"),
+  ]);
+  assert.match(markup, /data-native-navigation-empty role="status" aria-live="polite" aria-atomic="true" hidden/);
+  assert.match(css, /\.ordax-native-navigation-empty\[hidden\] \{ display: none; \}/);
+  const start = source.indexOf("  const filterNativeNavigation = query => {");
+  const end = source.indexOf("\n  const handleNativeNavigationArrow =", start);
+  assert.ok(start >= 0 && end > start, "test the actual Native search filter");
+
+  let currentLocale = "pt-BR";
+  const group = { hidden: false, items: [], querySelector() {
+    return this.items.find(button => !button.hidden) ?? null;
+  } };
+  const first = { textContent: "Início", hidden: false, disabled: false,
+    matches: () => true, closest: () => group };
+  const second = { textContent: "Notas", hidden: false, disabled: false,
+    matches: () => true, closest: () => group };
+  group.items = [first, second];
+  const empty = { textContent: "", hidden: true };
+  let activeElement = null;
+  let restored = 0;
+  const navigationQuery = { focus() { activeElement = navigationQuery; restored += 1; } };
+  const root = { ownerDocument: { get activeElement() { return activeElement; } } };
+  const navigationMenu = {
+    hidden: false,
+    querySelectorAll: (selector) => selector === "[data-nav-menu-item]" ? group.items : [group],
+    querySelector: (selector) => selector === "[data-native-navigation-empty]" ? empty : null,
+  };
+  const filter = runInNewContext(source.slice(start, end) + "\nfilterNativeNavigation", {
+    navigationMenu, navigationQuery, localization: { getLocale: () => currentLocale }, root,
+  });
+  filter("nótas");
+  assert.equal(first.hidden, true);
+  assert.equal(second.hidden, false, "accent-insensitive matching still works");
+  assert.equal(group.hidden, false);
+  assert.equal(empty.hidden, true);
+  activeElement = second;
+  filter("resultado que não existe");
+  assert.equal(group.hidden, true);
+  assert.equal(empty.hidden, false);
+  assert.equal(empty.textContent, "Nenhum destino ou aplicativo encontrado.");
+  assert.equal(activeElement, navigationQuery, "selected hidden result returns to search");
+  assert.equal(restored, 1);
+
+  currentLocale = "en-US";
+  filter("not-found");
+  assert.equal(empty.textContent, "No destinations or apps found.");
+  filter("");
+  assert.equal(empty.hidden, true, "normal results conceal the empty message");
+  assert.equal(group.hidden, false);
+
+  activeElement = second;
+  second.disabled = true;
+  filter("Notas");
+  assert.equal(restored, 2, "a revoked active result returns focus to search");
+  navigationMenu.hidden = true;
+  activeElement = second;
+  filter("not-found");
+  assert.equal(restored, 2, "a closed menu never steals focus");
+});

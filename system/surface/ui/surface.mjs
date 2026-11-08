@@ -1071,8 +1071,24 @@ export function mountSurface(
       const value = button.textContent.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
       button.hidden = normalized !== "" && !value.includes(normalized);
     }
+    let hasResults = false;
     for (const group of navigationMenu.querySelectorAll("[data-nav-menu-group]")) {
       group.hidden = !group.querySelector("[data-nav-menu-item]:not([hidden])");
+      if (!group.hidden) hasResults = true;
+    }
+    const empty = navigationMenu.querySelector("[data-native-navigation-empty]");
+    if (empty) {
+      empty.textContent = locale.toLowerCase().startsWith("en")
+        ? "No destinations or apps found."
+        : "Nenhum destino ou aplicativo encontrado.";
+      empty.hidden = hasResults;
+    }
+    // A live catalog or locale update can hide a keyboard-selected item.
+    // Return to the search input instead of leaving focus in a hidden group.
+    const focused = root.ownerDocument.activeElement;
+    if (!navigationMenu.hidden && focused?.matches?.("[data-nav-menu-item]")
+      && (focused.hidden || focused.disabled || focused.closest("[data-nav-menu-group]")?.hidden)) {
+      navigationQuery.focus({ preventScroll: true });
     }
   };
 
