@@ -166,7 +166,8 @@ test("Accepted Store receipts are invalidated only by authoritative catalog cand
 
 test("Store keeps pending and accepted semantics separate without a new inventory", () => {
   assert.match(source, /const acceptedRequests = new Map\(\)/);
-  assert.match(source, /const requestForEntry = \(entry\) => batchInFlight/);
+  assert.match(source, /const requestForEntry = \(entry\) => \{/);
+  assert.match(source, /batchInFlight \? \{ appId: "", operation: "update" \} : pendingRequest/);
   assert.match(source, /requestForEntry\(selectedEntry\)/);
   assert.match(source, /requestForEntry\(entry\)/);
   assert.match(source, /acceptedRequests\.has\(appId\)/);
