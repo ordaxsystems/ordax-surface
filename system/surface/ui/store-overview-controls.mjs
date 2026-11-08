@@ -725,9 +725,7 @@ export function mountStoreOverviewControls(
       selectedAppId = null;
       removalConfirmationAppId = null;
       render();
-      const priorButton = Array.from(mountedSlot?.querySelectorAll("[data-store-details]") ?? [])
-        .find((candidate) => candidate.dataset.storeDetails === previousAppId);
-      priorButton?.focus?.();
+      focusStoreCatalogReturn(previousAppId);
       return;
     }
 
@@ -819,7 +817,49 @@ export function mountStoreOverviewControls(
       });
   };
 
+  const focusStoreCatalogReturn = (appId) => {
+    if (!mountedSlot) return;
+    const previous = Array.from(mountedSlot.querySelectorAll("[data-store-details]"))
+      .find(button => button.dataset.storeDetails === appId
+        && !button.disabled && !button.hidden && !button.closest("[hidden]"));
+    const fallback = mountedSlot.querySelector("[data-store-search]")
+      ?? mountedSlot.querySelector('[data-store-view][aria-current="page"]');
+    // A catalog update can remove or filter the original details button.
+    // Never send keyboard focus into a hidden or detached card.
+    (previous ?? fallback)?.focus?.({ preventScroll: true });
+  };
+
+  const handleStoreCatalogKeyboard = (event) => {
+    if (!mountedSlot?.contains(event.target) || selectedAppId !== null
+      || snapshot.state !== "ready" || activeView === "models") return false;
+    const search = mountedSlot.querySelector("[data-store-search]");
+    const detailButton = event.target.closest?.("[data-store-details]");
+    const inSearch = event.target === search;
+    if (!inSearch && !detailButton) return false;
+    const options = Array.from(mountedSlot.querySelectorAll("[data-store-details]"))
+      .filter(button => !button.disabled && !button.hidden && !button.closest("[hidden]"));
+    if (options.length === 0) return false;
+    if (inSearch && event.key === "Enter") {
+      event.preventDefault();
+      options[0].click();
+      return true;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
+    // Keep Home/End as native caret movement in the search field.
+    if (inSearch && (event.key === "Home" || event.key === "End")) return false;
+    const current = options.indexOf(detailButton);
+    const index = event.key === "Home" ? 0
+      : event.key === "End" ? options.length - 1
+      : event.key === "ArrowUp"
+        ? current < 0 ? options.length - 1 : (current - 1 + options.length) % options.length
+        : current < 0 ? 0 : (current + 1) % options.length;
+    event.preventDefault();
+    options[index].focus({ preventScroll: true });
+    return true;
+  };
+
   const onKeyDown = (event) => {
+    if (handleStoreCatalogKeyboard(event)) return;
     if (event.key !== "Escape" || !mountedSlot?.contains(event.target)) return;
     if (removalConfirmationAppId !== null) {
       removalConfirmationAppId = null;
@@ -830,9 +870,7 @@ export function mountStoreOverviewControls(
       const previousAppId = selectedAppId;
       selectedAppId = null;
       render();
-      const priorButton = Array.from(mountedSlot?.querySelectorAll("[data-store-details]") ?? [])
-        .find((candidate) => candidate.dataset.storeDetails === previousAppId);
-      priorButton?.focus?.();
+      focusStoreCatalogReturn(previousAppId);
       event.preventDefault();
     }
   };
