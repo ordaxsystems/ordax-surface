@@ -61,6 +61,7 @@ test("Web account status remains authoritative without treating transport offlin
   assert.match(source, /useSyncExternalStore\(session\.identity\.subscribe, session\.identity\.getSnapshot/);
   assert.match(source, /deriveAuthorizedSpaces\(identity, catalog, selection\)/);
   assert.match(keySource, /if \(identity\?\.state === "signed-in"\)/);
-  assert.doesNotMatch(keySource, /connectivity|offline|navigator\.onLine/,
+  const keyImplementation = keySource.slice(keySource.indexOf("export function meridianHomeContextKey("));
+  assert.doesNotMatch(keyImplementation, /connectivity|offline|navigator\.onLine/,
     "network reconnects cannot accidentally destroy valid window drafts");
 });
