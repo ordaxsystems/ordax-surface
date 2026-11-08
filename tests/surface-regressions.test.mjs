@@ -786,6 +786,7 @@ test("First Run revalidates authenticated subject after the last awaited device 
   const build = (accountMode = "identity") => {
     const calls = [];
     let currentSubject = "subject-A";
+    let savedReceipt = null;
     let releaseRename;
     const renameWait = new Promise(resolve => { releaseRename = resolve; });
     const globals = {
@@ -799,7 +800,8 @@ test("First Run revalidates authenticated subject after the last awaited device 
         return currentSubject === subjectId;
       },
       preference: (key, value) => calls.push("preference:" + key + ":" + value),
-      persist: async value => calls.push("save:" + value.accountMode),
+      persist: async value => { calls.push("save:" + value.accountMode); savedReceipt = value; },
+      loadReceipt: () => savedReceipt,
       onClose: () => calls.push("close"),
       calls,
     };
@@ -833,7 +835,8 @@ test("First Run revalidates authenticated subject after the last awaited device 
       REGIONAL_TIME_ZONE_PREFERENCE_ID: "regional.time-zone",
       createSystemTermsAcceptance: value => ({ accepted: value }),
       completeFirstRunState: draft => ({ ...draft, completed: true }),
-      store: { save: globals.persist },
+      store: { save: globals.persist, load: globals.loadReceipt },
+      validateFirstRunState: value => value,
       close: globals.onClose,
       render: () => {},
       productMode: "desktop",
