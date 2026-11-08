@@ -231,3 +231,104 @@ test("Ctrl+K Native navigation projects, searches and revokes installed apps in 
   fixture();
   assert.equal(slot.children.length, 0, "uninstalled app leaves no navigation action");
 });
+
+test("Ctrl+K keeps the active search and arrows traverse only visible enabled results", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("surface.mjs");
+  const openStart = source.indexOf("  let navigationMenuTrigger = null;");
+  const closeStart = source.indexOf("  const closeNativeNavigation =", openStart);
+  const arrowsStart = source.indexOf("  const handleNativeNavigationArrow = (event) => {", closeStart);
+  const arrowsEnd = source.indexOf("\n  const onClick = (event) => {", arrowsStart);
+  assert.ok(openStart > 0 && closeStart > openStart && arrowsStart > closeStart && arrowsEnd > arrowsStart);
+
+  class Focusable {
+    constructor(id) { this.id = id; this.isConnected = true; this.focusCount = 0; }
+    focus() { this.focusCount += 1; }
+  }
+  const trigger = new Focusable("trigger");
+  const another = new Focusable("another");
+  const query = new Focusable("query");
+  query.value = "old";
+  query.closest = () => null;
+  const navigationMenu = { hidden: true };
+  const expanded = [];
+  const tasks = [];
+  const filtered = [];
+  const session = runInNewContext(
+    source.slice(openStart, closeStart) + "\n({ openNativeNavigation, trigger: () => navigationMenuTrigger });",
+    {
+      document: { activeElement: trigger }, HTMLElement: Focusable,
+      navigationMenu, navigationQuery: query,
+      root: { querySelectorAll: () => [{ setAttribute: (_key, value) => expanded.push(value) }] },
+      filterNativeNavigation: (value) => filtered.push(value),
+      queueMicrotask: (task) => tasks.push(task),
+    },
+  );
+  session.openNativeNavigation(trigger);
+  assert.equal(navigationMenu.hidden, false);
+  assert.equal(query.value, "");
+  assert.equal(session.trigger(), trigger);
+  assert.deepEqual(filtered, [""]);
+  assert.deepEqual(expanded, ["true"]);
+  query.value = "notas";
+  session.openNativeNavigation(another);
+  assert.equal(query.value, "notas", "repeated Ctrl+K cannot erase a typed search");
+  assert.equal(session.trigger(), trigger, "Escape target remains the original opener");
+  assert.equal(query.focusCount, 1, "repeated Ctrl+K focuses existing input");
+  tasks[0]();
+  assert.equal(query.focusCount, 2, "first open eventually focuses input");
+  navigationMenu.hidden = true;
+  tasks[0]();
+  assert.equal(query.focusCount, 2, "a closed menu must not steal focus later");
+
+  const activeGroup = { hidden: false };
+  const hiddenGroup = { hidden: true };
+  const focus = [];
+  function button(id, group, { hidden = false, disabled = false } = {}) {
+    return {
+      id, hidden, disabled,
+      closest(selector) {
+        if (selector === "[data-nav-menu-item]") return this;
+        if (selector === "[data-nav-menu-group]") return group;
+        return null;
+      },
+      focus() { focus.push(id); },
+    };
+  }
+  const a = button("a", activeGroup);
+  const no = button("disabled", activeGroup, { disabled: true });
+  const hidden = button("hidden", activeGroup, { hidden: true });
+  const inactive = button("group-hidden", hiddenGroup);
+  const b = button("b", activeGroup);
+  let buttons = [a, no, hidden, inactive, b];
+  navigationMenu.querySelectorAll = () => buttons.filter(x => !x.hidden && !x.disabled);
+  const arrow = runInNewContext(
+    source.slice(arrowsStart, arrowsEnd) + "\nhandleNativeNavigationArrow",
+    { navigationMenu, navigationQuery: query },
+  );
+  const key = (target, direction) => {
+    const event = { target, key: direction, prevented: false, preventDefault() { this.prevented = true; } };
+    const used = arrow(event);
+    assert.equal(event.prevented, used);
+    return used;
+  };
+  navigationMenu.hidden = false;
+  assert.equal(key(query, "ArrowDown"), true);
+  assert.deepEqual(focus, ["a"], "skip disabled, hidden and hidden-group candidates");
+  key(a, "ArrowDown");
+  assert.deepEqual(focus, ["a", "b"]);
+  key(b, "ArrowDown");
+  assert.equal(query.focusCount, 3, "end of results returns to search");
+  key(query, "ArrowUp");
+  key(b, "ArrowUp");
+  key(a, "ArrowUp");
+  assert.deepEqual(focus, ["a", "b", "b", "a"]);
+  assert.equal(query.focusCount, 4, "backtracking before first result returns to search");
+  assert.equal(key(another, "ArrowDown"), false, "unrelated controls keep native arrow behavior");
+  buttons = [no, hidden, inactive];
+  assert.equal(key(query, "ArrowDown"), false, "no visible results means no synthetic selection");
+  navigationMenu.hidden = true;
+  assert.equal(key(query, "ArrowUp"), false, "hidden menu cannot capture keys");
+  assert.match(source, /if \(handleNativeNavigationArrow\(event\)\) return;/);
+  assert.match(source, /if \(event.key === "Escape" && !navigationMenu.hidden\) \{\s*event.preventDefault\(\)/);
+});
