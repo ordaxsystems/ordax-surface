@@ -1325,6 +1325,16 @@ export function mountFirstRunExperience(
     }
   };
 
+  // An online login can appear after a person selected local-only use.
+  // That previous choice must never silently become a signed-in setup.
+  const revokeAccountSelection = () => {
+    draft.accountMode = null;
+    selectedIdentitySubjectId = null;
+    stepIndex = stepIndexFor("account");
+    identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
+    identityFeedbackTone = "attention";
+  };
+
   const finish = async () => {
     if (destroyed || finishing || draft.accountMode === null || !systemTermsAccepted) return;
     finishing = true;
@@ -1352,10 +1362,22 @@ export function mountFirstRunExperience(
         const identityStillCurrent = await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId);
         if (destroyed) return;
         if (!identityStillCurrent) {
-          draft.accountMode = null;
-          selectedIdentitySubjectId = null;
-          stepIndex = stepIndexFor("account");
-          identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
+          revokeAccountSelection();
+          finishing = false;
+          render();
+          return;
+        }
+      }
+      // Keep offline setup available if identity is unavailable, but do
+      // not complete "without an account" when the Host is signed in.
+      // This read is AFTER the optional awaited rename and immediately
+      // BEFORE saving the first-use receipt.
+      if (draft.accountMode === "local-only") {
+        const currentSession = sessionPort.getSnapshot();
+        if (destroyed) return;
+        if (currentSession.state === "signed-in") {
+          sessionSnapshot = currentSession;
+          revokeAccountSelection();
           finishing = false;
           render();
           return;
@@ -1462,7 +1484,17 @@ export function mountFirstRunExperience(
       draft.accountMode = "identity";
       go(stepIndex + 1);
     } else if (kind === "account-local") {
-      if (sessionSnapshot.state === "signed-in") {
+      if (identityPending !== null) return;
+      // Use the live port, not an old render, when the user chooses local use.
+      const currentSession = sessionPort.getSnapshot();
+      sessionSnapshot = currentSession;
+      if (currentSession.state === "signed-in") {
+        if (!isIdentityActionSupported(actionsSnapshot, "sign-out")) {
+          identityMessage = "Não foi possível sair da conta. Tente novamente.";
+          identityFeedbackTone = "attention";
+          render();
+          return;
+        }
         accountLocalRequested = true;
         void runIdentity("sign-out");
         return;
@@ -1605,6 +1637,11 @@ export function mountFirstRunExperience(
       selectedIdentitySubjectId = null;
       stepIndex = stepIndexFor("account");
       identityMessage = "A sessão da Conta OrdaX mudou. Entre novamente ou continue sem conta.";
+      identityFeedbackTone = "attention";
+    }
+    if (draft.accountMode === "local-only"
+        && !finishing && sessionSnapshot.state === "signed-in") {
+      revokeAccountSelection();
     }
     if (sessionSnapshot.state === "signed-in") {
       registrationPolicy = null;

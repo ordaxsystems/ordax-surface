@@ -772,9 +772,11 @@ test("First Run rejects stale registration policy responses after sign-in and si
 test("First Run revalidates authenticated subject after the last awaited device rename", async () => {
   const { runInNewContext } = await import("node:vm");
   const source = await read("first-run.mjs");
-  const start = source.indexOf("  const finish = async () => {");
+  const revocationStart = source.indexOf("  const revokeAccountSelection = () => {");
+  const start = source.indexOf("  const finish = async () => {", revocationStart);
   const end = source.indexOf("  const onClick = (event) => {", start);
-  assert.ok(start >= 0 && end > start);
+  assert.ok(revocationStart >= 0 && start > revocationStart && end > start);
+  const actualRevocation = source.slice(revocationStart, start);
   const actualFinish = source.slice(start, end);
   assert.ok(actualFinish.indexOf("await deviceProfilePort.rename(nextName)")
     < actualFinish.indexOf("await verifyFirstRunIdentitySession(sessionPort, selectedIdentitySubjectId)"));
@@ -802,6 +804,7 @@ test("First Run revalidates authenticated subject after the last awaited device 
       calls,
     };
     const code = [
+      actualRevocation,
       actualFinish,
       "({",
       "  finish,",
