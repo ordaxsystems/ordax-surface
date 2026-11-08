@@ -21,6 +21,7 @@ function harness({ failCreate = false, failRefresh = false, failSelect = false,
     'let destroyed = false;',
     'let sessionSnapshot = { state: "signed-in", subjectId: "owner-1" };',
     'let createPending = false;',
+    'let spacesSnapshot = { state: "ready" };',
     'let createNameDraft = "  Pizzaria Solar  ";',
     'let createTypeDraft = "food:pizzeria";',
     'let createIdempotencyKey = null;',
@@ -63,6 +64,7 @@ function harness({ failCreate = false, failRefresh = false, failSelect = false,
     '});',
     source.slice(start, end),
     '({',
+    '  setCatalogState(state) { spacesSnapshot = { state }; },',
     '  submit() {',
     '    onSubmit({',
     '      target: { matches: () => true },',
@@ -170,4 +172,128 @@ test("A cached Space creation receipt is scoped to the current subject and uncha
   assert.match(onChange, /createTypeDraft = control\.value;\s*createIdempotencyKey = null;\s*createReceipt = null;/);
   assert.match(onSessionChange, /createOrdinal \+= 1;\s*createPending = false;\s*createIdempotencyKey = null;\s*createUnconfirmed = false;\s*createNameDraft = "";\s*createReceipt = null;/);
   assert.match(onDestroy, /spaceCreatePort\?\.dispose\(\);\s*createOrdinal \+= 1;\s*createReceipt = null;/);
+});
+
+
+test("Creation recovery can continue when catalog is in error, but new creation remains blocked", async () => {
+  const fresh = harness();
+  fresh.controller.setCatalogState("error");
+  fresh.controller.submit();
+  await flush();
+  assert.equal(fresh.scenario.intents.length, 0, "no fresh Space creation without a ready catalog");
+  fresh.controller.setCatalogState("ready");
+  fresh.controller.submit();
+  await flush();
+  assert.equal(fresh.scenario.intents.length, 1, "new Space creation resumes once catalog is ready");
+
+  const existing = harness({ failRefresh: true });
+  existing.controller.submit();
+  await flush();
+  assert.equal(existing.state().createUnconfirmed, true);
+  assert.equal(existing.scenario.intents.length, 1);
+  existing.controller.setCatalogState("error");
+  existing.scenario.failRefresh = false;
+  existing.controller.submit();
+  await flush();
+  assert.equal(existing.scenario.intents.length, 1, "retry only rechecks the accepted receipt");
+  assert.equal(existing.scenario.refreshes, 2);
+  assert.deepEqual(existing.scenario.selects, ["space-1"]);
+
+  const busy = harness({ failRefresh: true });
+  busy.controller.submit();
+  await flush();
+  busy.controller.setCatalogState("loading");
+  busy.scenario.failRefresh = false;
+  busy.controller.submit();
+  await flush();
+  assert.equal(busy.scenario.refreshes, 1, "loading does not race a second catalog request");
+});
+
+test("Space recovery form stays visible on catalog error, while new creation stays closed", () => {
+  const begin = source.indexOf("  const renderSpaces = (view) => {");
+  const finish = source.indexOf("  const renderProfiles = (view) => {", begin);
+  assert.ok(begin >= 0 && finish > begin);
+  class Element {
+    constructor(tag) {
+      this.tagName = tag.toUpperCase();
+      this.children = [];
+      this.dataset = {};
+      this.attributes = new Map();
+      this.textContent = "";
+      this.disabled = false;
+      this.classList = { add() {} };
+    }
+    append(...children) { this.children.push(...children); }
+    setAttribute(key, value) { this.attributes.set(key, value); }
+    querySelector(selector) {
+      const attribute = selector.match(/^\[data-([a-z-]+)\]$/)?.[1];
+      const prop = attribute?.replace(/-([a-z])/g, (_, x) => x.toUpperCase());
+      if (prop && Object.hasOwn(this.dataset, prop)) return this;
+      for (const item of this.children) {
+        const result = item.querySelector?.(selector);
+        if (result) return result;
+      }
+      return null;
+    }
+  }
+  const context = {
+    documentObject: { createElement: tag => new Element(tag) },
+    node: (_, tag, className, value) => {
+      const element = new Element(tag);
+      element.className = className;
+      if (value !== undefined) element.textContent = value;
+      return element;
+    },
+    t: key => key,
+    sessionSnapshot: { state: "signed-in", subjectId: "owner-1" },
+    spacesPort: {},
+    spacesSnapshot: { state: "error" },
+    spaceCreatePort: {},
+    CREATABLE_SPACE_TYPES: [{ key: "food:pizzeria", labelId: "space.type.food.pizzeria" }],
+    createPending: false,
+    createUnconfirmed: false,
+    createNameDraft: "Space em recuperação",
+    createTypeDraft: "food:pizzeria",
+    createReceipt: null,
+    createMessage: "",
+    spaceMessage: "",
+    markSurfaceFeedback: element => element,
+    authorizedSpaces: () => ({ ready: true, visibleSpaces: [] }),
+  };
+  const render = runInNewContext(source.slice(begin, finish) + "\nrenderSpaces", context);
+  const renderView = () => {
+    const view = new Element("main");
+    render(view);
+    return view;
+  };
+  assert.equal(renderView().querySelector("[data-account-space-create]"), null,
+    "fresh creation never appears when catalog is unavailable");
+
+  context.createUnconfirmed = true;
+  context.createReceipt = { space: { id: "space-1" } };
+  let form = renderView().querySelector("[data-account-space-create]");
+  assert.ok(form, "an unconfirmed Space remains recoverable after catalog error");
+  assert.equal(form.dataset.accountSpaceRecovery, "true");
+  const submit = form.children.find(item => item.tagName === "BUTTON");
+  const name = form.querySelector("[data-account-space-create-name]");
+  const type = form.querySelector("[data-account-space-create-type]");
+  assert.equal(submit?.disabled, false);
+  assert.equal(submit?.textContent, "account.spaces.refresh",
+    "a valid receipt retries verification instead of saying 'Create Space'");
+  assert.equal(submit?.attributes.get("aria-label"), "account.spaces.create.retryUnconfirmed");
+  assert.equal(name?.disabled, true, "the uncertain payload remains immutable");
+  assert.equal(type?.disabled, true);
+
+  context.spacesSnapshot = { state: "loading" };
+  form = renderView().querySelector("[data-account-space-create]");
+  assert.ok(form, "loading cannot erase the recovery UI");
+  assert.equal(form.children.find(item => item.tagName === "BUTTON")?.disabled, true,
+    "no parallel recovery while the catalog is loading");
+
+  context.spacesSnapshot = { state: "ready" };
+  context.createUnconfirmed = false;
+  context.createReceipt = null;
+  form = renderView().querySelector("[data-account-space-create]");
+  assert.ok(form, "normal creation remains available with ready catalog");
+  assert.equal(form.children.find(item => item.tagName === "BUTTON")?.disabled, false);
 });

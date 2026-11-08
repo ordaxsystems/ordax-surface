@@ -726,9 +726,13 @@ export function mountAccountOverviewControls(
     actions.append(refresh);
     section.append(actions);
 
-    if (spaceCreatePort && CREATABLE_SPACE_TYPES.length > 0 && spacesSnapshot.state === "ready") {
+    // An unresolved creation must remain recoverable even if its catalog
+    // refresh failed. Never offer a fresh creation while catalog is unavailable.
+    if (spaceCreatePort && CREATABLE_SPACE_TYPES.length > 0
+        && (spacesSnapshot.state === "ready" || createUnconfirmed)) {
       const form = node(documentObject, "form", "ordax-account-section ordax-account-space-create-form");
       form.dataset.accountSpaceCreate = "";
+      form.dataset.accountSpaceRecovery = String(createUnconfirmed);
       form.append(
         node(documentObject, "h5", "ordax-account-section-title", t("account.spaces.create.title")),
         node(documentObject, "p", "ordax-account-subtitle",
@@ -756,9 +760,15 @@ export function mountAccountOverviewControls(
       typeInput.value = createTypeDraft;
       typeField.append(node(documentObject, "span", "", t("account.spaces.create.type")), typeInput);
       const submit = node(documentObject, "button", "ordax-account-action ordax-account-action-primary",
-        createPending ? t("account.spaces.create.pending") : t("account.spaces.create.title"));
+        createPending ? t("account.spaces.create.pending")
+          : createReceipt ? t("account.spaces.refresh") : t("account.spaces.create.title"));
       submit.type = "submit";
-      submit.disabled = createPending || createNameDraft.trim().length === 0;
+      // Pending catalog reads cannot be raced by a second recovery attempt.
+      submit.disabled = createPending || spacesSnapshot.state === "loading"
+        || createNameDraft.trim().length === 0;
+      if (createUnconfirmed) {
+        submit.setAttribute("aria-label", t("account.spaces.create.retryUnconfirmed"));
+      }
       nameInput.disabled = createPending || createUnconfirmed;
       form.append(nameField, typeField, submit);
       section.append(form);
@@ -1572,7 +1582,9 @@ export function mountAccountOverviewControls(
     const form = event.target;
     if (!form?.matches?.("[data-account-space-create]") || !root.contains(form)) return;
     event.preventDefault();
-    if (!spaceCreatePort || createPending || destroyed || sessionSnapshot.state !== "signed-in") return;
+    if (!spaceCreatePort || createPending || destroyed || sessionSnapshot.state !== "signed-in"
+        || spacesSnapshot?.state === "loading"
+        || (spacesSnapshot?.state !== "ready" && !createUnconfirmed)) return;
     const selectedType = CREATABLE_SPACE_TYPES.find(type => type.key === createTypeDraft);
     const name = createNameDraft.trim();
     if (!selectedType || name.length === 0 || name.length > 120) return;
