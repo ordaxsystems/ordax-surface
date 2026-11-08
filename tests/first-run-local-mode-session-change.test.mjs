@@ -46,7 +46,8 @@ function finishingFixture({ session = offline, deviceRename = null, accountMode 
     REGIONAL_TIME_ZONE_PREFERENCE_ID: "regional.timeZone",
     createSystemTermsAcceptance: accepted => ({ accepted }),
     completeFirstRunState: draft => ({ ...draft, completed: true }),
-    store: { async save(next) { saved.push(next); } },
+    store: { async save(next) { saved.push(next); }, load() { return saved.at(-1); } },
+    validateFirstRunState: value => value,
     close() { closed += 1; },
     render() { renders += 1; },
   };
