@@ -60,10 +60,17 @@ export function nativeHomeAssistantApp(catalog, capabilityIds) {
 }
 
 // Installed component slots are supplied by the OS-owned runtime catalog.
+// Navigation uses the full list, never a second local registry or discovery
+// mechanism; revoked capabilities and removed slots disappear on next render.
+export function nativeNavigationInstalledApps(catalog, capabilityIds) {
+  return Object.freeze(catalog.list()
+    .filter((app) => isNativeHomeInstalledApp(app, catalog, capabilityIds)));
+}
+
 // The Home is a small quick-access projection, not a second app registry.
 // Aura already has its dedicated Home tile and must not appear twice.
 export function nativeHomeInstalledApps(catalog, capabilityIds) {
-  return Object.freeze(catalog.list()
-    .filter((app) => app.id !== "assistant" && isNativeHomeInstalledApp(app, catalog, capabilityIds))
+  return Object.freeze(nativeNavigationInstalledApps(catalog, capabilityIds)
+    .filter((app) => app.id !== "assistant")
     .slice(0, 4));
 }
