@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { nativeHomeAssistantApp } from "../system/surface/ui/application-presentations.mjs";
+import { nativeHomeAssistantApp, nativeHomeInstalledApps } from "../system/surface/ui/application-presentations.mjs";
 
 const ui = (name) => new URL("../system/surface/ui/" + name, import.meta.url);
 const read = (name) => readFile(ui(name), "utf8");
@@ -101,4 +101,50 @@ test("Native Home shows Aura only for its signed installed Assistant app slot", 
   assert.equal(nativeHomeAssistantApp(catalog, []), null, "not an external executable");
   app = null;
   assert.equal(nativeHomeAssistantApp(catalog, []), null, "removed during runtime");
+});
+
+test("Native Home quick access follows verified installed apps without duplicating Aura", async () => {
+  const [shell, surface, styles] = await Promise.all([
+    read("desktop-shell.mjs"), read("surface.mjs"), read("identity.css"),
+  ]);
+  assert.match(surface, /const installed = nativeHomeInstalledApps\(catalog, state\.capabilityIds\)/);
+  assert.match(surface, /button\.dataset\.nativeHomeInstalledApp = app\.id/);
+  assert.match(surface, /button\.dataset\.launchApp = app\.id/);
+  assert.match(surface, /addAppButton\.before\(button\)/);
+  assert.match(surface, /if \(button\.contains\(root\.ownerDocument\.activeElement\)\)/);
+  assert.match(surface, /button\.remove\(\)/);
+  assert.match(surface, /renderHomeAssistant\(\);\s*renderHomeInstalledApps\(\);/);
+  assert.match(shell, /data-native-home-assistant hidden disabled/);
+  assert.match(styles, /\[data-native-home-installed-app\] \.ordax-rail-icon/);
+  assert.doesNotMatch(shell, /data-native-home-installed-app/,
+    "no fabricated installed app should exist in the static shell");
+
+  const installed = (id, requiredCapabilities = []) => ({
+    id, monogram: "AP", component: { kind: "app", releaseMode: "component-slot" },
+    panels: [{ kind: "extension", extensionId: id }], requiredCapabilities,
+  });
+  const assistant = installed("assistant");
+  const studio = installed("studio");
+  const notes = installed("notes", ["notes.read"]);
+  const gallery = installed("gallery");
+  const editor = installed("editor");
+  const terminal = installed("terminal");
+  const invalid = { ...installed("not-installed"), component: { kind: "app", releaseMode: "bundled" } };
+  let current = [assistant, studio, notes, gallery, editor, terminal, invalid];
+  const catalog = {
+    get: (id) => current.find((app) => app.id === id) ?? null,
+    list: () => current,
+    isAvailable: (app, capabilities) => app.requiredCapabilities.every((id) => capabilities.includes(id)),
+  };
+  assert.equal(nativeHomeAssistantApp(catalog, []), assistant);
+  assert.deepEqual(nativeHomeInstalledApps(catalog, []).map((app) => app.id),
+    ["studio", "gallery", "editor", "terminal"], "only valid slots; bounded Home; no second Aura");
+  assert.deepEqual(nativeHomeInstalledApps(catalog, ["notes.read"]).map((app) => app.id),
+    ["studio", "notes", "gallery", "editor"], "granted capabilities change the Home projection");
+  current = [assistant, notes, invalid];
+  assert.deepEqual(nativeHomeInstalledApps(catalog, []).map((app) => app.id), [],
+    "revoked capabilities and removed installations revoke Home shortcuts");
+  current = [];
+  assert.equal(nativeHomeAssistantApp(catalog, []), null);
+  assert.deepEqual(nativeHomeInstalledApps(catalog, []).map((app) => app.id), []);
 });

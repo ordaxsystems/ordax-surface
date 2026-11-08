@@ -2,7 +2,7 @@ import { mountNativeSidebarFit, sidebarIsExpanded, sidebarItemIsActive } from ".
 import { mountSidebarHints } from "./sidebar-hints.mjs";
 import { assertAppRuntimeCatalog, defaultAppRuntimeCatalog } from "../../apps/runtime-catalog.mjs";
 import { externalAppCopy } from "../../apps/external-app-definition.mjs";
-import { nativeHomeAssistantApp } from "./application-presentations.mjs";
+import { nativeHomeAssistantApp, nativeHomeInstalledApps } from "./application-presentations.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { PREFERENCE_RUNTIME_SCHEMA } from "../../contracts/preference-runtime.mjs";
 import { createPreferencePersistence } from "../../services/preferences/runtime.mjs";
@@ -769,6 +769,43 @@ export function mountSurface(
     button.hidden = false;
   };
 
+  const renderHomeInstalledApps = () => {
+    const grid = root.querySelector(".ordax-home-action-grid");
+    const addAppButton = grid?.querySelector(".ordax-home-add-app");
+    if (!grid || !addAppButton) return;
+    const installed = nativeHomeInstalledApps(catalog, state.capabilityIds);
+    const retained = new Set();
+    for (const app of installed) {
+      let button = Array.from(grid.querySelectorAll("[data-native-home-installed-app]"))
+        .find((node) => node.dataset.nativeHomeInstalledApp === app.id);
+      if (!button) {
+        button = element("button", "ordax-home-action");
+        button.type = "button";
+        button.dataset.nativeHomeInstalledApp = app.id;
+        const icon = element("span", "ordax-rail-icon");
+        icon.setAttribute("aria-hidden", "true");
+        button.append(icon, element("span", "ordax-home-installed-app-label"));
+        addAppButton.before(button);
+      }
+      // Every shortcut goes through the same catalog availability check as
+      // the launcher. Text comes from installed presentation metadata only.
+      const label = appTitle(localization, app);
+      button.dataset.launchApp = app.id;
+      button.querySelector(".ordax-rail-icon").textContent = app.monogram;
+      button.querySelector(".ordax-home-installed-app-label").textContent = label;
+      button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
+      button.title = label;
+      retained.add(button);
+    }
+    for (const button of grid.querySelectorAll("[data-native-home-installed-app]")) {
+      if (retained.has(button)) continue;
+      if (button.contains(root.ownerDocument.activeElement)) {
+        addAppButton.focus({ preventScroll: true });
+      }
+      button.remove();
+    }
+  };
+
   const renderSidebar = () => {
     const area = getActiveArea(state);
     const activeWindow = area.windows.find((item) => item.id === area.activeWindowId) ?? null;
@@ -933,6 +970,7 @@ export function mountSurface(
     renderDock();
     renderSidebar();
     renderHomeAssistant();
+    renderHomeInstalledApps();
     renderAreas();
     for (const listener of [...renderListeners]) listener();
   };

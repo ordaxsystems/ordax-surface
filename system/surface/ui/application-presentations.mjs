@@ -45,13 +45,25 @@ export function composeApplicationPresentations(firstPartyApps, installedCatalog
  * signed component catalog exposes its canonical "assistant" install slot.
  * This is presentation gating, not model access or execution authorization.
  */
-export function nativeHomeAssistantApp(catalog, capabilityIds) {
-  const app = catalog.get("assistant");
+function isNativeHomeInstalledApp(app, catalog, capabilityIds) {
   return app?.component?.kind === "app"
     && app.component.releaseMode === "component-slot"
     && app.panels?.length === 1
     && app.panels[0]?.kind === "extension"
     && app.panels[0]?.extensionId === app.id
-    && catalog.isAvailable(app, capabilityIds)
-    ? app : null;
+    && catalog.isAvailable(app, capabilityIds);
+}
+
+export function nativeHomeAssistantApp(catalog, capabilityIds) {
+  const app = catalog.get("assistant");
+  return isNativeHomeInstalledApp(app, catalog, capabilityIds) ? app : null;
+}
+
+// Installed component slots are supplied by the OS-owned runtime catalog.
+// The Home is a small quick-access projection, not a second app registry.
+// Aura already has its dedicated Home tile and must not appear twice.
+export function nativeHomeInstalledApps(catalog, capabilityIds) {
+  return Object.freeze(catalog.list()
+    .filter((app) => app.id !== "assistant" && isNativeHomeInstalledApp(app, catalog, capabilityIds))
+    .slice(0, 4));
 }
