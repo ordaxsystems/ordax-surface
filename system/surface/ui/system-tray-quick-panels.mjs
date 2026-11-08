@@ -20,6 +20,13 @@ export function mountSystemTrayQuickPanels(root) {
   const triggerFor = (id) =>
     triggers.find((trigger) => trigger.dataset.quickPanelToggle === id) ?? null;
 
+  const usableTrigger = (trigger) =>
+    trigger instanceof HTMLElement
+    && trigger.isConnected
+    && !trigger.hidden
+    && !trigger.disabled
+    && !trigger.closest("[hidden]");
+
   const close = ({ restore = true } = {}) => {
     if (activeId === null) return;
     const previousId = activeId;
@@ -32,13 +39,21 @@ export function mountSystemTrayQuickPanels(root) {
       panel.dataset.open = "false";
     }
     trigger?.setAttribute("aria-expanded", "false");
-    if (restore && restoreFocus instanceof HTMLElement) restoreFocus.focus();
+    if (restore) {
+      if (usableTrigger(restoreFocus)) {
+        restoreFocus.focus({ preventScroll: true });
+      } else {
+        // A tray item can disappear while its panel is open (e.g. battery
+        // detection). Never move keyboard focus to a hidden or removed item.
+        root.querySelector("[data-workspace]")?.focus({ preventScroll: true });
+      }
+    }
     restoreFocus = null;
   };
 
   const open = (id, trigger) => {
     const panel = panelFor(id);
-    if (!panel) return;
+    if (!panel || !usableTrigger(trigger)) return;
     if (activeId === id) {
       close();
       return;
@@ -81,6 +96,11 @@ export function mountSystemTrayQuickPanels(root) {
 
   const onKeyDown = (event) => {
     if (event.key === "Escape" && activeId !== null) {
+      const panel = panelFor(activeId);
+      const trigger = triggerFor(activeId);
+      // Another overlay (notably Ctrl+K or the launcher) may have keyboard
+      // focus while a tray panel is still open. Do not close it or steal focus.
+      if (!panel?.contains(event.target) && !trigger?.contains(event.target)) return;
       event.preventDefault();
       close();
     }
