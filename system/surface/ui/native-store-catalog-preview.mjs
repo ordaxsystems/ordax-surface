@@ -17,7 +17,7 @@ function renderPreview(slot, catalog, t) {
   slot.replaceChildren();
   const sectionTitle = doc.createElement("strong");
   sectionTitle.className = "ordax-store-preview-heading";
-  sectionTitle.textContent = "Estado oficial dos aplicativos";
+  sectionTitle.textContent = t("store.presentation.official");
   slot.append(sectionTitle);
   let result;
   try { result = projectNativeStorePreview(catalog.getSnapshot(), limit); }
@@ -31,12 +31,13 @@ function renderPreview(slot, catalog, t) {
   }
   if (result.total === 0) {
     const text = doc.createElement("p");
-    text.textContent = "Nenhum aplicativo consta do catálogo oficial nesta sessão.";
+    text.textContent = t("store.empty.filtered");
     slot.append(text);
     return;
   }
   const list = doc.createElement("ul");
   list.className = "ordax-store-preview-list";
+  list.setAttribute("aria-label", t("store.presentation.official"));
   for (const entry of result.entries) {
     const visual = storeEntryVisualState(entry);
     const row = doc.createElement("li");
@@ -68,11 +69,12 @@ function renderPreview(slot, catalog, t) {
   slot.append(list);
   if (result.total > result.entries.length) {
     const extra = doc.createElement("p");
-    extra.textContent = (result.total - result.entries.length) + " outros aplicativos no catálogo. Consulte a Loja.";
+    // This is the catalog's authoritative total, not an invented "more apps" count.
+    extra.textContent = t("store.results.count", { count: String(result.total) });
     slot.append(extra);
   }
   const note = doc.createElement("small");
-  note.textContent = "Somente consulta. Instalação não comprova autorização para abrir ou executar.";
+  note.textContent = t("store.security.note");
   slot.append(note);
 }
 
