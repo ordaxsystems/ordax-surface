@@ -29,7 +29,7 @@ const unavailable = {
   outputs: [],
 };
 
-function fixture({ initial = available(), replies = [] } = {}) {
+function fixture({ initial = available(), replies = [], onRead = null } = {}) {
   const queue = [...replies];
   let reads = 0;
   const node = () => ({
@@ -44,6 +44,7 @@ function fixture({ initial = available(), replies = [] } = {}) {
   const port = {
     async read() {
       reads += 1;
+      onRead?.();
       const next = queue.shift();
       if (next instanceof Error) throw next;
       return await (next ?? available());
@@ -156,12 +157,13 @@ test("A valid unavailable Host snapshot takes precedence over a stale action fai
 });
 
 test("Destroyed audio ignores late recovery readbacks", async () => {
-  let release;
+  let release, beganReading;
   const deferred = new Promise(resolve => { release = resolve; });
-  const h = fixture({ replies: [deferred] });
+  const readStarted = new Promise(resolve => { beganReading = resolve; });
+  const h = fixture({ replies: [deferred], onRead: () => beganReading() });
   h.render();
   const pending = h.apply(async () => { throw new Error("Host write rejected"); });
-  await Promise.resolve(); // allow rejected Host write to enter its recovery read
+  await readStarted; // wait for the failing action to start recovery readback
   assert.equal(h.status.textContent, "settings.audio.host.applyFailed");
   h.destroy();
   release(available(70));
