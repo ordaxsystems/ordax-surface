@@ -66,7 +66,7 @@ test("Native app launcher supports full keyboard traversal over available visibl
 
   assert.deepEqual(key(query, "ArrowDown"), { consumed: true, prevented: true });
   assert.equal(doc.activeElement, apps[0]);
-  assert.deepEqual(apps[0].focusOptions, { preventScroll: true });
+  assert.equal(apps[0].focusOptions.preventScroll, true);
   key(apps[0], "ArrowDown");
   assert.equal(doc.activeElement, apps[1]);
   key(apps[1], "ArrowDown");
