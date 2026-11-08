@@ -295,6 +295,18 @@ export function mountSettingsOverviewControls(
   let destroyed = false;
   let mountedSlot = null;
   let paintPending = false;
+  let displayControls = null;
+  let audioControls = null;
+
+  // Host-backed display/audio controls own in-flight reads, DOM listeners,
+  // and (for display previews) a confirmation countdown. Detaching their
+  // DOM alone does not stop these effects.
+  const releaseDeviceControls = () => {
+    displayControls?.destroy();
+    displayControls = null;
+    audioControls?.destroy();
+    audioControls = null;
+  };
 
   const findSlot = () =>
     root.querySelector(`${SETTINGS_WINDOW_SELECTOR} ${SETTINGS_EXTENSION_SELECTOR}`);
@@ -701,7 +713,7 @@ export function mountSettingsOverviewControls(
   const renderDisplayCapability = (view) => {
     const mountPoint = node(documentObject, "div", "ordax-settings-display-host-mount");
     view.append(mountPoint);
-    mountDisplayOutputControls(mountPoint, {
+    displayControls = mountDisplayOutputControls(mountPoint, {
       documentObject,
       translate: t,
       port: displayOutputsPort,
@@ -713,7 +725,7 @@ export function mountSettingsOverviewControls(
   const renderAudioCapability = (view) => {
     const mountPoint = node(documentObject, "div", "ordax-settings-audio-host-mount");
     view.append(mountPoint);
-    mountAudioOutputControls(mountPoint, {
+    audioControls = mountAudioOutputControls(mountPoint, {
       documentObject,
       translate: t,
       port: audioOutputsPort,
@@ -1382,6 +1394,7 @@ export function mountSettingsOverviewControls(
 
   const paint = (slot) => {
     const interaction = captureInteractionState(slot);
+    releaseDeviceControls();
     slot.replaceChildren();
     slot.dataset.ordaxSettingsOverviewView = "";
     slot.dataset.settingsActiveSection = activeSection;
@@ -1418,6 +1431,7 @@ export function mountSettingsOverviewControls(
     if (destroyed) return;
     const slot = findSlot();
     if (!slot) {
+      releaseDeviceControls();
       mountedSlot = null;
       paintPending = false;
       return;
@@ -1902,6 +1916,7 @@ export function mountSettingsOverviewControls(
   return Object.freeze({
     destroy() {
       destroyed = true;
+      releaseDeviceControls();
       settingsExamples?.destroy();
       networkReadOrdinal += 1;
       networkManagementReadOrdinal += 1;
