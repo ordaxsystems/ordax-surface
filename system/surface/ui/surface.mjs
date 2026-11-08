@@ -1042,12 +1042,20 @@ export function mountSurface(
   };
   let navigationMenuTrigger = null;
   const openNativeNavigation = (trigger = document.activeElement) => {
+    if (!navigationMenu.hidden) {
+      // Repeating Ctrl+K should return to the search field, not erase a
+      // partially typed query or replace the original Escape focus target.
+      navigationQuery.focus({ preventScroll: true });
+      return;
+    }
     navigationMenuTrigger = trigger instanceof HTMLElement ? trigger : null;
     navigationQuery.value = "";
     filterNativeNavigation("");
     navigationMenu.hidden = false;
     root.querySelectorAll("[data-navigation-menu-toggle]").forEach(button => button.setAttribute("aria-expanded", "true"));
-    queueMicrotask(() => navigationQuery.focus());
+    queueMicrotask(() => {
+      if (!navigationMenu.hidden) navigationQuery.focus({ preventScroll: true });
+    });
   };
   const closeNativeNavigation = ({ restoreFocus = false } = {}) => {
     if (navigationMenu.hidden) return;
@@ -1066,6 +1074,26 @@ export function mountSurface(
     for (const group of navigationMenu.querySelectorAll("[data-nav-menu-group]")) {
       group.hidden = !group.querySelector("[data-nav-menu-item]:not([hidden])");
     }
+  };
+
+  const handleNativeNavigationArrow = (event) => {
+    if (navigationMenu.hidden || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return false;
+    const current = event.target.closest?.("[data-nav-menu-item]") ?? null;
+    if (event.target !== navigationQuery && !current) return false;
+    const results = Array.from(navigationMenu.querySelectorAll(
+      "[data-nav-menu-item]:not([hidden]):not(:disabled)",
+    )).filter(button => !button.closest("[data-nav-menu-group]")?.hidden);
+    if (results.length === 0) return false;
+    const index = results.indexOf(current);
+    if (current && index < 0) return false;
+    const next = event.target === navigationQuery
+      ? event.key === "ArrowDown" ? results[0] : results.at(-1)
+      : event.key === "ArrowDown"
+        ? results[index + 1] ?? navigationQuery
+        : results[index - 1] ?? navigationQuery;
+    next.focus({ preventScroll: true });
+    event.preventDefault();
+    return true;
   };
 
   const onClick = (event) => {
@@ -1321,9 +1349,12 @@ export function mountSurface(
     }
 
     if (event.key === "Escape" && !navigationMenu.hidden) {
+      event.preventDefault();
       closeNativeNavigation({ restoreFocus: true });
       return;
     }
+
+    if (handleNativeNavigationArrow(event)) return;
 
     if (event.key === "Escape" && !areaMenu.hidden) {
       setAreaMenuOpen(false, { restoreFocus: true });
@@ -1337,13 +1368,12 @@ export function mountSurface(
     }
 
     if (event.target === navigationQuery && !navigationMenu.hidden
-      && (event.key === "ArrowDown" || event.key === "Enter")) {
+      && event.key === "Enter") {
       const first = Array.from(navigationMenu.querySelectorAll(
         "[data-nav-menu-item]:not([hidden]):not(:disabled)",
       )).find((button) => !button.closest("[data-nav-menu-group]")?.hidden);
       if (first) {
-        if (event.key === "Enter") first.click();
-        else first.focus({ preventScroll: true });
+        first.click();
         event.preventDefault();
         return;
       }
