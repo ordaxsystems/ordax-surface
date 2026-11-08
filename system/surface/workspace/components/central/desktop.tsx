@@ -108,7 +108,8 @@ function ScopedSpacesPanel() {
         session.selection.clear();
       } else {
         const presented = authorized.visibleSpaces.find(space => space.id === id && space.state === 'active');
-        const current = live.visibleSpaces.find(space => space.id === id && space.state === 'active');
+        const liveSpaces: typeof authorized.visibleSpaces = live.visibleSpaces;
+        const current = liveSpaces.find(space => space.id === id && space.state === 'active');
         if (!presented || !current) throw new Error('Space is no longer authorized');
         session.selection.select(id);
       }
