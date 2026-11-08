@@ -100,7 +100,6 @@ test("Native Store previews preserve verified states while using the canonical E
   assert.equal(list.children.length, 4, "Home remains bounded to four official entries");
   assert.ok(flatten(list).some(node => node.textContent === "Updates"));
   assert.ok(flatten(list).some(node => node.textContent === "Installed: 1.0 · Available: 1.1"));
-  assert.ok(flatten(list).some(node => node.textContent === "Blocked: Host negou"));
   assert.ok(home.children.some(node => node.textContent === "6 results"),
     "truncated preview announces authoritative total, not invented extra apps");
   assert.equal(home.children.at(-1).textContent, "The Store only requests operations.");
@@ -109,6 +108,8 @@ test("Native Store previews preserve verified states while using the canonical E
 
   const launcher = render(catalogs.full, "en-US", "launcher");
   assert.equal(launcher.children.find(child => child.tagName === "UL").children.length, 6);
+  assert.ok(flatten(launcher).some(node => node.textContent === "Blocked: Host negou"),
+    "a blocked item retains the Host-provided reason");
   assert.equal(launcher.children.some(child => child.textContent === "6 results"), false,
     "full result listing has no redundant truncation count");
 });
