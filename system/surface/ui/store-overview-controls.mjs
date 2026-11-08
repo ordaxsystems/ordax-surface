@@ -320,6 +320,10 @@ export function mountStoreOverviewControls(
   // unresolved request must preserve it if this candidate is unchanged.
   // Bounded by the OS catalog (<=256 app IDs, 3 operations each).
   const uncertainRequestIds = new Map();
+  // An accepted lifecycle REQUEST is not an installed application. Keep the
+  // receipt per app until the authoritative catalog changes that candidate,
+  // without blocking unrelated apps while the OS works asynchronously.
+  const acceptedRequests = new Map();
   let activeView = VIEWS.includes(lifecycle.getAppTarget("store"))
     ? lifecycle.getAppTarget("store") : "discover";
   let searchQuery = "";
@@ -389,10 +393,16 @@ export function mountStoreOverviewControls(
   };
 
   const reconcileAcceptedRequest = () => {
-    if (pendingRequest?.phase !== "accepted") return;
-    if (!sameLifecycleCandidate(snapshot, pendingRequest.appId,
-      pendingRequest.operation, pendingRequest.candidateSignature)) pendingRequest = null;
+    if (snapshot.state !== "ready") return;
+    for (const [appId, receipt] of acceptedRequests) {
+      if (!sameLifecycleCandidate(snapshot, appId,
+        receipt.operation, receipt.candidateSignature)) acceptedRequests.delete(appId);
+    }
   };
+
+  const requestForEntry = (entry) => batchInFlight
+    ? { appId: "", operation: "update", phase: "requesting" }
+    : pendingRequest ?? acceptedRequests.get(entry.appId) ?? null;
 
   const refreshResults = () => {
     if (!mountedSlot || activeView === "models" || snapshot.state !== "ready" || selectedAppId !== null) return;
@@ -533,7 +543,7 @@ export function mountStoreOverviewControls(
       const selectedEntry = snapshot.entries.find((entry) => entry.appId === selectedAppId);
       if (selectedEntry) {
         appendDetail(documentObject, main, selectedEntry, lifecycleRequests,
-          batchInFlight ? { appId: "", operation: "update" } : pendingRequest,
+          requestForEntry(selectedEntry),
           removalConfirmationAppId, t, requestSessionId !== null);
       } else {
         selectedAppId = null;
@@ -596,7 +606,7 @@ export function mountStoreOverviewControls(
         const grid = node(documentObject, "div", "ordax-store-grid");
         for (const entry of sortStoreEntries(snapshot.entries, localization.getLocale())) {
           appendCard(documentObject, grid, entry, lifecycleRequests,
-            batchInFlight ? { appId: "", operation: "update" } : pendingRequest,
+            requestForEntry(entry),
             t, requestSessionId !== null);
         }
         const filterEmpty = node(documentObject, "div", "ordax-store-filter-empty");
@@ -735,7 +745,8 @@ export function mountStoreOverviewControls(
     const operation = button.dataset.storeOperation;
     if (!OPERATIONS.has(operation)) return;
     const entry = snapshot.entries.find((candidate) => candidate.appId === appId);
-    if (!entry || !operationAllowed(entry, operation)) return;
+    if (!entry || !operationAllowed(entry, operation)
+        || acceptedRequests.has(appId)) return;
     if (operation === "remove" && button.dataset.storeConfirmRemove !== "true") {
       removalConfirmationAppId = appId;
       render();
@@ -794,17 +805,13 @@ export function mountStoreOverviewControls(
         requestMessageId = "store.request." + operation + "." + result.state;
         requestReason = result.state === "rejected" ? result.reason : null;
         if (result.state === "accepted") {
-          pendingRequest = Object.freeze({
-            appId,
-            operation,
-            candidateSignature,
-            requestId: request.requestId,
-            phase: "accepted",
-          });
+          acceptedRequests.set(appId, Object.freeze({
+            appId, operation, candidateSignature,
+            requestId: request.requestId, phase: "accepted",
+          }));
           reconcileAcceptedRequest();
-        } else {
-          pendingRequest = null;
         }
+        pendingRequest = null;
         render();
       })
       .catch(() => {
@@ -957,6 +964,8 @@ export function mountStoreOverviewControls(
       root.removeEventListener("click", onClick);
       root.removeEventListener("input", onInput);
       root.removeEventListener("keydown", onKeyDown);
+      acceptedRequests.clear();
+      uncertainRequestIds.clear();
       mountedSlot = null;
     },
   });
