@@ -152,7 +152,8 @@ test("Both full-panel buttons use one guarded handler and no additional authorit
   assert.match(handlerSource, /meridianHomeContextKey\(liveIdentity, live\.activeSpace\)/);
   assert.match(handlerSource, /meridianHomeContextKey\(identity, authorized\.activeSpace\)/);
   assert.match(handlerSource, /authorized\.visibleSpaces\.find\(space => space\.id === id/);
-  assert.match(handlerSource, /live\.visibleSpaces\.find\(space => space\.id === id/);
+  assert.match(handlerSource, /const liveSpaces: typeof authorized\.visibleSpaces = live\.visibleSpaces/);
+  assert.match(handlerSource, /liveSpaces\.find\(space => space\.id === id/);
   assert.match(handlerSource, /session\.selection\.select\(id\)/);
   assert.match(handlerSource, /session\.selection\.clear\(\)/);
   assert.match(source, /onClick=\{\(\) => selectSpace\(''\)\}>Limpar seleção/);
