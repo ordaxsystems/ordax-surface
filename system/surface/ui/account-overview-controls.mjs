@@ -227,6 +227,9 @@ export function mountAccountOverviewControls(
   let createNameDraft = "";
   let createTypeDraft = CREATABLE_SPACE_TYPES[0]?.key ?? "";
   let createIdempotencyKey = null;
+  // A confirmed mutation receipt belongs only to this subject and intent.
+  // If catalog verification fails, retry the read, never the already accepted write.
+  let createReceipt = null;
   let createMessage = "";
   let createMessageTone = "attention";
   let createPending = false;
@@ -1505,6 +1508,7 @@ export function mountAccountOverviewControls(
       if (CREATABLE_SPACE_TYPES.some(type => type.key === control.value)) {
         createTypeDraft = control.value;
         createIdempotencyKey = null;
+        createReceipt = null;
         createMessage = "";
       }
       return;
@@ -1530,6 +1534,7 @@ export function mountAccountOverviewControls(
     if (input.matches("[data-account-space-create-name]") && !createPending && !createUnconfirmed) {
       createNameDraft = input.value;
       createIdempotencyKey = null;
+      createReceipt = null;
       createMessage = "";
       const submit = root.querySelector("[data-account-space-create] button[type=submit]");
       if (submit) submit.disabled = createNameDraft.trim().length === 0;
@@ -1595,9 +1600,15 @@ export function mountAccountOverviewControls(
     replaceView();
     void (async () => {
       try {
-        const receipt = await spaceCreatePort.create(intent);
+        const receipt = createReceipt ?? await spaceCreatePort.create(intent);
         if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
-        // The mutation receipt is not catalog visibility or permission to select.
+        if (typeof receipt?.space?.id !== "string" || receipt.space.id.length === 0) {
+          throw new Error("Space creation receipt lacks an identifiable Space");
+        }
+        // A valid receipt confirms only the write, not the authorization to use it.
+        // Persist it for this logical intent so a failed catalog refresh retries
+        // only the read instead of repeating a mutation already accepted by Host.
+        createReceipt = receipt;
         await spacesPort.refresh();
         if (destroyed || ordinal !== createOrdinal || sessionSnapshot.subjectId !== subjectId) return;
         const fresh = validateSpacesSnapshot(spacesPort.getSnapshot());
@@ -1614,6 +1625,7 @@ export function mountAccountOverviewControls(
         createUnconfirmed = false;
         createNameDraft = "";
         createIdempotencyKey = null;
+        createReceipt = null;
         if (spaceSelectionPort) {
           try {
             spaceSelectionPort.select(match.id);
@@ -1874,6 +1886,7 @@ export function mountAccountOverviewControls(
       createIdempotencyKey = null;
       createUnconfirmed = false;
       createNameDraft = "";
+      createReceipt = null;
       createMessage = "";
       // Old Profile Pack completions must not write into the next account.
       profileOrdinal += 1;
@@ -1997,6 +2010,7 @@ export function mountAccountOverviewControls(
       root.removeEventListener("submit", onSubmit);
       spaceCreatePort?.dispose();
       createOrdinal += 1;
+      createReceipt = null;
       const slot = findSlot();
       if (slot?.dataset.ordaxAccountOverviewView !== undefined) {
         slot.replaceChildren();
