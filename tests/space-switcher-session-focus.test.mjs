@@ -57,10 +57,10 @@ test("Home and Space switcher reuse the same single transient-focus policy",asyn
 test("Native Space picker filters only authorized names without reselecting or losing focus",async()=>{
   const source=await readFile(new URL("../system/surface/ui/space-switcher-controls.mjs",import.meta.url),"utf8");
   const css=await readFile(new URL("../system/surface/ui/space-switcher.css",import.meta.url),"utf8");
-  const start=source.indexOf("export function spaceSwitcherMatchesName(");
+  const start=source.indexOf("function spaceSwitcherMatchesName(");
   const end=source.indexOf("// One presentation for the existing Account-owned Spaces catalog",start);
   assert.ok(start>0&&end>start);
-  const matcher=runInNewContext(source.slice(start,end).replace("export function ","function ")+"\nspaceSwitcherMatchesName");
+  const matcher=runInNewContext(source.slice(start,end)+"\nspaceSwitcherMatchesName");
   assert.equal(matcher("Impressão 3D","impressao","pt-BR"),true);
   assert.equal(matcher("Café & Arte","  CAFE  ","pt-BR"),true);
   assert.equal(matcher("Pizzaria","escola","pt-BR"),false);
