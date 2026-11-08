@@ -2,6 +2,7 @@ import { mountNativeSidebarFit, sidebarIsExpanded, sidebarItemIsActive } from ".
 import { mountSidebarHints } from "./sidebar-hints.mjs";
 import { assertAppRuntimeCatalog, defaultAppRuntimeCatalog } from "../../apps/runtime-catalog.mjs";
 import { externalAppCopy } from "../../apps/external-app-definition.mjs";
+import { nativeHomeAssistantApp } from "./application-presentations.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { PREFERENCE_RUNTIME_SCHEMA } from "../../contracts/preference-runtime.mjs";
 import { createPreferencePersistence } from "../../services/preferences/runtime.mjs";
@@ -745,6 +746,29 @@ export function mountSurface(
     updateDockOverflow();
   };
 
+  const renderHomeAssistant = () => {
+    const button = root.querySelector("[data-native-home-assistant]");
+    if (!button) return;
+    const app = nativeHomeAssistantApp(catalog, state.capabilityIds);
+    // Set availability before exposing an actionable element. Removing a
+    // component or revoking its capability removes the route immediately.
+    button.hidden = true;
+    button.disabled = true;
+    button.removeAttribute("data-launch-app");
+    button.removeAttribute("aria-label");
+    button.removeAttribute("title");
+    const labelNode = button.querySelector("[data-native-home-assistant-label]");
+    if (labelNode) labelNode.textContent = "";
+    if (!app) return;
+    const label = appTitle(localization, app);
+    button.dataset.launchApp = app.id;
+    button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
+    button.title = label;
+    if (labelNode) labelNode.textContent = label;
+    button.disabled = false;
+    button.hidden = false;
+  };
+
   const renderSidebar = () => {
     const area = getActiveArea(state);
     const activeWindow = area.windows.find((item) => item.id === area.activeWindowId) ?? null;
@@ -908,6 +932,7 @@ export function mountSurface(
     renderWindows();
     renderDock();
     renderSidebar();
+    renderHomeAssistant();
     renderAreas();
     for (const listener of [...renderListeners]) listener();
   };

@@ -39,3 +39,19 @@ export function composeApplicationPresentations(firstPartyApps, installedCatalog
 
   return Object.freeze(combined);
 }
+
+/**
+ * The Native Home can link to the real Aura app only after the OS-provided
+ * signed component catalog exposes its canonical "assistant" install slot.
+ * This is presentation gating, not model access or execution authorization.
+ */
+export function nativeHomeAssistantApp(catalog, capabilityIds) {
+  const app = catalog.get("assistant");
+  return app?.component?.kind === "app"
+    && app.component.releaseMode === "component-slot"
+    && app.panels?.length === 1
+    && app.panels[0]?.kind === "extension"
+    && app.panels[0]?.extensionId === app.id
+    && catalog.isAvailable(app, capabilityIds)
+    ? app : null;
+}

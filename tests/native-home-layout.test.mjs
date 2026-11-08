@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { nativeHomeAssistantApp } from "../system/surface/ui/application-presentations.mjs";
 
 const ui = (name) => new URL("../system/surface/ui/" + name, import.meta.url);
 const read = (name) => readFile(ui(name), "utf8");
@@ -66,4 +67,38 @@ test("responsive polish consumes existing Meridian tokens without a parallel pal
   assert.doesNotMatch(narrow, /font-family\s*:/i, "do not introduce a second font source");
   assert.match(css, /@container meridian-native-home \(max-width: 66rem\)/);
   assert.match(css, /@container meridian-native-home \(max-width: 50rem\)/);
+});
+
+test("Native Home shows Aura only for its signed installed Assistant app slot", async () => {
+  const [shell, surface, styles] = await Promise.all([
+    read("desktop-shell.mjs"), read("surface.mjs"), read("identity.css"),
+  ]);
+  assert.match(shell, /data-native-home-assistant hidden disabled/);
+  assert.doesNotMatch(shell, /data-native-home-assistant[^>]*data-launch-app/);
+  assert.match(styles, /\.ordax-home-action\[data-native-home-assistant\]\[hidden\] \{ display: none !important; \}/);
+  assert.match(surface, /const app = nativeHomeAssistantApp\(catalog, state\.capabilityIds\)/);
+  assert.match(surface, /button\.removeAttribute\("data-launch-app"\)/);
+  assert.match(surface, /button\.dataset\.launchApp = app\.id;/);
+  assert.match(surface, /renderSidebar\(\);\s*renderHomeAssistant\(\);/);
+  assert.doesNotMatch(shell, /data-native-aura-prompt|data-home-aura-submit/);
+
+  const installed = { id: "assistant", component: { kind: "app", releaseMode: "component-slot" },
+    panels: [{ kind: "extension", extensionId: "assistant" }] };
+  let app = null;
+  let available = false;
+  const catalog = {
+    get: (id) => id === "assistant" ? app : null,
+    isAvailable: (item) => item === app && available,
+  };
+  assert.equal(nativeHomeAssistantApp(catalog, []), null, "not installed");
+  app = installed;
+  assert.equal(nativeHomeAssistantApp(catalog, []), null, "installed but unavailable");
+  available = true;
+  assert.equal(nativeHomeAssistantApp(catalog, []), installed, "trusted installed slot");
+  app = { ...installed, component: { kind: "app", releaseMode: "bundled" } };
+  assert.equal(nativeHomeAssistantApp(catalog, []), null, "not a signed component slot");
+  app = { ...installed, panels: [{ kind: "static" }] };
+  assert.equal(nativeHomeAssistantApp(catalog, []), null, "not an external executable");
+  app = null;
+  assert.equal(nativeHomeAssistantApp(catalog, []), null, "removed during runtime");
 });
