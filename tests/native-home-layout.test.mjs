@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { nativeHomeAssistantApp, nativeHomeInstalledApps } from "../system/surface/ui/application-presentations.mjs";
+import { nativeHomeAssistantApp, nativeHomeInstalledApps, nativeNavigationInstalledApps } from "../system/surface/ui/application-presentations.mjs";
 
 const ui = (name) => new URL("../system/surface/ui/" + name, import.meta.url);
 const read = (name) => readFile(ui(name), "utf8");
@@ -147,4 +147,87 @@ test("Native Home quick access follows verified installed apps without duplicati
   current = [];
   assert.equal(nativeHomeAssistantApp(catalog, []), null);
   assert.deepEqual(nativeHomeInstalledApps(catalog, []).map((app) => app.id), []);
+});
+
+test("Ctrl+K Native navigation projects, searches and revokes installed apps in place", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const [shell, surface] = await Promise.all([read("desktop-shell.mjs"), read("surface.mjs")]);
+  assert.match(shell, /data-native-navigation-installed-apps/);
+  assert.match(surface, /renderNativeNavigationInstalledApps\(\);\s*const activeNavigationWindow/);
+  assert.match(surface, /if \(!navigationMenu.hidden\) filterNativeNavigation\(navigationQuery.value\)/);
+  assert.match(surface, /event.target === navigationQuery && !navigationMenu.hidden[\s\S]*?event.key === "ArrowDown"[\s\S]*?event.key === "Enter"/);
+  assert.match(surface, /if \(event.key === "Enter"\) first.click\(\)/);
+  assert.match(surface, /first.focus\(\{ preventScroll: true \}\)/);
+  const start = surface.indexOf("  const renderNativeNavigationInstalledApps = () => {");
+  const end = surface.indexOf("\n  const renderSidebar = () => {", start);
+  assert.ok(start > 0 && end > start, "reuse the actual Native navigation renderer");
+
+  class Node {
+    constructor(tag, className = "", value = "") {
+      this.tag = tag; this.className = className; this.textContent = value;
+      this.dataset = {}; this.children = []; this.attributes = {};
+    }
+    append(...nodes) { for (const child of nodes) this.children.push(child), child.parent = this; }
+    querySelector(selector) {
+      const name = selector.slice(1);
+      return this.children.find(node => node.className.split(" ").includes(name)) ?? null;
+    }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    contains(other) { return this === other || this.children.some(child => child.contains(other)); }
+    remove() {
+      if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this);
+    }
+  }
+  const slot = new Node("div");
+  const root = { ownerDocument: { activeElement: null } };
+  const focusCalls = [];
+  const navigationQuery = { focus: () => { focusCalls.push("query"); root.ownerDocument.activeElement = navigationQuery; } };
+  const navigationMenu = { querySelector: () => slot };
+  const state = { capabilityIds: [] };
+  const localization = { getLocale: () => "pt-BR", translate: (id, values) => id + ":" + values.app };
+  let entries = [];
+  const catalog = {
+    list: () => entries,
+    isAvailable: (app, capabilities) => app.requiredCapabilities.every(cap => capabilities.includes(cap)),
+  };
+  const installed = (id, title, requiredCapabilities = []) => ({
+    id, title, monogram: id.slice(0, 2), requiredCapabilities,
+    component: { kind: "app", releaseMode: "component-slot" },
+    panels: [{ kind: "extension", extensionId: id }],
+  });
+  const fixture = runInNewContext([
+    surface.slice(start, end),
+    "renderNativeNavigationInstalledApps",
+  ].join("\n"), {
+    navigationMenu, root, navigationQuery, state, localization, catalog,
+    nativeNavigationInstalledApps, appTitle: (_locale, app) => app.title,
+    element: (tag, klass, label) => new Node(tag, klass, label),
+  });
+  fixture();
+  assert.equal(slot.children.length, 0, "absent apps produce no fake navigation");
+
+  entries = [installed("assistant", "Aura"), installed("notes", "Notas", ["notes.read"])];
+  fixture();
+  assert.deepEqual(Array.from(slot.children, button => button.dataset.launchApp), ["assistant"]);
+  assert.equal(slot.children[0].attributes["aria-label"], "surface.launcher.open:Aura");
+  state.capabilityIds = ["notes.read"];
+  fixture();
+  assert.deepEqual(Array.from(slot.children, button => button.dataset.launchApp), ["assistant", "notes"]);
+  const notesButton = slot.children[1];
+  assert.equal(notesButton.textContent, "", "the label remains a child, not raw HTML");
+  assert.equal(notesButton.querySelector(".ordax-nav-installed-app-label").textContent, "Notas");
+
+  entries[1] = { ...entries[1], title: "Notes" };
+  fixture();
+  assert.equal(slot.children[1], notesButton, "localization refresh preserves keyboard focus");
+  assert.equal(notesButton.querySelector(".ordax-nav-installed-app-label").textContent, "Notes");
+
+  root.ownerDocument.activeElement = notesButton;
+  state.capabilityIds = [];
+  fixture();
+  assert.deepEqual(Array.from(slot.children, button => button.dataset.launchApp), ["assistant"]);
+  assert.deepEqual(focusCalls, ["query"], "revoked focused app returns focus to search");
+  entries = [];
+  fixture();
+  assert.equal(slot.children.length, 0, "uninstalled app leaves no navigation action");
 });

@@ -2,7 +2,7 @@ import { mountNativeSidebarFit, sidebarIsExpanded, sidebarItemIsActive } from ".
 import { mountSidebarHints } from "./sidebar-hints.mjs";
 import { assertAppRuntimeCatalog, defaultAppRuntimeCatalog } from "../../apps/runtime-catalog.mjs";
 import { externalAppCopy } from "../../apps/external-app-definition.mjs";
-import { nativeHomeAssistantApp, nativeHomeInstalledApps } from "./application-presentations.mjs";
+import { nativeHomeAssistantApp, nativeHomeInstalledApps, nativeNavigationInstalledApps } from "./application-presentations.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { PREFERENCE_RUNTIME_SCHEMA } from "../../contracts/preference-runtime.mjs";
 import { createPreferencePersistence } from "../../services/preferences/runtime.mjs";
@@ -806,6 +806,42 @@ export function mountSurface(
     }
   };
 
+  const renderNativeNavigationInstalledApps = () => {
+    const slot = navigationMenu.querySelector("[data-native-navigation-installed-apps]");
+    if (!slot) return;
+    const installed = nativeNavigationInstalledApps(catalog, state.capabilityIds);
+    const retained = new Set();
+    for (const app of installed) {
+      let button = Array.from(slot.children)
+        .find((item) => item.dataset?.nativeNavigationInstalledApp === app.id);
+      if (!button) {
+        button = element("button", "meridian-menu-item");
+        button.type = "button";
+        button.dataset.navMenuItem = "";
+        button.dataset.nativeNavigationInstalledApp = app.id;
+        const monogram = element("span", "ordax-rail-icon");
+        monogram.setAttribute("aria-hidden", "true");
+        button.append(monogram, element("span", "ordax-nav-installed-app-label"));
+        slot.append(button);
+      }
+      const label = appTitle(localization, app);
+      button.dataset.launchApp = app.id;
+      button.dataset.navMenuApp = app.id;
+      button.querySelector(".ordax-rail-icon").textContent = app.monogram;
+      button.querySelector(".ordax-nav-installed-app-label").textContent = label;
+      button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
+      button.title = label;
+      retained.add(button);
+    }
+    for (const button of Array.from(slot.children)) {
+      if (retained.has(button)) continue;
+      if (button.contains(root.ownerDocument.activeElement)) {
+        navigationQuery.focus({ preventScroll: true });
+      }
+      button.remove();
+    }
+  };
+
   const renderSidebar = () => {
     const area = getActiveArea(state);
     const activeWindow = area.windows.find((item) => item.id === area.activeWindowId) ?? null;
@@ -956,6 +992,7 @@ export function mountSurface(
         : localization.translate("surface.capability.destinationRequired");
     }
 
+    renderNativeNavigationInstalledApps();
     const activeNavigationWindow = getActiveArea(state).windows.find(item => item.id === getActiveArea(state).activeWindowId) ?? null;
     for (const targetButton of navigationMenu.querySelectorAll("[data-nav-menu-app]")) {
       const app = catalog.get(targetButton.dataset.navMenuApp);
@@ -972,6 +1009,7 @@ export function mountSurface(
     renderHomeAssistant();
     renderHomeInstalledApps();
     renderAreas();
+    if (!navigationMenu.hidden) filterNativeNavigation(navigationQuery.value);
     for (const listener of [...renderListeners]) listener();
   };
 
@@ -1296,6 +1334,19 @@ export function mountSurface(
       dispatch({ type: "launcher.close" });
       launcherToggle.focus();
       return;
+    }
+
+    if (event.target === navigationQuery && !navigationMenu.hidden
+      && (event.key === "ArrowDown" || event.key === "Enter")) {
+      const first = Array.from(navigationMenu.querySelectorAll(
+        "[data-nav-menu-item]:not([hidden]):not(:disabled)",
+      )).find((button) => !button.closest("[data-nav-menu-group]")?.hidden);
+      if (first) {
+        if (event.key === "Enter") first.click();
+        else first.focus({ preventScroll: true });
+        event.preventDefault();
+        return;
+      }
     }
 
     if (event.target === launcherQuery && state.launcherOpen) {
