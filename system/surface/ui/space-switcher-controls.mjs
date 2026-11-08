@@ -20,7 +20,7 @@ function identityPresentationContextChanged(previous, next) {
 
 // Search is a display-only filter over the already authorized catalog.
 // Neither text matching nor a search hit confers Space selection authority.
-export function spaceSwitcherMatchesName(name, query, locale = "pt-BR") {
+function spaceSwitcherMatchesName(name, query, locale = "pt-BR") {
   const fold = (value) => String(value).normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
   return fold(name).includes(fold(query).trim());
