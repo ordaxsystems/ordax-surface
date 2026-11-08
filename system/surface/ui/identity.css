@@ -632,6 +632,8 @@ body { background: var(--md-canvas); font-weight: 400; }
 .ordax-native-navigation-list { display: grid; align-content: start; gap: 8px; min-height: 0; overflow-y: auto; }
 .ordax-native-navigation-list [data-nav-menu-group] { display: grid; gap: 3px; }
 .ordax-native-navigation-list [data-nav-menu-group][hidden] { display: none; }
+.ordax-native-navigation-empty { margin: 8px 10px; padding: 12px; border: 1px solid var(--md-border); border-radius: 9px; color: var(--md-muted); font-size: .78rem; line-height: 1.5; }
+.ordax-native-navigation-empty[hidden] { display: none; }
 .ordax-native-navigation-list .meridian-nav-label { padding: 8px 10px 3px; }
 .meridian-menu-item { display: flex; align-items: center; gap: 11px; min-width: 0; min-height: 42px; padding: 0 10px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--md-ink); text-align: left; font-size: .78rem; cursor: pointer; }
 .meridian-menu-item:hover:not(:disabled), .meridian-menu-item:focus-visible:not(:disabled) { border-color: var(--md-border); background: var(--md-subtle); }
