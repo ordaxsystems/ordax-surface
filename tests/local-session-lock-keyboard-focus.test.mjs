@@ -84,7 +84,7 @@ test("Locked dialog does not make disabled/hidden controls keyboard destinations
 
 test("Lock's real keydown listener traps only an active locked session", () => {
   const start = lockSource.indexOf("  const onKeyDown = (event) => {");
-  const end = lockSource.indexOf('\n  documentObject.addEventListener("keydown"', start);
+  const end = lockSource.indexOf('\n  documentObject.addEventListener("submit"', start);
   assert.ok(start >= 0 && end > start, "exercise the actual lock keyboard handler");
   const s = scene();
   const context = {
