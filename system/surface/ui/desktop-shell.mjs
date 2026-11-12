@@ -200,8 +200,7 @@ export function createDesktopShellMarkup(localization) {
               <button type="button" class="ordax-home-search" data-navigation-menu-toggle aria-controls="ordax-native-navigation" aria-expanded="false"><span class="ordax-rail-icon" aria-hidden="true">${ICONS.search}</span><span data-home-copy="shell.home.preview.search">${t("shell.home.preview.search")}</span><kbd>Ctrl K</kbd></button>
               <p class="ordax-home-tagline" data-home-tagline>${t("shell.home.tagline")}</p>
             </div>
-            <section class="ordax-home-hero" aria-label="${t("shell.home.hero.aria")}">
-              <img class="ordax-home-hero-image" data-home-scene src="../../surface/workspace/assets/alpine-day.jpg" alt="" loading="eager">
+            <section class="ordax-home-hero" data-home-scene aria-label="${t("shell.home.hero.aria")}">
               <div class="ordax-home-hero-copy">
                 <p>${t("shell.home.hero.label")}</p>
                 <h2>${t("shell.home.hero.title.first")} ${t("shell.home.hero.title.second")}</h2>
@@ -535,8 +534,9 @@ export function mountDesktopClock(
     }
     const now = new Date();
     const { period, greetingId } = resolveHomeScene(now, timeZone);
+    // The Native hero is a self-contained CSS scene. A missing packaged JPG
+    // must never leak a broken-image icon into the first-use desktop.
     if (sceneNode && sceneNode.dataset.period !== period) {
-      sceneNode.src = `../../surface/workspace/assets/alpine-${period}.jpg`;
       sceneNode.dataset.period = period;
     }
     if (greetingNode) {

@@ -398,3 +398,30 @@ test("Native Ctrl+K announces zero matches and restores focus when a result is h
   filter("not-found");
   assert.equal(restored, 2, "a closed menu never steals focus");
 });
+
+test("Native Home ships an offline-safe scene and uses the wide-screen space efficiently", async () => {
+  const [shell, css, space] = await Promise.all([
+    read("desktop-shell.mjs"), read("identity.css"), read("home-concept.mjs"),
+  ]);
+  assert.match(shell, /<section class="ordax-home-hero" data-home-scene/);
+  assert.doesNotMatch(shell, /<img class="ordax-home-hero-image"/,
+    "a missing packaged image must not render a broken icon");
+  assert.doesNotMatch(shell, /sceneNode\.src\s*=/,
+    "day/night decoration must not fetch unverified Native resources");
+  assert.match(shell, /sceneNode\.dataset\.period = period/);
+  assert.match(css, /\.ordax-home-hero\[data-period="night"\]/);
+  assert.match(css, /\.ordax-home-hero::before/);
+  assert.match(css, /\.ordax-home-hero-copy \{ position: relative; z-index: 1;/);
+  assert.match(css, /grid-template-columns: repeat\(auto-fill, minmax\(5\.75rem, 6\.5rem\)\)/,
+    "two quick actions must not stretch to opposite sides of the Home");
+  assert.match(css, /"quick quick current" "files files current"/,
+    "files and quick actions share the wide-screen row beside the Space card");
+  assert.match(css, /"quick current" "files current"/,
+    "medium desktop widths keep files beside the Space when feasible");
+  assert.match(css, /\.ordax-home-current-space:has\(\[data-home-space-state\]:not\(\[data-state="ready"\]\)\) \.ordax-home-space-art \{ display: none;/,
+    "do not reserve a decorative illustration for an unavailable Space");
+  assert.match(space, /data-home-space-state/);
+  const mobile = narrowHomeRules(css);
+  assert.match(mobile, /"status" "current" "files"/,
+    "at narrow widths the sections remain readable in one column");
+});
