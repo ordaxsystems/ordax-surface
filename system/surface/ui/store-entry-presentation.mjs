@@ -16,11 +16,12 @@ export function storeEntryVisualState(entry, pendingRequest = null) {
   });
 }
 
-const STORE_OPENABLE_STATES = new Set(["installed", "blocked", "failed-retained"]);
+const STORE_OPENABLE_STATES = new Set(["installed", "failed-retained"]);
 
-// This only exposes an Open intent in the presentation. The shared
-// app-activation channel and the Surface catalog still revalidate the app
-// before any window is launched; Store never becomes execution authority.
+// This only exposes an Open intent for lifecycle states that retain a usable
+// installed version. A blocked Store entry does not prove runtime launchability.
+// The shared app-activation channel and the Surface catalog still revalidate
+// the app before any window is launched; Store never becomes execution authority.
 export function storeEntryOpenAvailable(entry) {
   return entry.installedVersion !== null && STORE_OPENABLE_STATES.has(entry.state);
 }
