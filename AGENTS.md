@@ -25,7 +25,7 @@ Este repositório é o owner canônico da interface visual compartilhada após o
 2. Preserve histórico de autoria e proveniência dos arquivos migrados, sem reescrever nenhuma `main`.
 3. Somente UI, presentation state, estilos e assets pertencem à Surface. Serviços Python, brokers, host nativo, boot, grants, storage e Supervisor pertencem ao OS ou ao owner existente.
 4. O OS consome um artefato/checkout imutável verificado e fornece capabilities através dos contratos públicos existentes. Não manter cópia source espelhada nem bridge permanente.
-5. Reconciliar modificações concorrentes em ambos os repositórios sem force-push; não absorver outras frentes.
+5. Alterações locais da Surface não exigem reconciliação do OS. Somente ao adotar uma nova revisão visual no produto, revalidar o lock/composição contra a `main` atual do OS; não absorver outras frentes nem sincronizar branches por rotina.
 6. **Validar por impacto após editar:** texto/CSS/ajuste visual isolado exige preview ou smoke específico; comportamento compartilhado exige testes existentes focados; mudança de integração Web/Native exige smoke dos modos afetados. **Não executar QEMU, rebuild de OS/USB, Supervisor ou prova física para cada mudança visual.** A adoção de novo SHA pelo OS ou promoção de release continua sujeita aos gates canônicos pertinentes ao impacto (incluindo proveniência, saúde, rollback e QEMU quando exigido); CI da Surface não equivale a promoção de release.
 7. Não operar USB ou discos reais sem autorização específica.
 8. Atualizar documentação canônica apenas se contrato, arquitetura, estado real ou decisão mudou. Não gerar relatório, evidência duplicada nem novo workflow para cada correção.
