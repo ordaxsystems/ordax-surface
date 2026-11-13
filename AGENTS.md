@@ -2,6 +2,19 @@
 
 > **Execução DEV — Evolução Rápida (regra transversal obrigatória):** aplicar a [política canônica OrdaX](https://github.com/ordaxsystems/ordax-os/blob/main/docs/DEVELOPMENT-WORKFLOW.md#regra-operacional-transversal--evolucao-rapida-dev-2026-11-04) antes de iniciar trabalho. Entregar a alteração no owner correto primeiro e validar com testes proporcionais depois; não ampliar escopo com auditorias, documentação, CI ou workflows sem causalidade. Preservar gates obrigatórios, integridade, segurança e autorização.
 
+## Integração canônica no produto — 13/11/2026
+
+A Surface é **producer da apresentação visual compartilhada**. Ela não integra Desktop, Creator, Runtime ou Apps por source. A composição Native pertence ao `ordax-os`.
+
+- A revisão visual adotada pelo produto é fixada uma única vez pelo lock `ordax-os/docs/contracts/surface-source.json`.
+- Desktop consome a composição OrdaX/OS; não deve manter um segundo pin da Surface.
+- Creator consome mídia OrdaX verificada; não conhece source da Surface.
+- Apps chegam à UI por catálogo/ports/lifecycle, nunca por cópia de código.
+- Mudança visual compatível pode ser implementada, testada e integrada aqui sem abrir PR nos consumidores. O OS adota nova revisão somente quando houver intenção real de compor um novo candidato.
+- Não disparar kernel/USB/QEMU/Creator por alteração visual sem dependência causal.
+
+Regra transversal: [`ordax-os/docs/DEVELOPMENT-WORKFLOW.md`](https://github.com/ordaxsystems/ordax-os/blob/main/docs/DEVELOPMENT-WORKFLOW.md#integração-multi-repositório--composição-do-produto-2026-11-13), ADR-031.
+
 ## Escopo e autoridade
 
 Este repositório é o owner canônico da interface visual compartilhada após o cutover integrado em `ordax-os#2198`. O `ordax-os` continua sendo a autoridade para serviços, host Native, contratos públicos, release, atualização/rollback e ativação. O source visual é consumido por SHA exato do contrato `ordax-os/docs/contracts/surface-source.json`, não pela ponta móvel de `main`. Cutover de source não autoriza hardware físico nem Stable.
