@@ -12,7 +12,7 @@ import { assertSurfaceRenderLifecycle } from "../../contracts/surface-render-lif
 import { assertSystemMetricsPort } from "../../contracts/system-metrics.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
 import { appendStoreLocalAiModels } from "./store-model-catalog.mjs";
-import { STORE_OPERATIONS, storeEntryVisualState, storeEmptyPresentation } from "./store-entry-presentation.mjs";
+import { STORE_OPERATIONS, storeEntryOpenAvailable, storeEntryVisualState, storeEmptyPresentation } from "./store-entry-presentation.mjs";
 import { captureStoreControlFocus, restoreStoreControlFocus } from "./store-control-focus.mjs";
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll } from "./section-navigation.mjs";
 import { STORE_UPDATE_BATCH_SCHEMA, createStoreUpdateRequestBatch } from "../../services/apps/store-update-request-batch.mjs";
@@ -149,6 +149,20 @@ function appendAction(documentObject, target, entry, operation, lifecycleRequest
   target.append(button);
 }
 
+function appendOpenAction(documentObject, target, entry, activation, t) {
+  if (activation === null || !storeEntryOpenAvailable(entry)) return;
+  const label = t("surface.launcher.open", { app: entry.title });
+  const button = makeButton(
+    documentObject,
+    "ordax-store-action",
+    label,
+    "storeOpenApp",
+    entry.appId,
+  );
+  button.title = label;
+  target.append(button);
+}
+
 function appMonogram(title) {
   return title.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0] ?? "").join("").toLocaleUpperCase();
 }
@@ -177,7 +191,7 @@ function appendStatus(documentObject, parent, entry, pendingRequest, t) {
   }
 }
 
-function appendCard(documentObject, grid, entry, lifecycleRequests, pendingRequest, t, requestIdentityReady) {
+function appendCard(documentObject, grid, entry, lifecycleRequests, pendingRequest, t, requestIdentityReady, activation) {
   const card = node(documentObject, "article", "ordax-store-card");
   card.dataset.storeAppId = entry.appId;
   card.dataset.storeAppCard = "true";
@@ -203,6 +217,7 @@ function appendCard(documentObject, grid, entry, lifecycleRequests, pendingReque
   details.setAttribute("aria-label", t("store.details.openFor", { title: entry.title }));
   footer.append(details);
   const actions = node(documentObject, "div", "ordax-store-actions");
+  appendOpenAction(documentObject, actions, entry, activation, t);
   appendAction(documentObject, actions, entry, "install", lifecycleRequests, pendingRequest, t, requestIdentityReady);
   appendAction(documentObject, actions, entry, "update", lifecycleRequests, pendingRequest, t, requestIdentityReady);
   footer.append(actions);
@@ -210,7 +225,7 @@ function appendCard(documentObject, grid, entry, lifecycleRequests, pendingReque
   grid.append(card);
 }
 
-function appendDetail(documentObject, target, entry, lifecycleRequests, pendingRequest, removalConfirmationAppId, t, requestIdentityReady) {
+function appendDetail(documentObject, target, entry, lifecycleRequests, pendingRequest, removalConfirmationAppId, t, requestIdentityReady, activation) {
   const back = makeButton(documentObject, "ordax-store-back", t("store.details.back"), "storeBack", "true");
   const panel = node(documentObject, "section", "ordax-store-detail");
   panel.dataset.storeDetailAppId = entry.appId;
@@ -228,6 +243,7 @@ function appendDetail(documentObject, target, entry, lifecycleRequests, pendingR
   const state = node(documentObject, "div", "ordax-store-detail-state");
   appendStatus(documentObject, state, entry, pendingRequest, t);
   const actions = node(documentObject, "div", "ordax-store-actions");
+  appendOpenAction(documentObject, actions, entry, activation, t);
   for (const operation of OPERATIONS) {
     appendAction(documentObject, actions, entry, operation, lifecycleRequests, pendingRequest, t, requestIdentityReady);
   }
@@ -580,7 +596,7 @@ export function mountStoreOverviewControls(
       if (selectedEntry) {
         appendDetail(documentObject, main, selectedEntry, lifecycleRequests,
           requestForEntry(selectedEntry),
-          removalConfirmationAppId, t, requestSessionId !== null);
+          removalConfirmationAppId, t, requestSessionId !== null, activation);
       } else {
         selectedAppId = null;
         const search = node(documentObject, "div", "ordax-store-search");
@@ -648,7 +664,7 @@ export function mountStoreOverviewControls(
         for (const entry of sortStoreEntries(snapshot.entries, localization.getLocale())) {
           appendCard(documentObject, grid, entry, lifecycleRequests,
             requestForEntry(entry),
-            t, requestSessionId !== null);
+            t, requestSessionId !== null, activation);
         }
         const filterEmpty = node(documentObject, "div", "ordax-store-filter-empty");
         filterEmpty.dataset.storeFilterEmpty = "true";
@@ -694,6 +710,16 @@ export function mountStoreOverviewControls(
 
   const onClick = (event) => {
     if (!mountedSlot) return;
+    const openApp = event.target.closest?.("[data-store-open-app]");
+    if (openApp && mountedSlot.contains(openApp) && activation !== null) {
+      const appId = openApp.dataset.storeOpenApp;
+      const entry = snapshot.state === "ready"
+        ? snapshot.entries.find((candidate) => candidate.appId === appId)
+        : null;
+      if (!entry || !storeEntryOpenAvailable(entry)) return;
+      activation.publish({ appId, target: null });
+      return;
+    }
     const cancelUpdateAll = event.target.closest?.("[data-store-cancel-update-all]");
     if (cancelUpdateAll && mountedSlot.contains(cancelUpdateAll) && batchInFlight) {
       updateAll?.cancelPending();
