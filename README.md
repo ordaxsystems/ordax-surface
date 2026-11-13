@@ -15,6 +15,12 @@ explica a distinção entre a missão DEV Windows MCP
 registry, token, executor ou Device status; `activeAppId` é
 estado visual, nunca prova de instalação ou permissão.
 
+## Como a Surface chega aos produtos
+
+A Surface tem um único source visual neste repositório. `ordax-os` escolhe a revisão exata pelo lock canônico e monta a composição Native. OrdaX Desktop consome essa composição; não integra a Surface separadamente. Creator recebe mídia já composta e verificada.
+
+Assim, uma mudança visual não exige uma cascata de alterações em OS/Desktop/Creator. A adoção cross-repo só acontece quando uma nova composição do produto precisa realmente incorporar a revisão. [Regra canônica de composição](https://github.com/ordaxsystems/ordax-os/blob/main/docs/DEVELOPMENT-WORKFLOW.md#integração-multi-repositório--composição-do-produto-2026-11-13).
+
 ## Estado da separação
 
 **Cutover de source concluído no OS, sem promoção física ou Stable.**
