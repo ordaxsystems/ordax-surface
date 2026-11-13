@@ -16,6 +16,15 @@ export function storeEntryVisualState(entry, pendingRequest = null) {
   });
 }
 
+const STORE_OPENABLE_STATES = new Set(["installed", "blocked", "failed-retained"]);
+
+// This only exposes an Open intent in the presentation. The shared
+// app-activation channel and the Surface catalog still revalidate the app
+// before any window is launched; Store never becomes execution authority.
+export function storeEntryOpenAvailable(entry) {
+  return entry.installedVersion !== null && STORE_OPENABLE_STATES.has(entry.state);
+}
+
 /** Present empty results without inventing catalog health or duplicating translations.
  *  All message IDs come from the OS-owned Store catalog. */
 export function storeEmptyPresentation(totalEntries, visibleEntries, view, query = "") {

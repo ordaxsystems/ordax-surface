@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { projectStoreCatalogPreview } from '../system/surface/ui/store-entry-presentation.mjs';
+import { projectStoreCatalogPreview, storeEntryOpenAvailable } from '../system/surface/ui/store-entry-presentation.mjs';
 
 const source = file => readFileSync(new URL('../system/surface/' + file, import.meta.url), 'utf8');
 const entry = (appId, state, installedVersion = null) => ({
@@ -25,6 +25,20 @@ test('verified Store entries are ordered for discovery without inventing install
   assert.equal('launchable' in projection.entries[0], false, 'read-only catalog does not create execution authority');
   assert.equal(Object.isFrozen(projection.entries), true);
   assert.throws(() => projectStoreCatalogPreview(verified, 256), /bounded/);
+});
+
+test('Store exposes Open only for retained installed lifecycle states', () => {
+  for (const state of ['installed', 'blocked', 'failed-retained']) {
+    assert.equal(storeEntryOpenAvailable(entry('openable', state, '1.0.0')), true, state);
+  }
+  assert.equal(storeEntryOpenAvailable(entry('available', 'available')), false);
+  for (const state of ['updating', 'removing', 'staged']) {
+    assert.equal(storeEntryOpenAvailable(entry('busy', state, '1.0.0')), false, state);
+  }
+  const controls = source('ui/store-overview-controls.mjs');
+  assert.match(controls, /data-store-open-app/);
+  assert.match(controls, /storeEntryOpenAvailable\(entry\)/);
+  assert.match(controls, /activation\.publish\(\{ appId, target: null \}\)/);
 });
 
 test('Store unavailability revokes every row instead of retaining previous installations', () => {
