@@ -28,9 +28,11 @@ test('verified Store entries are ordered for discovery without inventing install
 });
 
 test('Store exposes Open only for retained installed lifecycle states', () => {
-  for (const state of ['installed', 'blocked', 'failed-retained']) {
+  for (const state of ['installed', 'failed-retained']) {
     assert.equal(storeEntryOpenAvailable(entry('openable', state, '1.0.0')), true, state);
   }
+  assert.equal(storeEntryOpenAvailable(entry('blocked', 'blocked', '1.0.0')), false,
+    'blocked catalog state does not prove that runtime activation is available');
   assert.equal(storeEntryOpenAvailable(entry('available', 'available')), false);
   for (const state of ['updating', 'removing', 'staged']) {
     assert.equal(storeEntryOpenAvailable(entry('busy', state, '1.0.0')), false, state);
