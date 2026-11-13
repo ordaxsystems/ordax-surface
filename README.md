@@ -2,18 +2,19 @@
 
 **Repositório canônico da apresentação compartilhada** do OrdaX (Web, Desktop, USB e Native). O source visual pertence a este repositório; o host, os serviços e a distribuição do sistema operacional pertencem ao `ordaxsystems/ordax-os`.
 
-**Handoff de integração Aura/Fabric/MCP (04/11/2026):**
-a Surface é apenas owner da apresentação e do UX/consentimento
-sobre os ports reais do OS. O
-[`handoff ativo do OS`](https://github.com/ordaxsystems/ordax-os/blob/main/INTELLIGENCE-HANDOFF.md)
-explica a distinção entre a missão DEV Windows MCP
+**Checkpoint histórico de integração Aura/Fabric/MCP (04/11/2026):**
+este trecho registra apenas a fronteira de ownership da Surface, não o
+status operacional corrente de Runtime/Store/MCP. A missão DEV Windows
 [`Platform #291`](https://github.com/ordaxsystems/ordax-platform/issues/291)
-**encerrada**, a ponte Native
+foi encerrada e a ponte Native
 [`OS #2400`](https://github.com/ordaxsystems/ordax-os/pull/2400)
-**pendente**, e a sincronização Store `CURRENT`/Aura/Runtime
-**ainda não implementada**. Não implementar na Surface outro
-registry, token, executor ou Device status; `activeAppId` é
-estado visual, nunca prova de instalação ou permissão.
+foi integrada em 04/11/2026. Para estado atual, consultar
+[`ordax-os/docs/CURRENT-STATE.md`](https://github.com/ordaxsystems/ordax-os/blob/main/docs/CURRENT-STATE.md),
+o [handoff do OS](https://github.com/ordaxsystems/ordax-os/blob/main/INTELLIGENCE-HANDOFF.md)
+e os owners canônicos envolvidos. A Surface continua apenas owner da
+apresentação e do UX/consentimento sobre ports reais: não implementar
+aqui outro registry, token, executor ou Device status; `activeAppId`
+é estado visual, nunca prova de instalação ou permissão.
 
 ## Como a Surface chega aos produtos
 
