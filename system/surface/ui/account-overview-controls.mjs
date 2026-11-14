@@ -8,6 +8,10 @@ import { describeSpacePresentation } from "../../services/spaces/presentation.mj
 import { SPACE_TYPE_CATALOG, getSpaceType } from "../../services/spaces/type-catalog.mjs";
 import { assertSpaceCreatePort } from "../../contracts/space-create-port.mjs";
 import {
+  assertProjectBindingReviewPort,
+  validateProjectBindingReviewSnapshot,
+} from "../../contracts/project-binding-review.mjs";
+import {
   assertIdentityActionsPort,
   isIdentityActionSupported,
   validateIdentityActionsSnapshot,
@@ -136,6 +140,7 @@ export function mountAccountOverviewControls(
   spaceExperience = null,
   hostedSignupBridge = null,
   spaceCreate = null,
+  projectBindingReview = null,
 ) {
   if (!(root instanceof Element)) {
     throw new TypeError("Account overview controls require a Surface root Element");
@@ -146,6 +151,9 @@ export function mountAccountOverviewControls(
   // consumes an injected contract; absent authority is explicitly read-only.
   const desktopWindow = root.ownerDocument.defaultView;
   const spaceCreatePort = spaceCreate === null ? null : assertSpaceCreatePort(spaceCreate);
+  const projectBindingPort = projectBindingReview === null
+    ? null
+    : assertProjectBindingReviewPort(projectBindingReview);
   const actionsPort = assertIdentityActionsPort(identityActions);
   const credentialsPort = identityCredentials === null
     ? null
@@ -216,6 +224,11 @@ export function mountAccountOverviewControls(
   let accountLifecycleSnapshot = accountLifecyclePort
     ? validateAccountLifecycleSnapshot(accountLifecyclePort.getSnapshot())
     : null;
+  let projectBindingSnapshot = projectBindingPort
+    ? validateProjectBindingReviewSnapshot(projectBindingPort.getSnapshot())
+    : null;
+  let projectBindingMessage = "";
+  let pendingProjectBinding = null;
   let pendingAction = null;
   let pendingProfileAction = null;
   let pendingProfileSpaceId = null;
@@ -889,6 +902,79 @@ export function mountAccountOverviewControls(
     view.append(section);
   };
 
+  const renderProjectBindings = (view) => {
+    if (!projectBindingPort || !projectBindingSnapshot) return;
+    const section = node(documentObject, "section", "ordax-account-section");
+    section.dataset.accountProjectBindings = "";
+    section.append(
+      node(documentObject, "span", "ordax-account-eyebrow", t("account.projects.mcp.eyebrow")),
+      node(documentObject, "h4", "ordax-account-section-title", t("account.projects.mcp.title")),
+      node(documentObject, "p", "ordax-account-subtitle", t("account.projects.mcp.description")),
+    );
+    const actions = node(documentObject, "div", "ordax-account-actions");
+    const refresh = node(documentObject, "button", "ordax-account-action", t("account.projects.mcp.refresh"));
+    refresh.type = "button";
+    refresh.dataset.accountProjectBindingRefresh = "";
+    refresh.disabled = projectBindingSnapshot.state === "loading" || pendingProjectBinding !== null;
+    actions.append(refresh);
+    section.append(actions);
+    if (projectBindingMessage) {
+      section.append(node(documentObject, "p", "ordax-account-message", projectBindingMessage));
+    }
+    if (projectBindingSnapshot.state !== "ready") {
+      const key = projectBindingSnapshot.state === "loading"
+        ? "account.projects.mcp.loading"
+        : projectBindingSnapshot.state === "error"
+          ? "account.projects.mcp.error"
+          : "account.projects.mcp.unavailable";
+      section.append(node(documentObject, "p", "ordax-account-message", t(key)));
+      view.append(section);
+      return;
+    }
+    const candidates = projectBindingSnapshot.cloudProjects.filter((project) =>
+      project.nextState === "needs_device_binding" || project.linkedLocalProjectId !== null);
+    if (candidates.length === 0) {
+      section.append(node(documentObject, "p", "ordax-account-message", t("account.projects.mcp.empty")));
+      view.append(section);
+      return;
+    }
+    const grid = node(documentObject, "div", "ordax-account-grid");
+    for (const project of candidates) {
+      const card = node(documentObject, "article", "ordax-account-card");
+      card.dataset.state = project.linkedLocalProjectId ? "available" : "neutral";
+      card.append(
+        node(documentObject, "span", "ordax-account-card-label", project.repositoryFullName ?? t("account.projects.mcp.repositoryPending")),
+        node(documentObject, "strong", "ordax-account-card-value", project.name),
+      );
+      if (project.linkedLocalProjectId !== null) {
+        const local = projectBindingSnapshot.localProjects.find((entry) => entry.id === project.linkedLocalProjectId);
+        card.append(node(documentObject, "small", "ordax-account-card-detail",
+          t("account.projects.mcp.linked", { project: local?.name ?? project.linkedLocalProjectId })));
+      } else {
+        const field = node(documentObject, "label", "ordax-account-field");
+        field.append(node(documentObject, "span", "", t("account.projects.mcp.localProject")));
+        const select = documentObject.createElement("select");
+        select.dataset.accountProjectBindingLocal = project.cloudProjectId;
+        select.disabled = pendingProjectBinding !== null || projectBindingSnapshot.localProjects.length === 0;
+        for (const local of projectBindingSnapshot.localProjects) {
+          const option = node(documentObject, "option", "", local.name);
+          option.value = local.id;
+          select.append(option);
+        }
+        field.append(select);
+        card.append(field);
+        const bind = node(documentObject, "button", "ordax-account-action", t("account.projects.mcp.bind"));
+        bind.type = "button";
+        bind.dataset.accountProjectBindingCloud = project.cloudProjectId;
+        bind.disabled = pendingProjectBinding !== null || projectBindingSnapshot.localProjects.length === 0;
+        card.append(bind);
+      }
+      grid.append(card);
+    }
+    section.append(grid);
+    view.append(section);
+  };
+
   const renderProfiles = (view) => {
     const section = node(documentObject, "section", "ordax-account-section");
     section.append(
@@ -1338,6 +1424,7 @@ export function mountAccountOverviewControls(
       renderIdentity(view);
     } else if (activeSection === "spaces") {
       renderSpaces(view);
+      renderProjectBindings(view);
     } else if (activeSection === "memory") {
       renderMemory(view);
     } else if (activeSection === "sync") {
@@ -1681,8 +1768,39 @@ export function mountAccountOverviewControls(
       } else {
         activeSection = nextSection;
         replaceView();
-        if (nextSection === "spaces") refreshSpaces();
+        if (nextSection === "spaces") {
+          refreshSpaces();
+          void projectBindingPort?.refresh();
+        }
       }
+      return;
+    }
+
+    const projectBindingRefresh = event.target.closest("[data-account-project-binding-refresh]");
+    if (projectBindingRefresh && root.contains(projectBindingRefresh) && projectBindingPort) {
+      projectBindingMessage = "";
+      void projectBindingPort.refresh();
+      return;
+    }
+
+    const projectBindingButton = event.target.closest("[data-account-project-binding-cloud]");
+    if (projectBindingButton && root.contains(projectBindingButton) && projectBindingPort) {
+      if (pendingProjectBinding !== null) return;
+      const cloudProjectId = projectBindingButton.dataset.accountProjectBindingCloud;
+      const select = [...root.querySelectorAll("[data-account-project-binding-local]")]
+        .find((entry) => entry.dataset.accountProjectBindingLocal === cloudProjectId);
+      const localProjectId = select?.value ?? "";
+      if (!localProjectId) return;
+      pendingProjectBinding = cloudProjectId;
+      projectBindingMessage = "";
+      replaceView();
+      void projectBindingPort.link(localProjectId, cloudProjectId)
+        .then(() => { projectBindingMessage = t("account.projects.mcp.linkedPending"); })
+        .catch(() => { projectBindingMessage = t("account.projects.mcp.failed"); })
+        .finally(() => {
+          pendingProjectBinding = null;
+          if (!destroyed) replaceView();
+        });
       return;
     }
 
@@ -1863,7 +1981,10 @@ export function mountAccountOverviewControls(
       spaceMessage = "";
       profileMessage = "";
       replaceView();
-      if (activeSection === "spaces") refreshSpaces();
+      if (activeSection === "spaces") {
+        refreshSpaces();
+        void projectBindingPort?.refresh();
+      }
     }
   });
   const unsubscribeSession = sessionPort.subscribe((snapshot) => {
@@ -1893,6 +2014,9 @@ export function mountAccountOverviewControls(
     if (priorSubject !== currentSubject || sessionSnapshot.state !== "signed-in") {
       // Invalidate all in-flight catalog reads before painting the new account.
       spacesPort?.reset();
+      projectBindingPort?.reset();
+      projectBindingMessage = "";
+      pendingProjectBinding = null;
       createOrdinal += 1;
       createPending = false;
       createIdempotencyKey = null;
@@ -1921,6 +2045,7 @@ export function mountAccountOverviewControls(
     replaceView();
     if (activeSection === "spaces" && sessionSnapshot.state === "signed-in") {
       refreshSpaces();
+      void projectBindingPort?.refresh();
     }
   });
   const unsubscribeAccountLifecycle = accountLifecyclePort?.subscribe((snapshot) => {
@@ -1958,6 +2083,10 @@ export function mountAccountOverviewControls(
     spacesSnapshot = validateSpacesSnapshot(snapshot);
     replaceView();
   });
+  const unsubscribeProjectBinding = projectBindingPort?.subscribe((snapshot) => {
+    projectBindingSnapshot = validateProjectBindingReviewSnapshot(snapshot);
+    if (activeSection === "spaces") replaceView();
+  });
   const unsubscribeSpaceSelection = spaceSelectionPort?.subscribe((snapshot) => {
     spaceSelectionSnapshot = validateSpaceSelectionSnapshot(snapshot);
     if (pendingProfileSpaceId !== null
@@ -1983,6 +2112,7 @@ export function mountAccountOverviewControls(
   });
   if (activeSection === "spaces" && sessionSnapshot.state === "signed-in") {
     refreshSpaces();
+    void projectBindingPort?.refresh();
   }
   if (sessionSnapshot.state === "signed-out" && credentialsPort) {
     void refreshRegistrationPolicy();
@@ -1999,6 +2129,7 @@ export function mountAccountOverviewControls(
       memoryReviewControls = null;
       unsubscribeProfileActivation?.();
       unsubscribePreferences?.();
+      unsubscribeProjectBinding?.();
       unsubscribeSpaceExperience?.();
       unsubscribeSpaceSelection?.();
       unsubscribeSpaces?.();
