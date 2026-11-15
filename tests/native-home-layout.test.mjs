@@ -86,6 +86,16 @@ test("new Native PC applications open as movable windows, preserving manual maxi
     "window chrome keeps its maximize/restore button");
 });
 
+test("Desktop cascade exposes neighboring floating windows without changing manually positioned or maximized geometry", async () => {
+  const [css, renderer] = await Promise.all([read("surface.css"), read("surface.mjs")]);
+  assert.match(css, /\.ordax-shell\[data-view="desktop"\] \.ordax-window\[data-maximized="false"\]\s*\{\s*width:\s*min\(var\(--ordax-window-width, 52\.5rem\), 76%\);\s*left:\s*calc\(50% \+ var\(--ordax-window-offset\)\);/);
+  assert.match(renderer, /state\.presentation === "desktop"\s*\? `\$\{\[-8, 8, -4, 4, 0\]\[\(placementOrdinal - 1\) % 5\]\}%`/);
+  assert.match(renderer, /windowNode\.style\.left = `\$\{windowState\.positionX\}px`;/,
+    "manual window positions override default cascade offsets");
+  assert.match(css, /\.ordax-window\[data-maximized="true"\]\s*\{[\s\S]*?inset:\s*0;/,
+    "maximization must still occupy the workspace");
+});
+
 test("responsive polish consumes existing Meridian tokens without a parallel palette or font", async () => {
   const [css, tokens] = await Promise.all([read("identity.css"), read("meridian.tokens.css")]);
   const narrow = narrowHomeRules(css);

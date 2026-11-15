@@ -290,6 +290,13 @@ kbd {
   transition: border-color 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
 }
 
+/* Desktop mode leaves enough of neighboring windows visible to select by titlebar.
+   Percent offsets follow the workspace width, not a fixed display resolution. */
+.ordax-shell[data-view="desktop"] .ordax-window[data-maximized="false"] {
+  width: min(var(--ordax-window-width, 52.5rem), 76%);
+  left: calc(50% + var(--ordax-window-offset));
+}
+
 .ordax-window[data-active="false"] {
   opacity: 0.94;
   border-color: var(--ordax-border-soft);
