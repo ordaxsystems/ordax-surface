@@ -304,7 +304,10 @@ function syncWindowNode(windowNode, app, windowState, state, index, area, locali
   delete windowNode.dataset.dragging;
 
   const placementOrdinal = windowState.placementOrdinal ?? index + 1;
-  windowNode.style.setProperty("--ordax-window-offset", `${((placementOrdinal - 1) % 5) * 18}px`);
+  const offset = state.presentation === "desktop"
+    ? `${[-8, 8, -4, 4, 0][(placementOrdinal - 1) % 5]}%`
+    : `${((placementOrdinal - 1) % 5) * 18}px`;
+  windowNode.style.setProperty("--ordax-window-offset", offset);
   if (
     !windowState.maximized &&
     Number.isFinite(windowState.positionX) &&
