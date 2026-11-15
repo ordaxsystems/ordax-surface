@@ -201,6 +201,7 @@ export function mountFirstRunExperience(
   let networkOrdinal = 0;
   let selectedSsid = null;
   let passwordDraft = "";
+  let wifiPasswordVisible = false;
   let sessionSnapshot = sessionPort.getSnapshot();
   let actionsSnapshot = actionsPort.getSnapshot();
   let identityPending = null;
@@ -466,17 +467,27 @@ export function mountFirstRunExperience(
     const selected = networkSnapshot.networks.find((entry) => entry.ssid === selectedSsid);
     if (selected && !selected.connected) {
       const connectForm = el(documentObject, "div", "ordax-first-run-connect");
-      const passwordField = el(documentObject, "label", "ordax-first-run-field");
-      passwordField.append(el(documentObject, "span", "", `Senha de ${selected.ssid}`));
+      const passwordField = el(documentObject, "div", "ordax-first-run-field");
+      const passwordLabel = el(documentObject, "label", "", `Senha de ${selected.ssid}`);
+      passwordLabel.htmlFor = "ordax-first-run-wifi-password";
+      const passwordRow = el(documentObject, "div", "ordax-first-run-password-row");
       const input = documentObject.createElement("input");
-      input.type = "password";
+      input.id = "ordax-first-run-wifi-password";
+      input.type = wifiPasswordVisible ? "text" : "password";
       input.autocomplete = "off";
       input.dataset.firstRunWifiPassword = "";
       input.value = passwordDraft;
       if (networkMessage) input.setAttribute("aria-describedby", "ordax-first-run-network-feedback");
       if (networkValidationInvalid) input.setAttribute("aria-invalid", "true");
       input.disabled = networkPending;
-      passwordField.append(input);
+      const reveal = action(documentObject, "", "network-password");
+      reveal.innerHTML = icon(wifiPasswordVisible ? "eye-off" : "eye", 18);
+      reveal.setAttribute("aria-label", translateFirstRunText(draft.locale, wifiPasswordVisible ? "Ocultar senha" : "Mostrar senha"));
+      reveal.setAttribute("aria-pressed", String(wifiPasswordVisible));
+      reveal.setAttribute("aria-controls", input.id);
+      reveal.disabled = networkPending;
+      passwordRow.append(input, reveal);
+      passwordField.append(passwordLabel, passwordRow);
       const connect = action(documentObject, "Conectar", "network-connect", true);
       connect.dataset.firstRunSsid = selected.ssid;
       connect.disabled = networkPending;
@@ -1056,6 +1067,7 @@ export function mountFirstRunExperience(
       if (selectedSsid && !networkSnapshot.networks.some((entry) => entry.ssid === selectedSsid)) {
         selectedSsid = null;
         passwordDraft = "";
+        wifiPasswordVisible = false;
       }
     } catch (error) {
       if (destroyed || ordinal !== networkOrdinal) return;
@@ -1079,6 +1091,7 @@ export function mountFirstRunExperience(
     networkValidationInvalid = false;
     networkMessage = networkManagementActionMessage("connect", 0);
     passwordDraft = "";
+    wifiPasswordVisible = false;
     render();
     try {
       networkSnapshot = await runNetworkManagementAction(networkPort, "connect", { ssid, password });
@@ -1432,13 +1445,23 @@ export function mountFirstRunExperience(
     else if (kind === "network-scan") void refreshNetwork(true);
     else if (kind === "network-select") {
       const ssid = button.dataset.firstRunSsid ?? null;
-      if (ssid !== selectedSsid) passwordDraft = "";
+      if (ssid !== selectedSsid) {
+        passwordDraft = "";
+        wifiPasswordVisible = false;
+      }
       selectedSsid = ssid;
       networkMessage = "";
       networkValidationInvalid = false;
       networkFeedbackTone = "information";
       render();
       overlay.querySelector("[data-first-run-wifi-password]")?.focus();
+    } else if (kind === "network-password") {
+      wifiPasswordVisible = !wifiPasswordVisible;
+      const input = overlay.querySelector("[data-first-run-wifi-password]");
+      if (input) input.type = wifiPasswordVisible ? "text" : "password";
+      button.innerHTML = icon(wifiPasswordVisible ? "eye-off" : "eye", 18);
+      button.setAttribute("aria-label", translateFirstRunText(draft.locale, wifiPasswordVisible ? "Ocultar senha" : "Mostrar senha"));
+      button.setAttribute("aria-pressed", String(wifiPasswordVisible));
     } else if (kind === "network-connect") {
       const input = overlay.querySelector("[data-first-run-wifi-password]");
       const ssid = button.dataset.firstRunSsid;

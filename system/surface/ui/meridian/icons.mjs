@@ -20,6 +20,8 @@ const paths = {
  expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>', compact:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 14h18"/>',
  check:'<path d="m5 12 4 4L19 6"/>', shield:'<path d="m12 2 8 3v7c0 5-8 10-8 10S4 17 4 12V5Z"/><path d="m8 12 3 3 5-6"/>',
  wifi:'<path d="M2 8a17 17 0 0 1 20 0M5 12a12 12 0 0 1 14 0m-11 4a6 6 0 0 1 8 0"/><circle cx="12" cy="20" r=".7"/>',
+ eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+ 'eye-off':'<path d="M3 3l18 18M9.8 5.3A10 10 0 0 1 12 5c6 0 10 7 10 7a15 15 0 0 1-3.2 3.9M6.1 6.1C3.5 8 2 12 2 12s4 7 10 7a10 10 0 0 0 4.1-.9"/>',
  battery:'<rect x="2" y="6" width="17" height="12" rx="2"/><path d="M22 10v4M6 9v6m4-6v6m4-6v6"/>',
  phone:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4m-3 14h2"/>',
  camera:'<rect x="2" y="6" width="20" height="15" rx="3"/><path d="m7 6 2-4h6l2 4"/><circle cx="12" cy="13" r="4"/>',
