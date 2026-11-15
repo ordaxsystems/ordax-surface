@@ -229,6 +229,10 @@ export function reduceSurfaceState(state, action, appCatalog = defaultAppRuntime
       if (!appCatalog.isAvailable(app, state.capabilityIds)) return state;
       const hasTarget = Object.prototype.hasOwnProperty.call(action, "target");
       const target = hasTarget ? validateWorkspaceTarget(action.target) : undefined;
+      const initialMaximized = action.maximized === undefined ? true : action.maximized;
+      if (typeof initialMaximized !== "boolean") {
+        throw new TypeError("Initial window maximized state must be a boolean");
+      }
       const area = getActiveArea(state);
       const existing = area.windows.find((item) => item.appId === app.id && app.singleton);
       if (existing) {
@@ -254,7 +258,7 @@ export function reduceSurfaceState(state, action, appCatalog = defaultAppRuntime
             id: windowId,
             appId: app.id,
             minimized: false,
-            maximized: true,
+            maximized: initialMaximized,
             placementOrdinal: ordinal,
             positionX: null,
             positionY: null,
