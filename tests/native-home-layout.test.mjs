@@ -55,6 +55,18 @@ test("narrow Native Home reflows the real shell destinations into a usable readi
   }
 });
 
+test("short PC Home preserves usable mouse targets while compacting the hero", async () => {
+  const css = await read("identity.css");
+  const start = css.indexOf("@media (min-width: 1100px) and (max-height: 800px) {");
+  assert.ok(start >= 0, "short PC window needs a dedicated Native rule");
+  const end = css.indexOf("\n}\n", start);
+  assert.ok(end > start);
+  const rule = css.slice(start, end + 2);
+  assert.match(rule, /\.ordax-home-hero\s*\{\s*min-height:\s*13\.75rem;/);
+  assert.match(rule, /\.ordax-home-status-list > button\s*\{\s*min-height:\s*2\.75rem;/,
+    "status rows must keep a 44px desktop interaction target");
+});
+
 test("responsive polish consumes existing Meridian tokens without a parallel palette or font", async () => {
   const [css, tokens] = await Promise.all([read("identity.css"), read("meridian.tokens.css")]);
   const narrow = narrowHomeRules(css);
