@@ -47,6 +47,46 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   assert.equal(published.length, 1, "unavailable targets cannot publish");
 });
 
+test("Minimizing or closing a window preserves keyboard focus on the next active window", () => {
+  const start = source.indexOf('    const control = event.target.closest("[data-window-action]");');
+  const end = source.indexOf('\n    const windowNode = event.target.closest("[data-window-id]");', start);
+  assert.ok(start >= 0 && end > start, "exercise the real Native window action handler");
+  let fallbackId = "next-window";
+  const focused = [];
+  const actions = [];
+  const state = {};
+  const titlebar = { focus(options) { focused.push(["next-window", options.preventScroll]); } };
+  const workspace = { focus(options) { focused.push(["workspace", options.preventScroll]); } };
+  const onWindowAction = runInNewContext('(event) => {\n' + source.slice(start, end) + '\n}', {
+    state,
+    getActiveArea: () => ({ activeWindowId: fallbackId }),
+    findRenderedWindow: id => id === "next-window" ? {
+      querySelector: selector => selector === "[data-window-titlebar]" ? titlebar : null,
+    } : null,
+    workspace,
+    dispatch(action) { actions.push(action); },
+  });
+  const click = action => onWindowAction({
+    target: { closest: selector => selector === "[data-window-action]" ? {
+      dataset: { windowAction: action, windowId: "old-window" },
+    } : null },
+  });
+  click("minimize");
+  assert.deepEqual(focused, [["next-window", true]], "focus the next visible window instead of desktop");
+  assert.equal(actions[0].type, "window.minimize");
+  focused.length = 0;
+  click("close");
+  assert.deepEqual(focused, [["next-window", true]]);
+  assert.equal(actions[1].type, "window.close");
+  focused.length = 0;
+  fallbackId = null;
+  click("minimize");
+  assert.deepEqual(focused, [["workspace", true]], "no remaining window falls back to desktop");
+  focused.length = 0;
+  click("maximize");
+  assert.deepEqual(focused, [], "maximize should not steal the keyboard focus");
+});
+
 function keyboardHarness() {
   const state = { launcherOpen: true };
   const doc = { activeElement: null };
