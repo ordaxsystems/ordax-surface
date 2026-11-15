@@ -1257,7 +1257,9 @@ export function mountSurface(
       const action = control.dataset.windowAction;
       dispatch({ type: `window.${action}`, windowId: control.dataset.windowId });
       if (action === "minimize" || action === "close") {
-        workspace.focus({ preventScroll: true });
+        const activeId = getActiveArea(state).activeWindowId;
+        const nextWindow = activeId ? findRenderedWindow(activeId) : null;
+        (nextWindow?.querySelector("[data-window-titlebar]") ?? workspace).focus({ preventScroll: true });
       }
       return;
     }
