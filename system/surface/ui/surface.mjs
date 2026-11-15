@@ -1209,6 +1209,7 @@ export function mountSurface(
       const target = appButton.dataset.appTarget;
       if (target && activationPort) {
         activationPort.publish({ appId, target });
+        if (state.launcherOpen) dispatch({ type: "launcher.close" });
       } else {
         dispatch({ type: "app.launch", appId });
       }

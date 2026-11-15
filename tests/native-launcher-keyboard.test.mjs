@@ -19,6 +19,34 @@ test("Launcher search matches accented application names using an unaccented que
   assert.match(source, /const searchable = normalizeSearch\(`/);
 });
 
+test("Targeted launcher activation closes overlay only after successful authorized publish", () => {
+  const start = source.indexOf('    const appButton = event.target.closest("[data-launch-app]");');
+  const end = source.indexOf('\n    const preferenceButton = ', start);
+  assert.ok(start > 0 && end > start, "test the production activation handler");
+  const actions = [];
+  const published = [];
+  const state = { launcherOpen: true, capabilityIds: [] };
+  const button = { dataset: { launchApp: "settings", appTarget: "network" } };
+  const event = { target: { closest: selector => selector === "[data-launch-app]" ? button : null } };
+  let allow = true;
+  const handle = runInNewContext('(event) => {\n'+source.slice(start, end)+'\n}', {
+    state, catalog: { get: id => ({ id }), isAvailable: () => allow },
+    activationPort: { publish: activation => { published.push(activation); } },
+    dispatch: action => { actions.push(action.type); if (action.type === "launcher.close") state.launcherOpen = false; },
+    closeNativeNavigation: () => {}, launcherQuery: { value: "network" },
+  });
+  handle(event);
+  assert.equal(published.length, 1);
+  assert.equal(published[0].appId, "settings");
+  assert.equal(published[0].target, "network");
+  assert.deepEqual(actions, ["launcher.close"]);
+  state.launcherOpen = true;
+  allow = false;
+  handle(event);
+  assert.equal(state.launcherOpen, true, "unavailable targets cannot close launcher");
+  assert.equal(published.length, 1, "unavailable targets cannot publish");
+});
+
 function keyboardHarness() {
   const state = { launcherOpen: true };
   const doc = { activeElement: null };
