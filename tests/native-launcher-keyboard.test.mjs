@@ -5,6 +5,20 @@ import test from "node:test";
 
 const source = await readFile(new URL("../system/surface/ui/surface.mjs", import.meta.url), "utf8");
 
+test("Launcher search matches accented application names using an unaccented query", () => {
+  const start = source.indexOf('    const normalizeSearch = value => ');
+  const end = source.indexOf('\n    const query = normalizeSearch(', start);
+  assert.ok(start > 0 && end > start, "use the production launcher normalizer");
+  const normalize = runInNewContext(source.slice(start, end) + '\nnormalizeSearch', {
+    locale: "pt-BR",
+  });
+  assert.equal(normalize("configuracoes"), normalize("Configurações"));
+  assert.equal(normalize("musica"), normalize("Música"));
+  assert.equal(normalize("configuracoes").includes(normalize("conta")), false);
+  assert.match(source, /const query = normalizeSearch\(launcherQuery\.value\.trim\(\)\)/);
+  assert.match(source, /const searchable = normalizeSearch\(`/);
+});
+
 function keyboardHarness() {
   const state = { launcherOpen: true };
   const doc = { activeElement: null };

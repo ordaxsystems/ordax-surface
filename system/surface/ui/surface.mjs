@@ -549,7 +549,8 @@ export function mountSurface(
 
   const renderLauncher = () => {
     const locale = localization.getLocale();
-    const query = launcherQuery.value.trim().toLocaleLowerCase(locale);
+    const normalizeSearch = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
+    const query = normalizeSearch(launcherQuery.value.trim());
     const focusedLauncherApp = root.ownerDocument.activeElement?.dataset?.launchApp ?? null;
     const retained = new Set();
     let visible = 0;
@@ -558,7 +559,7 @@ export function mountSurface(
       const available = catalog.isAvailable(app, state.capabilityIds);
       const localizedTitle = appTitle(localization, app);
       const localizedDescription = appDescription(localization, app);
-      const searchable = `${localizedTitle} ${localizedDescription} ${app.id}`.toLocaleLowerCase(locale);
+      const searchable = normalizeSearch(`${localizedTitle} ${localizedDescription} ${app.id}`);
       const matches = !query || searchable.includes(query);
       let button = Array.from(appLauncher.children).find(
         (child) => child.dataset?.launchApp === app.id,
