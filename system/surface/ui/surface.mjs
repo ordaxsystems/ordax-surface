@@ -1389,6 +1389,7 @@ export function mountSurface(
     }
     event.preventDefault();
     options[index].focus({ preventScroll: true });
+    options[index].scrollIntoView({ block: "nearest", inline: "nearest" });
     return true;
   };
 
