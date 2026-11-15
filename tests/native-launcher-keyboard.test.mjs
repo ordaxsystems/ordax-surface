@@ -25,6 +25,7 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   assert.ok(start > 0 && end > start, "test the production activation handler");
   const actions = [];
   const published = [];
+  const focusActions = [];
   const state = { launcherOpen: true, capabilityIds: [] };
   const button = { dataset: { launchApp: "settings", appTarget: "network" } };
   const event = { target: { closest: selector => selector === "[data-launch-app]" ? button : null } };
@@ -34,6 +35,7 @@ test("Targeted launcher activation closes overlay only after successful authoriz
     activationPort: { publish: activation => { published.push(activation); } },
     dispatch: action => { actions.push(action.type); if (action.type === "launcher.close") state.launcherOpen = false; },
     closeNativeNavigation: () => {}, launcherQuery: { value: "network" },
+    focusActiveWindowOrWorkspace: () => focusActions.push("window"),
   });
   handle(event);
   assert.equal(published.length, 1);
@@ -45,6 +47,12 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   handle(event);
   assert.equal(state.launcherOpen, true, "unavailable targets cannot close launcher");
   assert.equal(published.length, 1, "unavailable targets cannot publish");
+  assert.equal(focusActions.length, 0, "unavailable targets must not steal focus");
+  allow = true;
+  delete button.dataset.appTarget;
+  handle(event);
+  assert.equal(actions.at(-1), "app.launch", "ordinary app opening uses the Native window reducer");
+  assert.deepEqual(focusActions, ["window"], "new windows must receive keyboard focus");
 });
 
 test("Dock toggles active windows while retaining focus on the surviving or restored window", () => {

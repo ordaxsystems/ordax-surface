@@ -1218,6 +1218,7 @@ export function mountSurface(
         if (state.launcherOpen) dispatch({ type: "launcher.close" });
       } else {
         dispatch({ type: "app.launch", appId });
+        focusActiveWindowOrWorkspace();
       }
       launcherQuery.value = "";
       return;
