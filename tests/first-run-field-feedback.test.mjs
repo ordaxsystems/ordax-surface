@@ -30,6 +30,20 @@ test("Local validation errors are not inferred from remote network failures",asy
  assert.match(block,/networkFeedbackTone = "attention"/);
  assert.match(s,/draft\.accountMode = "local-only"/);
 });
+test("First Run Wi-Fi restores an accessible password reveal without replacing its input draft",async()=>{
+ const source=await readFile(new URL("../system/surface/ui/first-run.mjs",import.meta.url),"utf8");
+ const icons=await readFile(new URL("../system/surface/ui/meridian/icons.mjs",import.meta.url),"utf8");
+ assert.match(source,/input\.type = wifiPasswordVisible \? "text" : "password"/);
+ assert.match(source,/reveal\.innerHTML = icon\(wifiPasswordVisible \? "eye-off" : "eye", 18\)/);
+ assert.match(source,/reveal\.setAttribute\("aria-controls", input\.id\)/);
+ assert.match(source,/reveal\.setAttribute\("aria-pressed", String\(wifiPasswordVisible\)\)/);
+ assert.match(source,/else if \(kind === "network-password"\)/);
+ assert.match(source,/wifiPasswordVisible = !wifiPasswordVisible/);
+ assert.match(source,/input\.value = passwordDraft/);
+ assert.match(icons,/eye:'<path/);
+ assert.match(icons,/'eye-off':'<path/);
+});
+
 test("Editing and retrying cannot retain a stale invalid flag",async()=>{
  const s=await readFile(new URL("../system/surface/ui/first-run.mjs",import.meta.url),"utf8");
  const css=await readFile(new URL("../system/surface/ui/first-run.css",import.meta.url),"utf8");
