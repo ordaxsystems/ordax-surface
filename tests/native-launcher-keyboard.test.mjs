@@ -26,14 +26,15 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   const actions = [];
   const published = [];
   const focusActions = [];
-  const state = { launcherOpen: true, capabilityIds: [] };
+  const launchOptions = [];
+  const state = { launcherOpen: true, capabilityIds: [], presentation: "desktop" };
   const button = { dataset: { launchApp: "settings", appTarget: "network" } };
   const event = { target: { closest: selector => selector === "[data-launch-app]" ? button : null } };
   let allow = true;
   const handle = runInNewContext('(event) => {\n'+source.slice(start, end)+'\n}', {
     state, catalog: { get: id => ({ id }), isAvailable: () => allow },
     activationPort: { publish: activation => { published.push(activation); } },
-    dispatch: action => { actions.push(action.type); if (action.type === "launcher.close") state.launcherOpen = false; },
+    dispatch: action => { actions.push(action.type); if (action.type === "app.launch") launchOptions.push(action.maximized); if (action.type === "launcher.close") state.launcherOpen = false; },
     closeNativeNavigation: () => {}, launcherQuery: { value: "network" },
     focusActiveWindowOrWorkspace: () => focusActions.push("window"),
   });
@@ -52,7 +53,11 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   delete button.dataset.appTarget;
   handle(event);
   assert.equal(actions.at(-1), "app.launch", "ordinary app opening uses the Native window reducer");
-  assert.deepEqual(focusActions, ["window"], "new windows must receive keyboard focus");
+  assert.deepEqual(launchOptions, [false], "Desktop requests a floating window");
+  state.presentation = "central";
+  handle(event);
+  assert.deepEqual(launchOptions, [false, true], "Central retains immersive startup");
+  assert.deepEqual(focusActions, ["window", "window"], "new windows must receive keyboard focus");
 });
 
 test("Dock toggles active windows while retaining focus on the surviving or restored window", () => {

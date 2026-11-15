@@ -74,10 +74,10 @@ test("new Native PC applications open as movable windows, preserving manual maxi
   assert.match(reducer, /const initialMaximized = action\.maximized === undefined \? true : action\.maximized;/,
     "the shared reducer retains its established maximized default");
   assert.match(reducer, /minimized: false,\s*maximized: initialMaximized,\s*placementOrdinal: ordinal,/);
-  assert.match(renderer, /dispatch\(\{ type: "app\.launch", appId, maximized: false \}\)/,
-    "Native window launches explicitly request floating mode");
-  assert.match(renderer, /appId: activation\.appId,\s*target: activation\.target,\s*maximized: false,/,
-    "Native activation subscriptions also request floating mode");
+  assert.match(renderer, /dispatch\(\{ type: "app\.launch", appId, maximized: state\.presentation !== "desktop" \}\)/,
+    "Central opens immersive; Desktop explicitly opens floating windows");
+  assert.match(renderer, /appId: activation\.appId,\s*target: activation\.target,\s*maximized: state\.presentation !== "desktop",/,
+    "activation subscriptions respect the current presentation too");
   assert.match(reducer, /case "window\.maximize":/,
     "maximization remains an explicit window action");
   assert.match(css, /\.ordax-window\s*\{[\s\S]*?width: min\(var\(--ordax-window-width/,
