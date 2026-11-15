@@ -498,7 +498,9 @@ export function mountNetworkQuickPanel(
   };
 
   const onClick = (event) => {
-    const network = event.target.closest("[data-quick-wifi-ssid]");
+    // Connect also carries an SSID: only the network option may change selection.
+    // Otherwise a Connect click is consumed here before reaching runAction.
+    const network = event.target.closest(".ordax-quick-network[data-quick-wifi-ssid]");
     if (network && panel.contains(network) && !managementReadFailed) {
       const nextSsid = network.dataset.quickWifiSsid ?? null;
       if (nextSsid !== selectedSsid) clearPasswordDraft();

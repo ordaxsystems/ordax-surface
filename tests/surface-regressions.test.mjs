@@ -1114,6 +1114,49 @@ test("Native display ignores delayed read and write results after UI teardown", 
   assert.equal(readbackCount, 0, "destroyed controls must not initiate a recovery read");
 });
 
+test("Wi-Fi quick Connect dispatches despite sharing the selected network SSID", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = await read("network-quick-panel.mjs");
+  const start = source.indexOf("  const onClick = (event) => {");
+  const end = source.indexOf("  const onInput = (event) => {", start);
+  assert.ok(start !== -1 && end > start, "canonical quick-network click handler");
+
+  const fixture = runInNewContext([
+    'class HTMLInputElement { constructor() { this.dataset = { quickWifiPasswordFor: "Casa" }; this.value = "validpassword"; } }',
+    'const input = new HTMLInputElement();',
+    'const panel = { contains: () => true, querySelector: () => input };',
+    'let selectedSsid = "Casa", passwordDraft = "validpassword", passwordDraftSsid = "Casa";',
+    'let focusPasswordRequested = false, messageId = null, managementReadFailed = false;',
+    'const calls = []; let repaintCount = 0;',
+    'const clearPasswordDraft = () => { passwordDraft = ""; passwordDraftSsid = null; };',
+    'const render = () => { repaintCount++; };',
+    'const runAction = (action, credentials) => { calls.push({ action, credentials }); };',
+    'const connectButton = { dataset: { quickNetworkAction: "connect", quickWifiSsid: "Casa" } };',
+    'const networkButton = { dataset: { quickWifiSsid: "Outra" } };',
+    'const click = (button) => onClick({ target: { closest(selector) {',
+    '  if (selector === ".ordax-quick-network[data-quick-wifi-ssid]") return button === networkButton ? button : null;',
+    '  if (selector === "[data-quick-wifi-ssid]") return button;',
+    '  if (selector === "[data-quick-network-action]") return button === connectButton ? button : null;',
+    '  return null;',
+    '} } });',
+    source.slice(start, end),
+    '({ click, connectButton, networkButton, calls, input, view() { return { selectedSsid, repaintCount, messageId }; } })',
+  ].join("\n"));
+
+  fixture.click(fixture.connectButton);
+  assert.equal(fixture.calls.length, 1, "Connect must invoke the network action exactly once");
+  assert.equal(fixture.calls[0].action, "connect");
+  assert.equal(fixture.calls[0].credentials.ssid, "Casa");
+  assert.equal(fixture.calls[0].credentials.password, "validpassword");
+  assert.equal(fixture.input.value, "", "password draft is erased after submitting");
+  assert.equal(fixture.view().selectedSsid, "Casa", "Connect must not reselect the network");
+
+  fixture.click(fixture.networkButton);
+  assert.equal(fixture.calls.length, 1, "selecting a network never starts a connection");
+  assert.equal(fixture.view().selectedSsid, "Outra");
+  assert.equal(fixture.view().repaintCount, 1);
+});
+
 test("Native Wi-Fi refuses stale management mutations while allowing a fresh scan", async () => {
   const { runInNewContext } = await import("node:vm");
   const source = await read("network-quick-panel.mjs");
