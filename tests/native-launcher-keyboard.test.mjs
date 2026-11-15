@@ -47,6 +47,32 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   assert.equal(published.length, 1, "unavailable targets cannot publish");
 });
 
+test("Dock restore focuses the activated Native window rather than leaving focus on its button", () => {
+  const start = source.indexOf('    const runningButton = event.target.closest("[data-open-window]");');
+  const end = source.indexOf('\n    const control = event.target.closest("[data-window-action]");', start);
+  assert.ok(start >= 0 && end > start, "exercise the real dock activation handler");
+  const actions = [];
+  const focusOptions = [];
+  let rendered = true;
+  const handle = runInNewContext('(event) => {\n' + source.slice(start, end) + '\n}', {
+    dispatch: action => actions.push([action.type, action.windowId]),
+    findRenderedWindow: id => rendered && id === "settings" ? {
+      querySelector: selector => selector === "[data-window-titlebar]" ? {
+        focus: options => focusOptions.push(options.preventScroll),
+      } : null,
+    } : null,
+  });
+  const event = { target: { closest: selector => selector === "[data-open-window]" ? {
+    dataset: { openWindow: "settings" },
+  } : null } };
+  handle(event);
+  assert.deepEqual(actions, [["window.focus", "settings"]]);
+  assert.deepEqual(focusOptions, [true], "focus follows the restored window titlebar");
+  rendered = false;
+  handle(event);
+  assert.equal(focusOptions.length, 1, "a stale window must not receive synthetic focus");
+});
+
 test("Minimizing or closing a window preserves keyboard focus on the next active window", () => {
   const start = source.indexOf('    const control = event.target.closest("[data-window-action]");');
   const end = source.indexOf('\n    const windowNode = event.target.closest("[data-window-id]");', start);
