@@ -254,7 +254,7 @@ export function reduceSurfaceState(state, action, appCatalog = defaultAppRuntime
             id: windowId,
             appId: app.id,
             minimized: false,
-            maximized: true,
+            maximized: false,
             placementOrdinal: ordinal,
             positionX: null,
             positionY: null,

@@ -67,6 +67,20 @@ test("short PC Home preserves usable mouse targets while compacting the hero", a
     "status rows must keep a 44px desktop interaction target");
 });
 
+test("new Native PC applications open as movable windows, preserving manual maximize and workspace persistence", async () => {
+  const [reducer, css, renderer] = await Promise.all([
+    read("surface-state.mjs"), read("surface.css"), read("surface.mjs"),
+  ]);
+  assert.match(reducer, /case "app\.launch":[\s\S]*?minimized: false,\s*maximized: false,\s*placementOrdinal: ordinal,/,
+    "new windows default to floating instead of covering the whole workspace");
+  assert.match(reducer, /case "window\.maximize":/,
+    "maximization remains an explicit window action");
+  assert.match(css, /\.ordax-window\s*\{[\s\S]*?width: min\(var\(--ordax-window-width/,
+    "window size follows the canonical Meridian width token");
+  assert.match(renderer, /\["maximize",/,
+    "window chrome keeps its maximize/restore button");
+});
+
 test("responsive polish consumes existing Meridian tokens without a parallel palette or font", async () => {
   const [css, tokens] = await Promise.all([read("identity.css"), read("meridian.tokens.css")]);
   const narrow = narrowHomeRules(css);
