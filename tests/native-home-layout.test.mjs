@@ -71,8 +71,13 @@ test("new Native PC applications open as movable windows, preserving manual maxi
   const [reducer, css, renderer] = await Promise.all([
     read("surface-state.mjs"), read("surface.css"), read("surface.mjs"),
   ]);
-  assert.match(reducer, /case "app\.launch":[\s\S]*?minimized: false,\s*maximized: false,\s*placementOrdinal: ordinal,/,
-    "new windows default to floating instead of covering the whole workspace");
+  assert.match(reducer, /const initialMaximized = action\.maximized === undefined \? true : action\.maximized;/,
+    "the shared reducer retains its established maximized default");
+  assert.match(reducer, /minimized: false,\s*maximized: initialMaximized,\s*placementOrdinal: ordinal,/);
+  assert.match(renderer, /dispatch\(\{ type: "app\.launch", appId, maximized: false \}\)/,
+    "Native window launches explicitly request floating mode");
+  assert.match(renderer, /appId: activation\.appId,\s*target: activation\.target,\s*maximized: false,/,
+    "Native activation subscriptions also request floating mode");
   assert.match(reducer, /case "window\.maximize":/,
     "maximization remains an explicit window action");
   assert.match(css, /\.ordax-window\s*\{[\s\S]*?width: min\(var\(--ordax-window-width/,

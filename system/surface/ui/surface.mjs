@@ -1217,7 +1217,7 @@ export function mountSurface(
         activationPort.publish({ appId, target });
         if (state.launcherOpen) dispatch({ type: "launcher.close" });
       } else {
-        dispatch({ type: "app.launch", appId });
+        dispatch({ type: "app.launch", appId, maximized: false });
         focusActiveWindowOrWorkspace();
       }
       launcherQuery.value = "";
@@ -1510,6 +1510,7 @@ export function mountSurface(
       type: "app.launch",
       appId: activation.appId,
       target: activation.target,
+      maximized: false,
     });
   });
   const unsubscribeHost = host.subscribe((snapshot) => dispatch({ type: "host.snapshot", snapshot }));
