@@ -518,6 +518,20 @@
   }
 }
 
+/* PC-sized first run: give keyboard/mouse navigation a readable rail while
+   preserving the canonical setup form and its responsive reflow. */
+@container (min-width: 1100px) {
+  .ordax-first-run-shell {
+    grid-template-columns:232px minmax(0,1fr);
+  }
+  .ordax-first-run-progress {
+    padding-inline:24px;
+  }
+  .ordax-first-run-steps li {
+    font-size:.84rem;
+  }
+}
+
 /* The one Native setup reflows within its viewport-sized container; the OS shell is unchanged. */
 @container (max-width: 900px) {
   .ordax-first-run-shell {
