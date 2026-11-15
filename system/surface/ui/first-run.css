@@ -574,6 +574,32 @@
   }
 }
 
+/* Keep every first-run step visible on narrow windows without a sideways scroller. */
+@container (max-width: 480px) {
+  .ordax-first-run-progress {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+  }
+  .ordax-first-run-steps {
+    display:grid;
+    width:100%;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:3px;
+    overflow:visible;
+  }
+  .ordax-first-run-steps li {
+    min-width:0;
+    padding:6px 2px 6px 16px;
+    justify-content:center;
+    font-size:.65rem;
+  }
+  .ordax-first-run-steps li::before {
+    inset-inline-start:4px;
+    font-size:.58rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ordax-first-run *,
   .ordax-first-run *::before,
