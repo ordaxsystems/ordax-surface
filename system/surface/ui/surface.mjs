@@ -1249,6 +1249,8 @@ export function mountSurface(
     const runningButton = event.target.closest("[data-open-window]");
     if (runningButton) {
       dispatch({ type: "window.focus", windowId: runningButton.dataset.openWindow });
+      findRenderedWindow(runningButton.dataset.openWindow)
+        ?.querySelector("[data-window-titlebar]")?.focus({ preventScroll: true });
       return;
     }
 
