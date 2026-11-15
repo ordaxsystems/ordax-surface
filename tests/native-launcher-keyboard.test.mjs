@@ -25,6 +25,7 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   assert.ok(start > 0 && end > start, "test the production activation handler");
   const actions = [];
   const published = [];
+  const focusActions = [];
   const state = { launcherOpen: true, capabilityIds: [] };
   const button = { dataset: { launchApp: "settings", appTarget: "network" } };
   const event = { target: { closest: selector => selector === "[data-launch-app]" ? button : null } };
@@ -34,6 +35,7 @@ test("Targeted launcher activation closes overlay only after successful authoriz
     activationPort: { publish: activation => { published.push(activation); } },
     dispatch: action => { actions.push(action.type); if (action.type === "launcher.close") state.launcherOpen = false; },
     closeNativeNavigation: () => {}, launcherQuery: { value: "network" },
+    focusActiveWindowOrWorkspace: () => focusActions.push("window"),
   });
   handle(event);
   assert.equal(published.length, 1);
@@ -45,32 +47,69 @@ test("Targeted launcher activation closes overlay only after successful authoriz
   handle(event);
   assert.equal(state.launcherOpen, true, "unavailable targets cannot close launcher");
   assert.equal(published.length, 1, "unavailable targets cannot publish");
+  assert.equal(focusActions.length, 0, "unavailable targets must not steal focus");
+  allow = true;
+  delete button.dataset.appTarget;
+  handle(event);
+  assert.equal(actions.at(-1), "app.launch", "ordinary app opening uses the Native window reducer");
+  assert.deepEqual(focusActions, ["window"], "new windows must receive keyboard focus");
 });
 
-test("Dock restore focuses the activated Native window rather than leaving focus on its button", () => {
+test("Dock toggles active windows while retaining focus on the surviving or restored window", () => {
   const start = source.indexOf('    const runningButton = event.target.closest("[data-open-window]");');
   const end = source.indexOf('\n    const control = event.target.closest("[data-window-action]");', start);
-  assert.ok(start >= 0 && end > start, "exercise the real dock activation handler");
+  const helperStart = source.indexOf('  const focusActiveWindowOrWorkspace = () => {');
+  const helperEnd = source.indexOf('\n\n  const onClick = ', helperStart);
+  assert.ok(start >= 0 && end > start && helperStart >= 0 && helperEnd > helperStart);
   const actions = [];
-  const focusOptions = [];
-  let rendered = true;
+  const focused = [];
+  const area = { activeWindowId: "store", windows: [
+    { id: "settings", minimized: false }, { id: "store", minimized: false },
+  ] };
+  const context = {
+    state: {}, getActiveArea: () => area,
+    workspace: { focus: options => focused.push(["workspace", options.preventScroll]) },
+    findRenderedWindow: id => area.windows.some(w => w.id === id && !w.minimized)
+      ? { querySelector: selector => selector === "[data-window-titlebar]"
+        ? { focus: options => focused.push([id, options.preventScroll]) } : null } : null,
+  };
+  const focusActiveWindowOrWorkspace = runInNewContext(
+    source.slice(helperStart, helperEnd) + '\nfocusActiveWindowOrWorkspace', context);
   const handle = runInNewContext('(event) => {\n' + source.slice(start, end) + '\n}', {
-    dispatch: action => actions.push([action.type, action.windowId]),
-    findRenderedWindow: id => rendered && id === "settings" ? {
-      querySelector: selector => selector === "[data-window-titlebar]" ? {
-        focus: options => focusOptions.push(options.preventScroll),
-      } : null,
-    } : null,
+    ...context, focusActiveWindowOrWorkspace,
+    dispatch(action) {
+      actions.push([action.type, action.windowId]);
+      const window = area.windows.find(w => w.id === action.windowId);
+      if (!window) return;
+      if (action.type === "window.minimize") {
+        window.minimized = true;
+        area.activeWindowId = area.windows.findLast(w => !w.minimized)?.id ?? null;
+      } else if (action.type === "window.focus") {
+        window.minimized = false;
+        area.activeWindowId = window.id;
+      }
+    },
   });
-  const event = { target: { closest: selector => selector === "[data-open-window]" ? {
-    dataset: { openWindow: "settings" },
-  } : null } };
-  handle(event);
-  assert.deepEqual(actions, [["window.focus", "settings"]]);
-  assert.deepEqual(focusOptions, [true], "focus follows the restored window titlebar");
-  rendered = false;
-  handle(event);
-  assert.equal(focusOptions.length, 1, "a stale window must not receive synthetic focus");
+  const click = id => handle({ target: { closest: selector => selector === "[data-open-window]"
+    ? { dataset: { openWindow: id } } : null } });
+  click("store");
+  assert.deepEqual(actions.at(-1), ["window.minimize", "store"]);
+  assert.deepEqual(focused.at(-1), ["settings", true]);
+  click("store");
+  assert.deepEqual(actions.at(-1), ["window.focus", "store"]);
+  assert.deepEqual(focused.at(-1), ["store", true]);
+  click("settings");
+  assert.deepEqual(actions.at(-1), ["window.focus", "settings"]);
+  assert.deepEqual(focused.at(-1), ["settings", true]);
+  click("settings");
+  assert.deepEqual(actions.at(-1), ["window.minimize", "settings"]);
+  assert.deepEqual(focused.at(-1), ["store", true]);
+  click("store");
+  assert.deepEqual(actions.at(-1), ["window.minimize", "store"]);
+  assert.deepEqual(focused.at(-1), ["workspace", true]);
+  click("store");
+  assert.deepEqual(actions.at(-1), ["window.focus", "store"]);
+  assert.deepEqual(focused.at(-1), ["store", true]);
 });
 
 test("Minimizing or closing a window preserves keyboard focus on the next active window", () => {
@@ -83,13 +122,20 @@ test("Minimizing or closing a window preserves keyboard focus on the next active
   const state = {};
   const titlebar = { focus(options) { focused.push(["next-window", options.preventScroll]); } };
   const workspace = { focus(options) { focused.push(["workspace", options.preventScroll]); } };
-  const onWindowAction = runInNewContext('(event) => {\n' + source.slice(start, end) + '\n}', {
+  const context = {
     state,
     getActiveArea: () => ({ activeWindowId: fallbackId }),
     findRenderedWindow: id => id === "next-window" ? {
       querySelector: selector => selector === "[data-window-titlebar]" ? titlebar : null,
     } : null,
     workspace,
+  };
+  const helperStart = source.indexOf('  const focusActiveWindowOrWorkspace = () => {');
+  const helperEnd = source.indexOf('\n\n  const onClick = ', helperStart);
+  const focusActiveWindowOrWorkspace = runInNewContext(
+    source.slice(helperStart, helperEnd) + '\nfocusActiveWindowOrWorkspace', context);
+  const onWindowAction = runInNewContext('(event) => {\n' + source.slice(start, end) + '\n}', {
+    ...context, focusActiveWindowOrWorkspace,
     dispatch(action) { actions.push(action); },
   });
   const click = action => onWindowAction({

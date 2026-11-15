@@ -1121,6 +1121,12 @@ export function mountSurface(
     return true;
   };
 
+  const focusActiveWindowOrWorkspace = () => {
+    const activeId = getActiveArea(state).activeWindowId;
+    const titlebar = activeId ? findRenderedWindow(activeId)?.querySelector("[data-window-titlebar]") : null;
+    (titlebar ?? workspace).focus({ preventScroll: true });
+  };
+
   const onClick = (event) => {
     const areaMenuButton = event.target.closest("[data-area-menu-toggle]");
     if (areaMenuButton) {
@@ -1212,6 +1218,7 @@ export function mountSurface(
         if (state.launcherOpen) dispatch({ type: "launcher.close" });
       } else {
         dispatch({ type: "app.launch", appId });
+        focusActiveWindowOrWorkspace();
       }
       launcherQuery.value = "";
       return;
@@ -1248,9 +1255,12 @@ export function mountSurface(
 
     const runningButton = event.target.closest("[data-open-window]");
     if (runningButton) {
-      dispatch({ type: "window.focus", windowId: runningButton.dataset.openWindow });
-      findRenderedWindow(runningButton.dataset.openWindow)
-        ?.querySelector("[data-window-titlebar]")?.focus({ preventScroll: true });
+      const windowId = runningButton.dataset.openWindow;
+      const area = getActiveArea(state);
+      const active = area.activeWindowId === windowId
+        && area.windows.some((item) => item.id === windowId && !item.minimized);
+      dispatch({ type: active ? "window.minimize" : "window.focus", windowId });
+      focusActiveWindowOrWorkspace();
       return;
     }
 
@@ -1258,11 +1268,7 @@ export function mountSurface(
     if (control) {
       const action = control.dataset.windowAction;
       dispatch({ type: `window.${action}`, windowId: control.dataset.windowId });
-      if (action === "minimize" || action === "close") {
-        const activeId = getActiveArea(state).activeWindowId;
-        const nextWindow = activeId ? findRenderedWindow(activeId) : null;
-        (nextWindow?.querySelector("[data-window-titlebar]") ?? workspace).focus({ preventScroll: true });
-      }
+      if (action === "minimize" || action === "close") focusActiveWindowOrWorkspace();
       return;
     }
 
