@@ -1,8 +1,9 @@
 /* Canonical Meridian First Run, shared unchanged by Native/USB and emulator. */
 .ordax-first-run {
   container-type: inline-size;
+  --ordax-first-run-gutter:clamp(12px,2vw,32px);
   position:fixed; inset:0; z-index:10001; display:grid; place-items:safe center;
-  padding:clamp(12px,2vw,32px); overflow:auto;
+  padding:var(--ordax-first-run-gutter); overflow:auto;
   background:var(--md-canvas); color:var(--md-ink); font-family:var(--md-font);
 }
 
@@ -11,8 +12,10 @@
 }
 
 .ordax-first-run-shell {
-  position:relative; width:min(1200px,100%); min-width:900px; height:min(720px,calc(100dvh - 48px));
-  max-height:calc(100dvh - 48px); min-height:0; display:grid;
+  position:relative; width:min(1200px,100%); min-width:900px;
+  height:min(720px,calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter)));
+  max-height:calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter));
+  min-height:0; display:grid;
   grid-template-columns:var(--md-rail-width) minmax(0,1fr); overflow:hidden;
   border:1px solid var(--md-border); border-radius:var(--md-radius-large);
   background:var(--md-surface); box-shadow:var(--md-shadow);
@@ -520,8 +523,8 @@
   .ordax-first-run-shell {
     min-width: 0;
     width: 100%;
-    height: min(720px, calc(100dvh - 24px));
-    max-height: calc(100dvh - 24px);
+    height: min(720px, calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter)));
+    max-height: calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
@@ -552,8 +555,8 @@
 
 @container (max-width: 600px) {
   .ordax-first-run-shell {
-    height: calc(100dvh - 24px);
-    max-height: calc(100dvh - 24px);
+    height: calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter));
+    max-height: calc(100dvh - var(--ordax-first-run-gutter) - var(--ordax-first-run-gutter));
   }
   .ordax-first-run-progress { padding: 10px 12px; gap: 8px; }
   .ordax-first-run-brand strong { font-size: 1rem; }
