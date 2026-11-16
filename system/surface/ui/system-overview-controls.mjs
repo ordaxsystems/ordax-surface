@@ -1,4 +1,5 @@
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
+import { sameHostPresentationSnapshot } from "./host-presentation-snapshot.mjs";
 import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import { desktopMcpStatusPresentation } from "./desktop-mcp-status-presentation.mjs";
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
@@ -1850,8 +1851,11 @@ export function mountSystemOverviewControls(
     if (!destroyed) replaceView();
   });
   const unsubscribeHost = hostPort.subscribe((snapshot) => {
-    hostSnapshot = validateSurfaceSnapshot(snapshot);
-    replaceView();
+    const nextSnapshot = validateSurfaceSnapshot(snapshot);
+    // Keep the latest trusted observation without repainting an unchanged view.
+    const presentationChanged = !sameHostPresentationSnapshot(hostSnapshot, nextSnapshot);
+    hostSnapshot = nextSnapshot;
+    if (presentationChanged) replaceView();
   });
   const unsubscribeActivation = activationPort?.subscribe((activation) => {
     if (

@@ -1,4 +1,5 @@
 import { captureSectionNavigationScroll, restoreSectionNavigationScroll, restoreSectionFocusFallback } from "./section-navigation.mjs";
+import { sameHostPresentationSnapshot } from "./host-presentation-snapshot.mjs";
 import { markSurfaceFeedback } from "./surface-feedback.mjs";
 import {mountSettingsJourneys} from './journeys/settings-mount.mjs';
 import { assertAppActivationPort } from "../../contracts/app-activation.mjs";
@@ -288,6 +289,7 @@ export function mountSettingsOverviewControls(
   let networkReadInFlight = false;
   let networkManagementReadInFlight = false;
   let networkActionOrdinal = 0;
+  let networkPoll = null;
   let selectedNetworkSsid = null;
   let activeSection = validSettingsSection(lifecycle.getAppTarget("settings"))
     ? lifecycle.getAppTarget("settings")
@@ -1599,15 +1601,28 @@ export function mountSettingsOverviewControls(
     if (changed && !destroyed && ordinal === networkManagementReadOrdinal && activeSection === "network") replaceView();
   };
 
-  // Network observations belong to the visible Settings/Network journey, not every Surface frame.
-  // A single scheduler also prevents duplicate timers for status and management.
-  const refreshActiveNetwork = () => {
+  // A network poll exists only while Settings/Network is the visible focused
+  // window. Stopping it on section changes avoids idle wakeups in other apps.
+  const networkWindowIsActive = () => {
     const windowNode = findSlot()?.closest(SETTINGS_WINDOW_SELECTOR);
-    // Surface retains minimized windows in the DOM, so a mounted slot alone is not visible.
-    if (destroyed || activeSection !== "network" || !windowNode
-      || windowNode.hidden || windowNode.dataset.active !== "true") return;
+    return !destroyed && activeSection === "network" && windowNode
+      && !windowNode.hidden && windowNode.dataset.active === "true";
+  };
+  const refreshActiveNetwork = () => {
+    if (!networkWindowIsActive()) return;
     if (networkPort) void refreshNetwork();
     if (networkManagementPort) void refreshNetworkManagement();
+  };
+  const syncNetworkPoll = () => {
+    const shouldPoll = Boolean(networkPort || networkManagementPort)
+      && Boolean(networkWindowIsActive());
+    if (shouldPoll && networkPoll === null) {
+      networkPoll = setInterval(refreshActiveNetwork, 5000);
+      refreshActiveNetwork();
+    } else if (!shouldPoll && networkPoll !== null) {
+      clearInterval(networkPoll);
+      networkPoll = null;
+    }
   };
 
   const runNetworkAction = async (action, { ssid = null, password = null } = {}) => {
@@ -1684,7 +1699,7 @@ export function mountSettingsOverviewControls(
       } else {
         activeSection = nextSection;
         replaceView();
-        refreshActiveNetwork();
+        syncNetworkPoll();
         refreshVisibleKeyboardLayout();
       }
       return;
@@ -1869,7 +1884,7 @@ export function mountSettingsOverviewControls(
     const sectionChanged = activeSection !== nextSection;
     activeSection = nextSection;
     renderView(sectionChanged);
-    if (sectionChanged) refreshActiveNetwork();
+    syncNetworkPoll();
     refreshVisibleKeyboardLayout();
   });
   const unsubscribeActivation = activationPort?.subscribe((activation) => {
@@ -1882,13 +1897,16 @@ export function mountSettingsOverviewControls(
       selectedNetworkSsid = null;
       networkManagementMessageId = null;
       replaceView();
-      refreshActiveNetwork();
+      syncNetworkPoll();
       refreshVisibleKeyboardLayout();
     }
   });
   const unsubscribeHost = hostPort.subscribe((snapshot) => {
-    hostSnapshot = validateSurfaceSnapshot(snapshot);
-    replaceView();
+    const nextSnapshot = validateSurfaceSnapshot(snapshot);
+    // Keep the latest trusted observation without repainting an unchanged view.
+    const presentationChanged = !sameHostPresentationSnapshot(hostSnapshot, nextSnapshot);
+    hostSnapshot = nextSnapshot;
+    if (presentationChanged) replaceView();
   });
   const unsubscribePreferences = preferences.subscribe((snapshot) => {
     preferenceSnapshot = snapshot;
@@ -1906,12 +1924,9 @@ export function mountSettingsOverviewControls(
     notificationSnapshot = snapshot;
     if (activeSection === "notifications") replaceView();
   });
-  const networkPoll = networkPort || networkManagementPort
-    ? setInterval(refreshActiveNetwork, 5000)
-    : null;
   if (activeSection === "security") void refreshConnector();
   refreshVisibleKeyboardLayout();
-  refreshActiveNetwork();
+  syncNetworkPoll();
 
   return Object.freeze({
     destroy() {
