@@ -139,6 +139,7 @@ export function mountHomeContinuation(
 
   let destroyed = false;
   let section = null;
+  let renderedSignature = null;
   const render = () => {
     if (destroyed) return;
     // Subscription events are notifications, never a second snapshot store.
@@ -156,10 +157,16 @@ export function mountHomeContinuation(
       recentFiles: recentSnapshot,
     });
     const timeZone = resolveRegionalTimeZone(preferencePort?.getSnapshot() ?? {});
+    // Always project fresh OS snapshots; cache only the four-card DOM shape.
+    const nextSignature = JSON.stringify([presentation, localization.getLocale(), timeZone]);
+    if (nextSignature === renderedSignature && (
+      presentation.visible ? section?.parentNode === homePanel : section === null
+    )) return;
 
     if (!presentation.visible) {
       section?.remove();
       section = null;
+      renderedSignature = nextSignature;
       restoreHomeCollectionFocus(homePanel, focusedWithin);
       return;
     }
@@ -227,6 +234,7 @@ export function mountHomeContinuation(
     if (section) section.replaceWith(next);
     else homePanel.insertBefore(next, space);
     section = next;
+    renderedSignature = nextSignature;
 
     const target = focusedKey
       ? Array.from(section.querySelectorAll("[data-home-continuation-key]"))
@@ -243,7 +251,11 @@ export function mountHomeContinuation(
   const unsubscribeRecent = recentPort?.subscribe(() => {
     render();
   });
-  const unsubscribeLocalization = localization.subscribe(render);
+  const unsubscribeLocalization = localization.subscribe(() => {
+    // Localization can change translations without changing the locale ID.
+    renderedSignature = null;
+    render();
+  });
   const unsubscribePreferences = preferencePort?.subscribe(render);
 
   render();
