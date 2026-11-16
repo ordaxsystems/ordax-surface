@@ -1074,8 +1074,23 @@ export function mountSurface(
     return label;
   };
 
+  // Opening and closing this overlay changes no catalog, grant, workspace
+  // or preference state. Keep its aria-expanded and visibility in one owner,
+  // used on both full reconciliation and the narrow toggle path.
+  const syncLauncherVisibility = () => {
+    syncHidden(launcher, !state.launcherOpen);
+    root.querySelectorAll("[data-launcher-toggle]").forEach((button) =>
+      syncAttribute(button, "aria-expanded", String(state.launcherOpen)),
+    );
+  };
+
   const notifyRenderListeners = () => {
     for (const listener of [...renderListeners]) listener();
+  };
+
+  const renderLauncherVisibilityOnly = () => {
+    syncLauncherVisibility();
+    notifyRenderListeners();
   };
 
   const renderConnectivityOnly = () => {
@@ -1130,8 +1145,7 @@ export function mountSurface(
     syncDataset(documentElement, "ordaxTextScale", state.preferences[ACCESSIBILITY_TEXT_SCALE_PREFERENCE_ID]);
     syncDataset(documentElement, "ordaxDisplayScale", state.preferences[DISPLAY_SCALE_PREFERENCE_ID]);
     syncDataset(root, "ordaxDisplayScale", state.preferences[DISPLAY_SCALE_PREFERENCE_ID]);
-    syncHidden(launcher, !state.launcherOpen);
-    root.querySelectorAll("[data-launcher-toggle]").forEach(button => syncAttribute(button, "aria-expanded", String(state.launcherOpen)));
+    syncLauncherVisibility();
     root.querySelectorAll("[data-navigation-menu-toggle]").forEach(button => syncAttribute(button, "aria-expanded", String(!navigationMenu.hidden)));
     const moreDestinations = root.querySelector("[data-nav-menu-more]");
     if (moreDestinations) {
@@ -1210,7 +1224,9 @@ export function mountSurface(
     if (workspacePort && WORKSPACE_PERSIST_ACTIONS.has(action?.type)) {
       workspacePort.save(createWorkspaceSnapshot(state));
     }
-    if (isConnectivityOnlyHostUpdate(action, previousState, state)) {
+    if (action?.type === "launcher.toggle" || action?.type === "launcher.close") {
+      renderLauncherVisibilityOnly();
+    } else if (isConnectivityOnlyHostUpdate(action, previousState, state)) {
       renderConnectivityOnly();
     } else {
       render(action, previousLocale, previousActiveWindowId);

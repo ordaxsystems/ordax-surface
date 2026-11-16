@@ -23,11 +23,17 @@ function freezeArea(area) {
 }
 
 function freezeState(state) {
+  // Reuse already-frozen canonical collections. A launcher toggle or network
+  // change cannot imply a preference write or rebuild every workspace area.
+  // Fresh reducer values are copied and frozen before joining the state.
   return Object.freeze({
     ...state,
-    capabilityIds: Object.freeze([...state.capabilityIds]),
-    areas: Object.freeze(state.areas.map(freezeArea)),
-    preferences: Object.freeze({ ...state.preferences }),
+    capabilityIds: Object.isFrozen(state.capabilityIds)
+      ? state.capabilityIds : Object.freeze([...state.capabilityIds]),
+    areas: Object.isFrozen(state.areas)
+      ? state.areas : Object.freeze(state.areas.map(freezeArea)),
+    preferences: Object.isFrozen(state.preferences)
+      ? state.preferences : Object.freeze({ ...state.preferences }),
   });
 }
 
