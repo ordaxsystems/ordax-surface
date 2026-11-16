@@ -327,14 +327,19 @@ export function createDesktopShellMarkup(localization) {
 export function syncDesktopShellLocalization(root, localization) {
   const localizationPort = assertLocalizationPort(localization);
   const t = localizationPort.translate;
-  const text = (selector, messageId) => {
-    const node = root.querySelector(selector);
-    if (node) node.textContent = t(messageId);
+  const setText = (node, value) => {
+    if (node && node.textContent !== value) node.textContent = value;
   };
-  const aria = (selector, messageId) => {
-    const node = root.querySelector(selector);
-    if (node) node.setAttribute("aria-label", t(messageId));
+  const setAttr = (node, name, value) => {
+    if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
   };
+  const setTitle = (node, value) => {
+    if (node && node.title !== value) node.title = value;
+  };
+  // Read the latest translated copy on every update, without rewriting
+  // identical text/ARIA/title values on every workspace or host render.
+  const text = (selector, messageId) => setText(root.querySelector(selector), t(messageId));
+  const aria = (selector, messageId) => setAttr(root.querySelector(selector), "aria-label", t(messageId));
   const english = localizationPort.getLocale().toLowerCase().startsWith("en");
 
   aria(".ordax-rail", "shell.rail.aria");
@@ -342,34 +347,34 @@ export function syncDesktopShellLocalization(root, localization) {
     const appId = button.dataset.sidebarApp;
     if (!appId || button.hasAttribute("data-sidebar-account-open") || button.hasAttribute("data-meridian-destination")) continue;
     const label = t(`app.${appId}.title`);
-    button.setAttribute("title", label);
+    setAttr(button, "title", label);
     const labelNode = button.querySelector("span:last-child");
-    if (labelNode) labelNode.textContent = label;
-    button.setAttribute("aria-label", t("surface.launcher.open", { app: label }));
+    setText(labelNode, label);
+    setAttr(button, "aria-label", t("surface.launcher.open", { app: label }));
   }
   text("[data-home-nav-label]", "shell.home.title");
-  root.querySelector(".meridian-home-destination")?.setAttribute("title", t("shell.home.title"));
+  setAttr(root.querySelector(".meridian-home-destination"), "title", t("shell.home.title"));
   const nativeContextTitle = root.querySelector("[data-native-context-title]");
   const nativeContextSubtitle = root.querySelector("[data-native-context-subtitle]");
-  if (nativeContextTitle) nativeContextTitle.textContent = english ? "This device" : "Este dispositivo";
-  if (nativeContextSubtitle) nativeContextSubtitle.textContent = t("meridian.native.workspace");
+  setText(nativeContextTitle, english ? "This device" : "Este dispositivo");
+  setText(nativeContextSubtitle, t("meridian.native.workspace"));
   const continuityButton = root.querySelector("[data-native-rail-continuity]");
   if (continuityButton) {
-    continuityButton.setAttribute("aria-label", english ? "Continuity" : "Continuidade");
-    continuityButton.title = english ? "Continuity" : "Continuidade";
+    setAttr(continuityButton, "aria-label", english ? "Continuity" : "Continuidade");
+    setTitle(continuityButton, english ? "Continuity" : "Continuidade");
   }
   text("[data-central-shortcut-label]", "shell.presentation.centralTitle");
   aria('[data-desktop-action="central"]', "shell.presentation.central");
-  root.querySelector('[data-desktop-action="central"]')?.setAttribute("title", t("shell.presentation.centralTitle"));
+  setAttr(root.querySelector('[data-desktop-action="central"]'), "title", t("shell.presentation.centralTitle"));
   text('[data-desktop-action="launcher"] span:last-child', "shell.desktop.appsShortcut");
   aria('[data-desktop-action="launcher"]', "shell.launcher.command");
-  root.querySelector('[data-desktop-action="launcher"]')?.setAttribute("title", t("shell.desktop.appsShortcut"));
-  root.querySelector("[data-desktop-presentation]")?.setAttribute("aria-label", t("shell.presentation.shortcuts"));
+  setAttr(root.querySelector('[data-desktop-action="launcher"]'), "title", t("shell.desktop.appsShortcut"));
+  setAttr(root.querySelector("[data-desktop-presentation]"), "aria-label", t("shell.presentation.shortcuts"));
   const greetingNode = root.querySelector("[data-home-greeting]");
-  if (greetingNode) greetingNode.textContent = t(greetingNode.dataset.homeGreeting || "shell.home.greeting.morning");
-  for (const node of root.querySelectorAll("[data-home-copy]")) node.textContent = t(node.dataset.homeCopy);
+  if (greetingNode) setText(greetingNode, t(greetingNode.dataset.homeGreeting || "shell.home.greeting.morning"));
+  for (const node of root.querySelectorAll("[data-home-copy]")) setText(node, t(node.dataset.homeCopy));
   text("[data-home-tagline]", "shell.home.tagline");
-  root.querySelector(".ordax-home-hero")?.setAttribute("aria-label", t("shell.home.hero.aria"));
+  setAttr(root.querySelector(".ordax-home-hero"), "aria-label", t("shell.home.hero.aria"));
   text("[data-home-hero-label]", "shell.home.hero.label");
   text("[data-home-hero-title-first]", "shell.home.hero.title.first");
   text("[data-home-hero-title-second]", "shell.home.hero.title.second");
@@ -388,19 +393,19 @@ export function syncDesktopShellLocalization(root, localization) {
       const destination = MERIDIAN_RAIL_DESTINATIONS.find(item => item.key === button.dataset.meridianDestination);
       if (destination) {
         const label = localization.getLocale().toLowerCase().startsWith("en") ? destination.englishName : destination.name;
-        button.setAttribute("aria-label", label);
-        button.title = label;
+        setAttr(button, "aria-label", label);
+        setTitle(button, label);
         const labelNode = button.querySelector("span:nth-child(2)");
-        if (labelNode) labelNode.textContent = label;
+        setText(labelNode, label);
       }
       continue;
     }
     const more = button.hasAttribute("data-launcher-more");
     const label = t(more ? "shell.sidebar.more" : "shell.launcher.command");
-    button.setAttribute("aria-label", label);
-    button.setAttribute("title", label);
-    button.setAttribute("aria-controls", "ordax-launcher");
-    if (more) button.querySelector("span:last-child").textContent = label;
+    setAttr(button, "aria-label", label);
+    setAttr(button, "title", label);
+    setAttr(button, "aria-controls", "ordax-launcher");
+    if (more) setText(button.querySelector("span:last-child"), label);
   }
   text("#ordax-space-title", "shell.space.title");
   const spaceMessages = new Map([
@@ -412,28 +417,27 @@ export function syncDesktopShellLocalization(root, localization) {
     const button = root.querySelector(`[data-app-target="${target}"]`);
     const label = t(messageId);
     const labelNode = button?.querySelector("span:nth-child(2)");
-    if (labelNode) labelNode.textContent = label;
-    button?.setAttribute("aria-label", t("surface.launcher.open", { app: label }));
+    setText(labelNode, label);
+    setAttr(button, "aria-label", t("surface.launcher.open", { app: label }));
   }
 
   aria("[data-launcher] .ordax-launcher-panel", "shell.launcher.dialog");
   const launcherQuery = root.querySelector("[data-launcher-query]");
   if (launcherQuery) {
-    launcherQuery.placeholder = t("shell.launcher.search");
-    launcherQuery.setAttribute("aria-label", t("shell.launcher.search"));
+    const placeholder = t("shell.launcher.search");
+    if (launcherQuery.placeholder !== placeholder) launcherQuery.placeholder = placeholder;
+    setAttr(launcherQuery, "aria-label", t("shell.launcher.search"));
   }
   aria(".ordax-statusbar", "shell.statusbar.aria");
   aria("[data-area-switcher]", "shell.areas.aria");
   aria("[data-area-menu-toggle]", "shell.areas.aria");
   const areaMenuToggle = root.querySelector("[data-area-menu-toggle]");
-  if (areaMenuToggle) areaMenuToggle.title = t("shell.areas.aria");
+  setTitle(areaMenuToggle, t("shell.areas.aria"));
   aria("[data-running-apps]", "shell.runningApps.aria");
   aria(".ordax-system-tray", "shell.systemStatus.aria");
   aria("[data-connectivity-tray]", "shell.network.quickOpen");
-  const connectivityTray = root.querySelector("[data-connectivity-tray]");
-  if (connectivityTray?.dataset.networkDetailOwner !== "true") {
-    text("[data-connectivity-label]", "surface.connectivity.unknown");
-  }
+  // The live network label is owned by Surface/Native status and must never
+  // be reset to "unknown" during a localization-only shell refresh.
   aria("[data-battery-tray]", "shell.battery.quickOpen");
   aria('[data-quick-panel-toggle="datetime"]', "shell.datetime.quickOpen");
   text('[data-quick-panel="network"] .ordax-quick-kicker', "shell.quick.access");
@@ -451,41 +455,44 @@ export function syncDesktopShellLocalization(root, localization) {
     const destination = MERIDIAN_RAIL_DESTINATIONS.find(item => item.key === button.dataset.meridianDestination);
     if (!destination) continue;
     const label = locale.startsWith("en") ? destination.englishName : destination.name;
-    button.title = label;
-    button.setAttribute("aria-label", label);
+    setTitle(button, label);
+    setAttr(button, "aria-label", label);
     const labelNode = button.querySelector("[data-home-destination-label]") ?? button.querySelector("span:nth-child(2)");
-    if (labelNode) labelNode.textContent = label;
+    setText(labelNode, label);
   }
   for (const label of root.querySelectorAll("[data-nav-group-label]")) {
-    label.textContent = locale.startsWith("en")
+    setText(label, locale.startsWith("en")
       ? label.dataset.navGroupLabel === "ecossistema" ? "Ecosystem" : "On this device"
-      : label.dataset.navGroupLabel === "ecossistema" ? "Ecossistema" : "Neste dispositivo";
+      : label.dataset.navGroupLabel === "ecossistema" ? "Ecossistema" : "Neste dispositivo");
   }
   for (const button of root.querySelectorAll("[data-meridian-menu-destination]")) {
     const destination = MERIDIAN_RAIL_DESTINATIONS.find(item => item.key === button.dataset.meridianMenuDestination);
     if (!destination) continue;
     const label = locale.startsWith("en") ? destination.englishName : destination.name;
     const labelNode = button.querySelector("span:nth-child(2)");
-    if (labelNode) labelNode.textContent = label;
-    button.title = label;
-    button.setAttribute("aria-label", label);
+    setText(labelNode, label);
+    setTitle(button, label);
+    setAttr(button, "aria-label", label);
   }
   for (const button of root.querySelectorAll("[data-nav-menu-app]")) {
     if (button.hasAttribute("data-meridian-menu-destination")) continue;
     const appId = button.dataset.navMenuApp;
     const label = button.dataset.appTarget === "updates" ? t("system.updateShortcut.label") : t(`app.${appId}.title`);
     const labelNode = button.querySelector("span:nth-child(2)");
-    if (labelNode) labelNode.textContent = label;
-    button.title = label;
-    button.setAttribute("aria-label", label);
+    setText(labelNode, label);
+    setTitle(button, label);
+    setAttr(button, "aria-label", label);
   }
   for (const label of root.querySelectorAll("[data-nav-menu-group-label]")) {
-    label.textContent = locale.startsWith("en")
+    setText(label, locale.startsWith("en")
       ? label.dataset.navMenuGroupLabel === "ecossistema" ? "Ecosystem" : "On this device"
-      : label.dataset.navMenuGroupLabel === "ecossistema" ? "Ecossistema" : "Neste dispositivo";
+      : label.dataset.navMenuGroupLabel === "ecossistema" ? "Ecossistema" : "Neste dispositivo");
   }
   const navigationQuery = root.querySelector("[data-meridian-navigation-query]");
-  if (navigationQuery) navigationQuery.placeholder = locale.startsWith("en") ? "Search destinations and apps" : "Buscar destinos e aplicativos";
+  if (navigationQuery) {
+    const placeholder = locale.startsWith("en") ? "Search destinations and apps" : "Buscar destinos e aplicativos";
+    if (navigationQuery.placeholder !== placeholder) navigationQuery.placeholder = placeholder;
+  }
 }
 
 function regionalSettings(snapshot = {}) {
