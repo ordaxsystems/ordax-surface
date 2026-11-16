@@ -793,9 +793,12 @@ export function mountSurface(
     if (!grid || !addAppButton) return;
     const installed = nativeHomeInstalledApps(catalog, state.capabilityIds);
     const retained = new Set();
+    const existingButtons = new Map(
+      Array.from(grid.querySelectorAll("[data-native-home-installed-app]"))
+        .map((button) => [button.dataset.nativeHomeInstalledApp, button]),
+    );
     for (const app of installed) {
-      let button = Array.from(grid.querySelectorAll("[data-native-home-installed-app]"))
-        .find((node) => node.dataset.nativeHomeInstalledApp === app.id);
+      let button = existingButtons.get(app.id) ?? null;
       if (!button) {
         button = element("button", "ordax-home-action");
         button.type = "button";
@@ -804,6 +807,7 @@ export function mountSurface(
         icon.setAttribute("aria-hidden", "true");
         button.append(icon, element("span", "ordax-home-installed-app-label"));
         addAppButton.before(button);
+        existingButtons.set(app.id, button);
       }
       // Every shortcut goes through the same catalog availability check as
       // the launcher. Text comes from installed presentation metadata only.
@@ -829,9 +833,14 @@ export function mountSurface(
     if (!slot) return;
     const installed = nativeNavigationInstalledApps(catalog, state.capabilityIds);
     const retained = new Set();
+    const existingButtons = new Map();
+    for (const button of slot.children) {
+      if (button.dataset?.nativeNavigationInstalledApp) {
+        existingButtons.set(button.dataset.nativeNavigationInstalledApp, button);
+      }
+    }
     for (const app of installed) {
-      let button = Array.from(slot.children)
-        .find((item) => item.dataset?.nativeNavigationInstalledApp === app.id);
+      let button = existingButtons.get(app.id) ?? null;
       if (!button) {
         button = element("button", "meridian-menu-item");
         button.type = "button";
@@ -841,6 +850,7 @@ export function mountSurface(
         monogram.setAttribute("aria-hidden", "true");
         button.append(monogram, element("span", "ordax-nav-installed-app-label"));
         slot.append(button);
+        existingButtons.set(app.id, button);
       }
       const label = appTitle(localization, app);
       button.dataset.launchApp = app.id;
@@ -885,30 +895,39 @@ export function mountSurface(
   const renderAreas = () => {
     const activeArea = getActiveArea(state);
     const retained = new Set();
+    const existingButtons = new Map();
+    for (const child of areaSwitcher.children) {
+      if (child.dataset?.areaId) existingButtons.set(child.dataset.areaId, child);
+    }
     let index = 0;
     for (const area of state.areas) {
       const active = area.id === state.activeAreaId;
-      let button = Array.from(areaSwitcher.children).find(
-        (child) => child.dataset?.areaId === area.id,
-      ) ?? null;
+      let button = existingButtons.get(area.id) ?? null;
       if (!button) {
         button = element("button", "ordax-area-button");
         button.type = "button";
         button.dataset.areaId = area.id;
       }
-      button.textContent = areaLabel(area, localization);
+      const label = areaLabel(area, localization);
+      // textContent removes descendants. Only reset it when the localized
+      // label changes, so the focused button and active dot survive repaint.
+      if (button.dataset.areaLabel !== label) {
+        button.textContent = label;
+        button.dataset.areaLabel = label;
+      }
       button.dataset.active = String(active);
       button.setAttribute("aria-current", active ? "true" : "false");
       button.setAttribute(
         "aria-label",
-        localization.translate("surface.area.switch", {
-          area: areaLabel(area, localization),
-        }),
+        localization.translate("surface.area.switch", { area: label }),
       );
-      if (active) {
-        const dot = element("span", "ordax-area-dot");
-        dot.setAttribute("aria-hidden", "true");
-        button.prepend(dot);
+      const dot = button.querySelector(".ordax-area-dot");
+      if (active && !dot) {
+        const nextDot = element("span", "ordax-area-dot");
+        nextDot.setAttribute("aria-hidden", "true");
+        button.prepend(nextDot);
+      } else if (!active) {
+        dot?.remove();
       }
       placeChildAt(areaSwitcher, button, index);
       index += 1;
