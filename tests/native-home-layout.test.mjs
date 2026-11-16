@@ -56,7 +56,7 @@ test("narrow Native Home reflows the real shell destinations into a usable readi
 });
 
 test("short PC Home preserves usable mouse targets while compacting the hero", async () => {
-  const css = await read("identity.css");
+  const css = (await read("identity.css")).replace(/\r\n/g, "\n");
   const start = css.indexOf("@media (min-width: 1100px) and (max-height: 800px) {");
   assert.ok(start >= 0, "short PC window needs a dedicated Native rule");
   const end = css.indexOf("\n}\n", start);
@@ -120,7 +120,7 @@ test("Native Home shows Aura only for its signed installed Assistant app slot", 
   assert.match(surface, /const app = nativeHomeAssistantApp\(catalog, state\.capabilityIds\)/);
   assert.match(surface, /button\.removeAttribute\("data-launch-app"\)/);
   assert.match(surface, /button\.dataset\.launchApp = app\.id;/);
-  assert.match(surface, /renderSidebar\(\);\s*renderHomeAssistant\(\);/);
+  assert.match(surface, /renderSidebar\(\);\s*\}\s*if \(renderPlan.catalog\) \{\s*renderHomeAssistant\(\);/);
   assert.doesNotMatch(shell, /data-native-aura-prompt|data-home-aura-submit/);
 
   const installed = { id: "assistant", component: { kind: "app", releaseMode: "component-slot" },
@@ -194,7 +194,8 @@ test("Ctrl+K Native navigation projects, searches and revokes installed apps in 
   const { runInNewContext } = await import("node:vm");
   const [shell, surface] = await Promise.all([read("desktop-shell.mjs"), read("surface.mjs")]);
   assert.match(shell, /data-native-navigation-installed-apps/);
-  assert.match(surface, /renderNativeNavigationInstalledApps\(\);\s*const activeNavigationWindow/);
+  assert.match(surface, /if \(renderPlan.catalog\) renderNativeNavigationInstalledApps\(\);/);
+  assert.match(surface, /const activeNavigationWindow = activeArea.windows.find/);
   assert.match(surface, /if \(!navigationMenu.hidden\) filterNativeNavigation\(navigationQuery.value\)/);
   assert.match(surface, /const handleNativeNavigationArrow = \(event\) => \{/);
   assert.match(surface, /if \(handleNativeNavigationArrow\(event\)\) return;/);

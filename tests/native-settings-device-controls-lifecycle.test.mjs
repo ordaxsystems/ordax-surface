@@ -6,7 +6,7 @@ import test from "node:test";
 const source = await readFile(
   new URL("../system/surface/ui/settings-overview-controls.mjs", import.meta.url),
   "utf8",
-);
+).then(text => text.replace(/\r\n/g, "\n"));
 function section(start, end) {
   const a = source.indexOf(start), b = source.indexOf(end, a);
   assert.ok(a >= 0 && b > a, "Native Settings source section: " + start);

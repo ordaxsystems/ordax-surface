@@ -119,7 +119,7 @@ test("global shell presentation writes only real theme, visibility, capability a
   const helperEnd = source.indexOf("function areaLabel(", helperStart);
   const renderStart = source.indexOf("    const appearance = resolveColorAppearance(state.preferences);",
     source.indexOf("  const renderAreas = () => {"));
-  const renderEnd = source.indexOf("    if (renderPlan.catalog) {\n      renderNativeNavigationInstalledApps();", renderStart);
+  const renderEnd = source.indexOf("    if (renderPlan.catalog) renderNativeNavigationInstalledApps();", renderStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart && renderStart > 0 && renderEnd > renderStart);
   const h = rootFixture();
   const launch = h.add("[data-launcher-toggle]");

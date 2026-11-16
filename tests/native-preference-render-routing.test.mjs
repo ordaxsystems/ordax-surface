@@ -28,8 +28,8 @@ test("render plan only skips catalog and window work on non-locale preference ch
   expect(getPlan({ type: "preference.set" }, "pt-BR", "en-US", false), full);
   expect(getPlan({ type: "host.snapshot" }, null, "pt-BR", false), full);
   expect(getPlan({ type: "app.catalog.sync" }, null, "pt-BR", false), full);
-  expect(getPlan({ type: "window.focus" }, null, "pt-BR", false), full);
-  expect(getPlan({ type: "window.move" }, null, "pt-BR", false), full);
+  expect(getPlan({ type: "window.focus" }, null, "pt-BR", false), { catalog: false, windows: true });
+  expect(getPlan({ type: "window.move" }, null, "pt-BR", false), { catalog: false, windows: true });
   expect(getPlan({ type: "area.switch" }, null, "pt-BR", false), full);
   expect(getPlan({ type: "workspace.presentation" }, null, "pt-BR", false), full);
   expect(getPlan({ type: "launcher.close" }, null, "pt-BR", false), full);
@@ -37,7 +37,7 @@ test("render plan only skips catalog and window work on non-locale preference ch
 
 test("actual Native render tail keeps DOM catalogs untouched on cosmetic preference updates", () => {
   const snippet = take(
-    "    if (renderPlan.catalog) {\n      renderNativeNavigationInstalledApps();",
+    "    if (renderPlan.catalog) renderNativeNavigationInstalledApps();",
     "\n  };\n\n  const dispatch = (action) =>",
   );
   const calls = [];
@@ -49,11 +49,12 @@ test("actual Native render tail keeps DOM catalogs untouched on cosmetic prefere
   };
   const renderListeners = new Set([record("extension-render")]);
   const tail = runInNewContext(
-    "(renderPlan) => {\n" + snippet + "\n}",
+    "(renderPlan, action = { windowId: \"w1\" }, previousActiveWindowId = null) => {\n" + snippet + "\n}",
     {
       renderNativeNavigationInstalledApps: record("ctrl-k-apps"),
       renderLauncher: record("launcher"),
       renderWindows: record("windows"),
+      renderSelectedWindows: ids => calls.push("selected:" + ids.filter(Boolean).join(",")),
       renderDock: record("dock"),
       renderSidebar: record("sidebar"),
       renderHomeAssistant: record("home-assistant"),
@@ -91,7 +92,7 @@ test("actual Native render tail keeps DOM catalogs untouched on cosmetic prefere
 
 test("dispatch passes previous locale before reducing preference changes, while manual repaint stays full", () => {
   const render = take(
-    "  const render = (action = null, previousLocale = null) => {",
+    "  const render = (action = null, previousLocale = null, previousActiveWindowId = null) => {",
     "\n  const dispatch = (action) =>",
   );
   assert.match(render,
@@ -102,7 +103,7 @@ test("dispatch passes previous locale before reducing preference changes, while 
   const dispatch = take("  const dispatch = (action) => {", "\n  let launcherOpener = null;");
   assert.match(dispatch,
     /const previousLocale = action\?\.type === "preference\.set" \? localization\.getLocale\(\) : null/);
-  assert.match(dispatch, /render\(action, previousLocale\);/);
+  assert.match(dispatch, /render\(action, previousLocale, previousActiveWindowId\);/);
   assert.match(dispatch,
     /for \(const listener of \[\.\.\.preferenceListeners\]\) listener\(state\.preferences\)/);
   assert.match(render,

@@ -119,9 +119,13 @@ function syncHidden(node, value) {
 // mounted; an open preference-choice panel still needs its selection updated.
 function nativeRenderPlan(action, previousLocale, currentLocale, hasPreferenceChoices) {
   const preferenceOnly = action?.type === "preference.set" && previousLocale === currentLocale;
+  const focusedWindow = action?.type === "window.focus";
+  const movedWindow = action?.type === "window.move";
   return {
-    catalog: !preferenceOnly,
+    catalog: !preferenceOnly && !focusedWindow && !movedWindow,
     windows: !preferenceOnly || hasPreferenceChoices,
+    focusedWindow,
+    movedWindow,
   };
 }
 
@@ -711,6 +715,30 @@ export function mountSurface(
     }
   };
 
+  // Focus only changes the active and previous windows; movement changes
+  // one window. Recover through the full owner-driven reconciliation if a
+  // trusted node was detached or its catalog identity no longer matches.
+  const renderSelectedWindows = (windowIds) => {
+    const area = getActiveArea(state);
+    const wanted = new Set(windowIds.filter(Boolean));
+    let visibleIndex = 0;
+    let matched = 0;
+    for (const windowState of area.windows) {
+      const index = visibleIndex;
+      if (!windowState.minimized) visibleIndex += 1;
+      if (!wanted.has(windowState.id)) continue;
+      const app = catalog.get(windowState.appId);
+      const windowNode = findRenderedWindow(windowState.id);
+      if (!app || !windowNode || windowNode.dataset.appId !== app.id) {
+        renderWindows();
+        return;
+      }
+      syncWindowNode(windowNode, app, windowState, state, index, area, localization);
+      matched += 1;
+    }
+    if (matched !== wanted.size) renderWindows();
+  };
+
   const renderDock = () => {
     const area = getActiveArea(state);
     const retained = new Set();
@@ -999,7 +1027,7 @@ export function mountSurface(
     root.querySelector("[data-current-area]").textContent = areaLabel(activeArea, localization);
   };
 
-  const render = (action = null, previousLocale = null) => {
+  const render = (action = null, previousLocale = null, previousActiveWindowId = null) => {
     const currentLocale = localization.getLocale();
     const unchangedLocalePreference = action?.type === "preference.set" && previousLocale === currentLocale;
     const hasPreferenceChoices = unchangedLocalePreference
@@ -1075,28 +1103,39 @@ export function mountSurface(
       if (targetButton.title !== requirementTitle) targetButton.title = requirementTitle;
     }
 
-    if (renderPlan.catalog) {
-      renderNativeNavigationInstalledApps();
-      const activeNavigationWindow = getActiveArea(state).windows.find(item => item.id === getActiveArea(state).activeWindowId) ?? null;
+    if (renderPlan.catalog) renderNativeNavigationInstalledApps();
+    if (renderPlan.catalog || renderPlan.focusedWindow) {
+      const activeArea = getActiveArea(state);
+      const activeNavigationWindow = activeArea.windows.find(item => item.id === activeArea.activeWindowId) ?? null;
       for (const targetButton of navigationMenu.querySelectorAll("[data-nav-menu-app]")) {
-        const app = catalog.get(targetButton.dataset.navMenuApp);
-        const available = catalog.isAvailable(app, state.capabilityIds);
-        if (targetButton.disabled !== !available) targetButton.disabled = !available;
-        syncAttribute(targetButton, "aria-disabled", String(!available));
+        if (renderPlan.catalog) {
+          const app = catalog.get(targetButton.dataset.navMenuApp);
+          const available = catalog.isAvailable(app, state.capabilityIds);
+          if (targetButton.disabled !== !available) targetButton.disabled = !available;
+          syncAttribute(targetButton, "aria-disabled", String(!available));
+        }
         syncDataset(targetButton, "active", activeNavigationWindow?.appId === targetButton.dataset.navMenuApp);
       }
-      renderLauncher();
     }
+    if (renderPlan.catalog) renderLauncher();
 
-    if (renderPlan.windows) renderWindows();
-    if (renderPlan.catalog) {
+    if (renderPlan.movedWindow) {
+      renderSelectedWindows([action.windowId]);
+    } else if (renderPlan.focusedWindow) {
+      renderSelectedWindows([previousActiveWindowId, action.windowId]);
+    } else if (renderPlan.windows) {
+      renderWindows();
+    }
+    if (renderPlan.catalog || renderPlan.focusedWindow) {
       renderDock();
       renderSidebar();
+    }
+    if (renderPlan.catalog) {
       renderHomeAssistant();
       renderHomeInstalledApps();
       renderAreas();
       if (!navigationMenu.hidden) filterNativeNavigation(navigationQuery.value);
-    } else {
+    } else if (!renderPlan.movedWindow && !renderPlan.focusedWindow) {
       // Preference-driven display scale can change dock geometry through CSS.
       updateDockOverflow();
     }
@@ -1107,6 +1146,7 @@ export function mountSurface(
   const dispatch = (action) => {
     const previousPreferences = state.preferences;
     const previousLocale = action?.type === "preference.set" ? localization.getLocale() : null;
+    const previousActiveWindowId = action?.type === "window.focus" ? getActiveArea(state).activeWindowId : null;
     const next = reduceSurfaceState(state, action, catalog);
     if (next === state) return;
     state = next;
@@ -1119,7 +1159,7 @@ export function mountSurface(
     if (workspacePort && WORKSPACE_PERSIST_ACTIONS.has(action?.type)) {
       workspacePort.save(createWorkspaceSnapshot(state));
     }
-    render(action, previousLocale);
+    render(action, previousLocale, previousActiveWindowId);
     if (preferencesChanged) {
       for (const listener of [...preferenceListeners]) listener(state.preferences);
     }
@@ -1449,6 +1489,9 @@ export function mountSurface(
     dragSession = null;
     current.titlebar.releasePointerCapture?.(event.pointerId);
     if (current.moved && commit) {
+      // Rounded coordinates can be unchanged; cleanup must not depend on a
+      // reducer commit or a subsequent render.
+      delete current.node.dataset.dragging;
       dispatch({ type: "window.move", windowId: current.windowId, x: current.x, y: current.y });
     } else if (current.moved) {
       render();
