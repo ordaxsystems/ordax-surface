@@ -134,6 +134,7 @@ export function mountHomePending(
 
   let destroyed = false;
   let section = null;
+  let renderedSignature = null;
   const render = () => {
     if (destroyed) return;
     // The current OS snapshots override event payloads: a delayed unread
@@ -148,10 +149,16 @@ export function mountHomePending(
       notifications: notificationsSnapshot,
       syncRuntime: syncSnapshot,
     });
+    // Re-read current ports on every notification; skip identical two-card DOM.
+    const nextSignature = JSON.stringify([presentation, localization.getLocale()]);
+    if (nextSignature === renderedSignature && (
+      presentation.visible ? section?.parentNode === homePanel : section === null
+    )) return;
 
     if (!presentation.visible) {
       section?.remove();
       section = null;
+      renderedSignature = nextSignature;
       restoreHomeCollectionFocus(homePanel, focusedWithin);
       return;
     }
@@ -209,6 +216,7 @@ export function mountHomePending(
     if (section) section.replaceWith(next);
     else homePanel.insertBefore(next, space);
     section = next;
+    renderedSignature = nextSignature;
 
     const target = focusedKey
       ? Array.from(section.querySelectorAll("[data-home-pending-key]"))
@@ -223,7 +231,10 @@ export function mountHomePending(
   const unsubscribeSync = syncPort?.subscribe(() => {
     render();
   });
-  const unsubscribeLocalization = localization.subscribe(() => render());
+  const unsubscribeLocalization = localization.subscribe(() => {
+    renderedSignature = null;
+    render();
+  });
 
   render();
 
