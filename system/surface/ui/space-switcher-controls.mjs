@@ -91,6 +91,18 @@ export function mountSpaceSwitcherControls(
   menu.setAttribute("role", "dialog");
   menu.setAttribute("aria-label", t("account.spaces.switcher.title"));
   menu.hidden = true;
+  // Static trigger nodes survive ordinary Surface lifecycle renders. Keep the
+  // SVG and focusable button in place while updating only their live labels.
+  const mark = element("span", "ordax-space-switcher-mark meridian-rail-space-icon");
+  mark.setAttribute("aria-hidden", "true");
+  mark.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3m3 0h3"/></svg>';
+  const label = element("span", "ordax-space-switcher-trigger-label");
+  const title = element("strong");
+  const kicker = element("small");
+  label.append(title, kicker);
+  const chevron = element("span", "ordax-space-switcher-chevron", "⌄");
+  chevron.setAttribute("aria-hidden", "true");
+  trigger.append(mark, label, chevron);
   control.append(trigger, menu);
   slot.append(control);
 
@@ -147,19 +159,11 @@ export function mountSpaceSwitcherControls(
         : t(presentation.typeLabelId);
     };
 
-    trigger.replaceChildren();
-    const mark = element("span", "ordax-space-switcher-mark meridian-rail-space-icon");
-    mark.setAttribute("aria-hidden", "true");
-    mark.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3m3 0h3"/></svg>';
-    const label = element("span", "ordax-space-switcher-trigger-label");
     const english = lifecycle.localization.getLocale().toLowerCase().startsWith("en");
-    label.append(
-      element("strong", "", active ? active.name : english ? "Choose context" : "Escolher contexto"),
-      element("small", "", english ? "YOUR SPACE" : "SEU SPACE"),
-    );
-    const chevron = element("span", "ordax-space-switcher-chevron", "⌄");
-    chevron.setAttribute("aria-hidden", "true");
-    trigger.append(mark, label, chevron);
+    const nextTitle = active ? active.name : english ? "Choose context" : "Escolher contexto";
+    const nextKicker = english ? "YOUR SPACE" : "SEU SPACE";
+    if (title.textContent !== nextTitle) title.textContent = nextTitle;
+    if (kicker.textContent !== nextKicker) kicker.textContent = nextKicker;
     trigger.dataset.profileConfigured = String(Boolean(activeProfile));
     trigger.setAttribute("aria-label", active
       ? (activeProfile
