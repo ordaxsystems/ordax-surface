@@ -13,10 +13,10 @@ test("Native Meridian shell receives the same canonical presentation as root", a
   ]);
 
   assert.match(shell, /data-ordax-shell data-meridian-native data-view="central"/);
-  assert.match(runtime, /root\.dataset\.workspacePresentation = state\.presentation;\s*root\.dataset\.view = state\.presentation;/);
+  assert.match(runtime, /syncDataset\(root, "workspacePresentation", state\.presentation\);\s*syncDataset\(root, "view", state\.presentation\);/);
   assert.match(
     runtime,
-    /const shell = root\.querySelector\("\[data-ordax-shell\]"\);\s*if \(shell\) \{\s*shell\.dataset\.workspacePresentation = state\.presentation;\s*shell\.dataset\.view = state\.presentation;/,
+    /const shell = root\.querySelector\("\[data-ordax-shell\]"\);\s*if \(shell\) \{\s*syncDataset\(shell, "workspacePresentation", state\.presentation\);\s*syncDataset\(shell, "view", state\.presentation\);/,
   );
   assert.match(styles, /\.ordax-shell\.meridian-native-workspace\s*\{/);
 });

@@ -56,7 +56,7 @@ function rootFixture() {
     groups.set(selector, [node]);
     return node;
   };
-  const counts = () => [...nodes.values(),...groups.values().flat(),root]
+  const counts = () => [...nodes.values(),...[...groups.values()].flat(),root]
     .reduce((total, node) => total + node.writes
       + [...node.children.values()].reduce((sum, child) => sum + child.writes, 0), 0);
   return { root, add, counts, node: selector => root.querySelector(selector) };
@@ -85,7 +85,7 @@ test("shell localization reads every translation but does not rewrite unchanged 
     },
   };
   const render = runInNewContext([
-    source.slice(start, end),
+    source.slice(start, end).replace(/^export /, ""),
     "syncDesktopShellLocalization",
   ].join("\n"), {
     assertLocalizationPort: x => x,
