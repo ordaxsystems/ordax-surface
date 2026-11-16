@@ -114,6 +114,17 @@ function syncHidden(node, value) {
   if (node.hidden !== value) node.hidden = value;
 }
 
+// A cosmetic preference cannot change the signed app catalog, capability
+// grants, workspace areas or launcher search. Keep those DOM collections
+// mounted; an open preference-choice panel still needs its selection updated.
+function nativeRenderPlan(action, previousLocale, currentLocale, hasPreferenceChoices) {
+  const preferenceOnly = action?.type === "preference.set" && previousLocale === currentLocale;
+  return {
+    catalog: !preferenceOnly,
+    windows: !preferenceOnly || hasPreferenceChoices,
+  };
+}
+
 function areaLabel(area, localization) {
   return localization.translate("surface.area.label", {
     ordinal: String(area.ordinal).padStart(2, "0"),
@@ -988,7 +999,14 @@ export function mountSurface(
     root.querySelector("[data-current-area]").textContent = areaLabel(activeArea, localization);
   };
 
-  const render = () => {
+  const render = (action = null, previousLocale = null) => {
+    const currentLocale = localization.getLocale();
+    const unchangedLocalePreference = action?.type === "preference.set" && previousLocale === currentLocale;
+    const hasPreferenceChoices = unchangedLocalePreference
+      && getActiveArea(state).windows.some((windowState) =>
+        catalog.get(windowState.appId)?.panels?.some((panel) => panel.kind === "preference-choice"),
+      );
+    const renderPlan = nativeRenderPlan(action, previousLocale, currentLocale, hasPreferenceChoices);
     syncDocumentLocaleProfile(documentElement, localization);
     syncDesktopShellLocalization(root, localization);
     const appearance = resolveColorAppearance(state.preferences);
@@ -1057,29 +1075,38 @@ export function mountSurface(
       if (targetButton.title !== requirementTitle) targetButton.title = requirementTitle;
     }
 
-    renderNativeNavigationInstalledApps();
-    const activeNavigationWindow = getActiveArea(state).windows.find(item => item.id === getActiveArea(state).activeWindowId) ?? null;
-    for (const targetButton of navigationMenu.querySelectorAll("[data-nav-menu-app]")) {
-      const app = catalog.get(targetButton.dataset.navMenuApp);
-      const available = catalog.isAvailable(app, state.capabilityIds);
-      if (targetButton.disabled !== !available) targetButton.disabled = !available;
-      syncAttribute(targetButton, "aria-disabled", String(!available));
-      syncDataset(targetButton, "active", activeNavigationWindow?.appId === targetButton.dataset.navMenuApp);
+    if (renderPlan.catalog) {
+      renderNativeNavigationInstalledApps();
+      const activeNavigationWindow = getActiveArea(state).windows.find(item => item.id === getActiveArea(state).activeWindowId) ?? null;
+      for (const targetButton of navigationMenu.querySelectorAll("[data-nav-menu-app]")) {
+        const app = catalog.get(targetButton.dataset.navMenuApp);
+        const available = catalog.isAvailable(app, state.capabilityIds);
+        if (targetButton.disabled !== !available) targetButton.disabled = !available;
+        syncAttribute(targetButton, "aria-disabled", String(!available));
+        syncDataset(targetButton, "active", activeNavigationWindow?.appId === targetButton.dataset.navMenuApp);
+      }
+      renderLauncher();
     }
 
-    renderLauncher();
-    renderWindows();
-    renderDock();
-    renderSidebar();
-    renderHomeAssistant();
-    renderHomeInstalledApps();
-    renderAreas();
-    if (!navigationMenu.hidden) filterNativeNavigation(navigationQuery.value);
+    if (renderPlan.windows) renderWindows();
+    if (renderPlan.catalog) {
+      renderDock();
+      renderSidebar();
+      renderHomeAssistant();
+      renderHomeInstalledApps();
+      renderAreas();
+      if (!navigationMenu.hidden) filterNativeNavigation(navigationQuery.value);
+    } else {
+      // Preference-driven display scale can change dock geometry through CSS.
+      updateDockOverflow();
+    }
+    // Native extension controllers must still observe every preference update.
     for (const listener of [...renderListeners]) listener();
   };
 
   const dispatch = (action) => {
     const previousPreferences = state.preferences;
+    const previousLocale = action?.type === "preference.set" ? localization.getLocale() : null;
     const next = reduceSurfaceState(state, action, catalog);
     if (next === state) return;
     state = next;
@@ -1092,7 +1119,7 @@ export function mountSurface(
     if (workspacePort && WORKSPACE_PERSIST_ACTIONS.has(action?.type)) {
       workspacePort.save(createWorkspaceSnapshot(state));
     }
-    render();
+    render(action, previousLocale);
     if (preferencesChanged) {
       for (const listener of [...preferenceListeners]) listener(state.preferences);
     }
