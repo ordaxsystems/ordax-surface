@@ -135,6 +135,16 @@ function nativeRenderPlan(action, previousLocale, currentLocale, hasPreferenceCh
   };
 }
 
+// The host contract is fully validated by reduceSurfaceState before this
+// check. Only connectivity can use a narrow render; an ordered capability
+// change must still reconcile every authorized app and destination.
+function isConnectivityOnlyHostUpdate(action, previous, next) {
+  return action?.type === "host.snapshot"
+    && previous.connectivity !== next.connectivity
+    && previous.capabilityIds.length === next.capabilityIds.length
+    && previous.capabilityIds.every((id, index) => id === next.capabilityIds[index]);
+}
+
 function areaLabel(area, localization) {
   return localization.translate("surface.area.label", {
     ordinal: String(area.ordinal).padStart(2, "0"),
@@ -1044,6 +1054,43 @@ export function mountSurface(
     root.querySelector("[data-current-area]").textContent = areaLabel(activeArea, localization);
   };
 
+  // Keep status presentation in one owner-owned function for full and
+  // connectivity-only updates. Native network detail remains authoritative.
+  const syncConnectivityPresentation = () => {
+    const message = CONNECTIVITY_MESSAGE_IDS[state.connectivity] ?? CONNECTIVITY_MESSAGE_IDS.unknown;
+    const label = localization.translate(message);
+    const tray = root.querySelector("[data-connectivity-tray]");
+    if (tray.dataset.networkDetailOwner !== "true") {
+      syncText(root.querySelector("[data-connectivity-label]"), label);
+      const connectivityIcon = root.querySelector("[data-connectivity-icon]");
+      if (connectivityIcon.dataset.state !== state.connectivity) {
+        connectivityIcon.dataset.state = state.connectivity;
+      }
+      syncDataset(connectivityIcon, "networkKind", "unknown");
+      syncDataset(connectivityIcon, "signalLevel", "0");
+      const title = localization.translate("surface.network.label", { status: label });
+      if (tray.title !== title) tray.title = title;
+    }
+    return label;
+  };
+
+  const notifyRenderListeners = () => {
+    for (const listener of [...renderListeners]) listener();
+  };
+
+  const renderConnectivityOnly = () => {
+    const label = syncConnectivityPresentation();
+    // Mounted connectivity panels are the only window content that depends
+    // on this host-only change. Do not rescan app windows or rebuild panels.
+    for (const badge of windowLayer.querySelectorAll(
+      '[data-surface-panel-kind="connectivity"] .ordax-inline-status',
+    )) {
+      syncText(badge, label);
+      syncDataset(badge, "state", state.connectivity);
+    }
+    notifyRenderListeners();
+  };
+
   const render = (action = null, previousLocale = null, previousActiveWindowId = null) => {
     const currentLocale = localization.getLocale();
     const unchangedLocalePreference = action?.type === "preference.set" && previousLocale === currentLocale;
@@ -1095,21 +1142,7 @@ export function mountSurface(
       syncText(labelNode, label);
     }
 
-    const connectivityMessage =
-      CONNECTIVITY_MESSAGE_IDS[state.connectivity] ?? CONNECTIVITY_MESSAGE_IDS.unknown;
-    const connectivityLabel = localization.translate(connectivityMessage);
-    const connectivityTray = root.querySelector("[data-connectivity-tray]");
-    if (connectivityTray.dataset.networkDetailOwner !== "true") {
-      syncText(root.querySelector("[data-connectivity-label]"), connectivityLabel);
-      const connectivityIcon = root.querySelector("[data-connectivity-icon]");
-      if (connectivityIcon.dataset.state !== state.connectivity) {
-        connectivityIcon.dataset.state = state.connectivity;
-      }
-      syncDataset(connectivityIcon, "networkKind", "unknown");
-      syncDataset(connectivityIcon, "signalLevel", "0");
-      const trayTitle = localization.translate("surface.network.label", { status: connectivityLabel });
-      if (connectivityTray.title !== trayTitle) connectivityTray.title = trayTitle;
-    }
+    syncConnectivityPresentation();
 
     for (const targetButton of root.querySelectorAll("[data-requires-capability]")) {
       const capabilityId = targetButton.dataset.requiresCapability;
@@ -1156,11 +1189,12 @@ export function mountSurface(
       // Preference-driven display scale can change dock geometry through CSS.
       updateDockOverflow();
     }
-    // Native extension controllers must still observe every preference update.
-    for (const listener of [...renderListeners]) listener();
+    // Native extension controllers must still observe every state update.
+    notifyRenderListeners();
   };
 
   const dispatch = (action) => {
+    const previousState = state;
     const previousPreferences = state.preferences;
     const previousLocale = action?.type === "preference.set" ? localization.getLocale() : null;
     const previousActiveWindowId = action?.type === "window.focus" ? getActiveArea(state).activeWindowId : null;
@@ -1176,7 +1210,11 @@ export function mountSurface(
     if (workspacePort && WORKSPACE_PERSIST_ACTIONS.has(action?.type)) {
       workspacePort.save(createWorkspaceSnapshot(state));
     }
-    render(action, previousLocale, previousActiveWindowId);
+    if (isConnectivityOnlyHostUpdate(action, previousState, state)) {
+      renderConnectivityOnly();
+    } else {
+      render(action, previousLocale, previousActiveWindowId);
+    }
     if (preferencesChanged) {
       for (const listener of [...preferenceListeners]) listener(state.preferences);
     }

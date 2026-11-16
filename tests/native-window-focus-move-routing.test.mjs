@@ -129,6 +129,7 @@ test("render tail skips catalog, Home and areas on focus/move yet updates active
       filterNativeNavigation: () => calls.push("nav-filter"),
       updateDockOverflow: () => calls.push("overflow"),
       renderListeners: new Set([() => calls.push("extension-render")]),
+      notifyRenderListeners: () => calls.push("extension-render"),
     },
   );
   run({ catalog: false, windows: true, movedWindow: true, focusedWindow: false },
