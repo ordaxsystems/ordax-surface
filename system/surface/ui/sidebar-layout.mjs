@@ -58,18 +58,39 @@ export function mountNativeSidebarFit(nav, onResize) {
   const destinations = buttons.map(button => button.closest(".meridian-nav-destination"));
   const more = nav.querySelector("[data-nav-menu-more]") ?? nav.querySelector("[data-launcher-more]") ?? nav.querySelector("[data-launcher-toggle]");
   const groups = [...nav.querySelectorAll("[data-nav-group]")];
+  // The Native and Web rails have one button per destination. Derive the
+  // group membership from those mounted DOM nodes, not another catalog.
+  // If an alternate host has a different structure, retain the DOM-query
+  // reconciliation instead of assuming its grouping.
+  const destinationGroups = destinations.map(destination =>
+    destination.closest?.("[data-nav-group]") ?? null,
+  );
+  const completeGroupCounts = new Map(groups.map(group => [group, 0]));
+  for (const group of destinationGroups) {
+    if (completeGroupCounts.has(group)) {
+      completeGroupCounts.set(group, completeGroupCounts.get(group) + 1);
+    }
+  }
+  const groupedByDestination = new Set(destinations).size === destinations.length
+    && destinationGroups.every(group => group && completeGroupCounts.has(group))
+    && groups.every(group => typeof group.querySelectorAll === "function"
+      && completeGroupCounts.get(group) > 0
+      && group.querySelectorAll(".meridian-nav-destination").length === completeGroupCounts.get(group));
+  const setHidden = (node, hidden) => {
+    if (node.hidden !== hidden) node.hidden = hidden;
+  };
   let destroyed = false;
   function measure() {
     if (destroyed) return;
     const focusedButton = nav.ownerDocument.activeElement;
-    // Measure a complete rail each time. Hidden headings and rounded row
-    // heights must not determine which entries fit after a scale change.
+    // A fresh full rail is required when fonts, scale or height change.
+    // Avoid writing identical hidden values on repeated ResizeObserver calls.
     buttons.forEach((button, index) => {
-      button.hidden = false;
-      destinations[index].hidden = false;
+      setHidden(button, false);
+      setHidden(destinations[index], false);
     });
-    groups.forEach(group => { group.hidden = false; });
-    more.hidden = true;
+    groups.forEach(group => { setHidden(group, false); });
+    setHidden(more, true);
     const bounds = nav.getBoundingClientRect();
     const style = nav.ownerDocument.defaultView.getComputedStyle(nav);
     const borderBoxHeight = parseFloat(style.height) + (style.boxSizing === "border-box" ? 0
@@ -80,13 +101,24 @@ export function mountNativeSidebarFit(nav, onResize) {
       + (parseFloat(style.borderBottomWidth) || 0)) * scale;
     const lastDestination = destinations.at(-1);
     if (lastDestination && lastDestination.getBoundingClientRect().bottom > bottom) {
-      more.hidden = false;
+      setHidden(more, false);
+      // A group becomes hidden only when its last destination disappears.
+      // This prevents scanning every group after each removed row and still
+      // releases heading space before the next geometry measurement.
+      const remaining = groupedByDestination ? new Map(completeGroupCounts) : null;
       for (let index = buttons.length - 1; index >= 0; index -= 1) {
-        buttons[index].hidden = true;
-        destinations[index].hidden = true;
-        groups.forEach(group => {
-          group.hidden = !group.querySelector(".meridian-nav-destination:not([hidden])");
-        });
+        setHidden(buttons[index], true);
+        setHidden(destinations[index], true);
+        if (remaining) {
+          const group = destinationGroups[index];
+          const count = remaining.get(group) - 1;
+          remaining.set(group, count);
+          if (count === 0) setHidden(group, true);
+        } else {
+          groups.forEach(group => {
+            setHidden(group, !group.querySelector(".meridian-nav-destination:not([hidden])"));
+          });
+        }
         if (more.getBoundingClientRect().bottom <= bottom) break;
       }
     }
