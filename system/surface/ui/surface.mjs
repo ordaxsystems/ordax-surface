@@ -97,6 +97,14 @@ function placeChildAt(container, child, index) {
   container.insertBefore(child, current);
 }
 
+// Window chrome and panels remain mounted across Native workspace renders.
+function syncText(node, value) {
+  if (node && node.textContent !== value) node.textContent = value;
+}
+function syncAttribute(node, name, value) {
+  if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
+}
+
 function areaLabel(area, localization) {
   return localization.translate("surface.area.label", {
     ordinal: String(area.ordinal).padStart(2, "0"),
@@ -233,15 +241,15 @@ function syncPanel(section, panel, state, index, app, localization) {
   section.dataset.surfacePanelKind = panel.kind;
   const label = section.querySelector(".ordax-app-panel-label");
   const title = section.querySelector(".ordax-app-panel-title");
-  if (label) label.textContent = panelCopy(localization, app, index, "label");
-  if (title) title.textContent = panelCopy(localization, app, index, "title");
+  syncText(label, panelCopy(localization, app, index, "label"));
+  syncText(title, panelCopy(localization, app, index, "title"));
 
   if (panel.kind === "extension") {
     section.dataset.appExtension = panel.extensionId;
-    section.setAttribute("aria-label", panelCopy(localization, app, index, "title"));
+    syncAttribute(section, "aria-label", panelCopy(localization, app, index, "title"));
     const body = section.querySelector(".ordax-app-panel-body");
     if (body && panel.body) {
-      body.textContent = panelCopy(localization, app, index, "body");
+      syncText(body, panelCopy(localization, app, index, "body"));
     }
     return;
   }
@@ -251,18 +259,18 @@ function syncPanel(section, panel, state, index, app, localization) {
     if (badge) {
       const messageId =
         CONNECTIVITY_MESSAGE_IDS[state.connectivity] ?? CONNECTIVITY_MESSAGE_IDS.unknown;
-      badge.textContent = localization.translate(messageId);
+      syncText(badge, localization.translate(messageId));
       badge.dataset.state = state.connectivity;
     }
   } else if (panel.kind === "capability") {
     const available = state.capabilityIds.includes(panel.capabilityId);
     const badge = section.querySelector(".ordax-inline-status");
     if (badge) {
-      badge.textContent = capabilityState(
+      syncText(badge, capabilityState(
         state.capabilityIds,
         panel.capabilityId,
         localization,
-      );
+      ));
       badge.dataset.state = available ? "available" : "unavailable";
     }
   } else if (panel.kind === "capabilities") {
@@ -274,7 +282,7 @@ function syncPanel(section, panel, state, index, app, localization) {
 
   const body = section.querySelector(".ordax-app-panel-body");
   if (body && panel.body) {
-    body.textContent = panelCopy(localization, app, index, "body");
+    syncText(body, panelCopy(localization, app, index, "body"));
   }
 }
 
@@ -311,42 +319,44 @@ function syncWindowNode(windowNode, app, windowState, state, index, area, locali
   windowNode.dataset.active = String(area.activeWindowId === windowState.id && !windowState.minimized);
   windowNode.dataset.maximized = String(windowState.maximized);
   windowNode.dataset.minimized = String(windowState.minimized);
-  windowNode.hidden = windowState.minimized;
+  if (windowNode.hidden !== windowState.minimized) windowNode.hidden = windowState.minimized;
   delete windowNode.dataset.dragging;
 
   const placementOrdinal = windowState.placementOrdinal ?? index + 1;
   const offset = state.presentation === "desktop"
     ? `${[-8, 8, -4, 4, 0][(placementOrdinal - 1) % 5]}%`
     : `${((placementOrdinal - 1) % 5) * 18}px`;
-  windowNode.style.setProperty("--ordax-window-offset", offset);
+  if (windowNode.style.getPropertyValue("--ordax-window-offset") !== offset) {
+    windowNode.style.setProperty("--ordax-window-offset", offset);
+  }
   if (
     !windowState.maximized &&
     Number.isFinite(windowState.positionX) &&
     Number.isFinite(windowState.positionY)
   ) {
-    windowNode.style.left = `${windowState.positionX}px`;
-    windowNode.style.top = `${windowState.positionY}px`;
-    windowNode.style.transform = "none";
+    if (windowNode.style.left !== `${windowState.positionX}px`) windowNode.style.left = `${windowState.positionX}px`;
+    if (windowNode.style.top !== `${windowState.positionY}px`) windowNode.style.top = `${windowState.positionY}px`;
+    if (windowNode.style.transform !== "none") windowNode.style.transform = "none";
     windowNode.dataset.positioned = "true";
   } else {
-    windowNode.style.removeProperty("left");
-    windowNode.style.removeProperty("top");
-    windowNode.style.removeProperty("transform");
+    if (windowNode.style.left) windowNode.style.removeProperty("left");
+    if (windowNode.style.top) windowNode.style.removeProperty("top");
+    if (windowNode.style.transform) windowNode.style.removeProperty("transform");
     delete windowNode.dataset.positioned;
   }
 
   const localizedTitle = appTitle(localization, app);
   const localizedDescription = appDescription(localization, app);
-  windowNode.setAttribute("role", "region");
-  windowNode.setAttribute("aria-label", localizedTitle);
+  syncAttribute(windowNode, "role", "region");
+  syncAttribute(windowNode, "aria-label", localizedTitle);
   const titleGroup = windowNode.querySelector(".ordax-window-title-group");
   const titleNode = titleGroup?.querySelector("strong");
   const descriptionNode = titleGroup?.querySelector("small");
-  if (titleNode) titleNode.textContent = localizedTitle;
-  if (descriptionNode) descriptionNode.textContent = localizedDescription;
+  syncText(titleNode, localizedTitle);
+  syncText(descriptionNode, localizedDescription);
   const titlebar = windowNode.querySelector("[data-window-titlebar]");
-  titlebar?.setAttribute(
-    "aria-label",
+  syncAttribute(
+    titlebar, "aria-label",
     localization.translate("surface.window.move", { app: localizedTitle }),
   );
 
@@ -354,14 +364,14 @@ function syncWindowNode(windowNode, app, windowState, state, index, area, locali
     control.dataset.windowId = windowState.id;
     const action = control.dataset.windowAction;
     if (action === "minimize") {
-      control.setAttribute(
-        "aria-label",
+      syncAttribute(
+        control, "aria-label",
         localization.translate("surface.window.minimize", { app: localizedTitle }),
       );
     }
     if (action === "maximize") {
-      control.setAttribute(
-        "aria-label",
+      syncAttribute(
+        control, "aria-label",
         localization.translate(
           windowState.maximized ? "surface.window.restore" : "surface.window.maximize",
           { app: localizedTitle },
@@ -369,8 +379,8 @@ function syncWindowNode(windowNode, app, windowState, state, index, area, locali
       );
     }
     if (action === "close") {
-      control.setAttribute(
-        "aria-label",
+      syncAttribute(
+        control, "aria-label",
         localization.translate("surface.window.close", { app: localizedTitle }),
       );
     }
