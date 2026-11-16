@@ -58,7 +58,7 @@ test("Native Store does not reconstruct hidden or inactive app windows", async (
     'const resolveSlot = () => { slotRead(); return slot; };',
     'const root = { querySelector: () => currentWindow() };',
     'const slot = currentSlot();',
-    source.slice(start,end),
+    source.slice(start,end) + "\n  };",
     '({ render, current: () => mountedSlot })'
   ].join("\n"),{currentWindow:()=>windowNode,currentSlot:()=>slot,slotRead:()=>slotReads++});
   sut.render();
