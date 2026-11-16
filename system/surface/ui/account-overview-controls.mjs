@@ -1988,12 +1988,23 @@ export function mountAccountOverviewControls(
     }
   });
   const unsubscribeSession = sessionPort.subscribe((snapshot) => {
-    const priorState = sessionSnapshot.state;
+    const previousSession = sessionSnapshot;
+    const priorState = previousSession.state;
     const priorSubject = priorState === "signed-in"
-      ? sessionSnapshot.subjectId : null;
+      ? previousSession.subjectId : null;
     sessionSnapshot = validateIdentitySessionSnapshot(snapshot);
     const currentSubject = sessionSnapshot.state === "signed-in"
       ? sessionSnapshot.subjectId : null;
+    // A repeated observation is not a new login/logout. Keep pending writes,
+    // drafts and legal consent intact; only repaint if the same user's
+    // presentation (name/email) actually changed.
+    if (priorState === sessionSnapshot.state && priorSubject === currentSubject) {
+      if (
+        previousSession.displayName !== sessionSnapshot.displayName
+        || previousSession.email !== sessionSnapshot.email
+      ) replaceView();
+      return;
+    }
     if (priorState !== sessionSnapshot.state || priorSubject !== currentSubject) {
       // Fence every account-scoped completion before painting the new user.
       // Closing an account and credentials requests are never transferable.
@@ -2060,7 +2071,16 @@ export function mountAccountOverviewControls(
     replaceView();
   });
   const unsubscribeActions = actionsPort.subscribe((snapshot) => {
+    const previousActions = actionsSnapshot;
     actionsSnapshot = validateIdentityActionsSnapshot(snapshot);
+    // Supported actions are the complete public presentation contract.
+    // Equivalent snapshots must not erase feedback or refetch registration.
+    if (
+      previousActions.supportedActions.length === actionsSnapshot.supportedActions.length
+      && previousActions.supportedActions.every(
+        (action, index) => action === actionsSnapshot.supportedActions[index]
+      )
+    ) return;
     actionMessage = "";
     if (!isIdentityActionSupported(actionsSnapshot, "register")) {
       registrationPolicy = null;
