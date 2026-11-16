@@ -346,6 +346,7 @@ export function mountSystemOverviewControls(
 
   let hostSnapshot = validateSurfaceSnapshot(hostPort.getSnapshot());
   let updateSnapshot = updatePort?.getSnapshot();
+  let updateFingerprint = updateSnapshot == null ? null : JSON.stringify(updateSnapshot);
   if (updateSnapshot !== null && updateSnapshot !== undefined) {
     updateSnapshot = validateUpdateStatusSnapshot(updateSnapshot);
   }
@@ -1877,8 +1878,13 @@ export function mountSystemOverviewControls(
     replaceView();
   });
   const unsubscribeUpdate = updatePort?.subscribe((snapshot) => {
+    const nextSnapshot = validateUpdateStatusSnapshot(snapshot);
+    const nextFingerprint = JSON.stringify(nextSnapshot);
+    // Validate every host event, but avoid repainting an unchanged update.
+    if (nextFingerprint === updateFingerprint) return;
     const previousAppliedSha = updateSnapshot?.lastAppliedSha ?? "";
-    updateSnapshot = validateUpdateStatusSnapshot(snapshot);
+    updateSnapshot = nextSnapshot;
+    updateFingerprint = nextFingerprint;
     replaceView();
     if (historyPort && updateSnapshot.lastAppliedSha !== previousAppliedSha) {
       // Defer updated history until the user sees Updates; no background GET

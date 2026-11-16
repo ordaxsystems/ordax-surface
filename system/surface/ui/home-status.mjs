@@ -191,8 +191,8 @@ export function mountHomeStatus(rootValue, {
     for (const [key, item] of Object.entries(presentation)) {
       const element = values.get(key);
       if (!element) continue;
-      element.textContent = item.text;
-      element.dataset.state = item.state;
+      if (element.textContent !== item.text) element.textContent = item.text;
+      if (element.dataset.state !== item.state) element.dataset.state = item.state;
     }
 
     const availableCount = Object.values(sourceState).filter((value) => value === "ready").length;
@@ -213,8 +213,9 @@ export function mountHomeStatus(rootValue, {
           : connectionState === "partial"
             ? "home.status.connection.partial"
             : "home.status.connection.unavailable";
-      connection.textContent = translate(messageId);
-      connection.dataset.state = connectionState;
+      const nextMessage = translate(messageId);
+      if (connection.textContent !== nextMessage) connection.textContent = nextMessage;
+      if (connection.dataset.state !== connectionState) connection.dataset.state = connectionState;
     }
     if (note) {
       const messageId = connectionState === "loading"
@@ -224,7 +225,8 @@ export function mountHomeStatus(rootValue, {
           : connectionState === "partial"
             ? "home.status.note.partial"
             : "home.status.note.unavailable";
-      note.textContent = translate(messageId);
+      const nextMessage = translate(messageId);
+      if (note.textContent !== nextMessage) note.textContent = nextMessage;
     }
   };
 
