@@ -408,8 +408,13 @@ test("Native Ctrl+K announces zero matches and restores focus when a result is h
     querySelectorAll: (selector) => selector === "[data-nav-menu-item]" ? group.items : [group],
     querySelector: (selector) => selector === "[data-native-navigation-empty]" ? empty : null,
   };
-  const filter = runInNewContext(source.slice(start, end) + "\nfilterNativeNavigation", {
+  const normalize = source.slice(
+    source.indexOf("function normalizeNativeSearch("), source.indexOf("function appTitle("),
+  );
+  const filter = runInNewContext(normalize + source.slice(start, end) + "\nfilterNativeNavigation", {
     navigationMenu, navigationQuery, localization: { getLocale: () => currentLocale }, root,
+    syncHidden(node, hidden) { if (node.hidden !== hidden) node.hidden = hidden; },
+    syncText(node, value) { if (node.textContent !== value) node.textContent = value; },
   });
   filter("nótas");
   assert.equal(first.hidden, true);
