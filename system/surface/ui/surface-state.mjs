@@ -367,6 +367,13 @@ export function reduceSurfaceState(state, action, appCatalog = defaultAppRuntime
     }
     case "host.snapshot": {
       const snapshot = validateSurfaceSnapshot(action.snapshot);
+      // Host heartbeats may publish new objects without changing capabilities.
+      // Preserve state identity so unchanged observations never repaint Native UI.
+      if (
+        snapshot.connectivity === state.connectivity
+        && snapshot.capabilityIds.length === state.capabilityIds.length
+        && snapshot.capabilityIds.every((id, index) => id === state.capabilityIds[index])
+      ) return state;
       return freezeState({
         ...state,
         connectivity: snapshot.connectivity,
