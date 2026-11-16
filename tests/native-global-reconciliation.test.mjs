@@ -88,7 +88,7 @@ test("Native area buttons and active dots persist across identical renders and s
     translate(id, params) {
       return id === "surface.area.label"
         ? locale + " " + params.ordinal
-        : id + ": " + params.area;
+        : id + ": " + (params?.area ?? "");
     },
   };
   const render = runInNewContext([
