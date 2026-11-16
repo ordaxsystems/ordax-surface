@@ -878,23 +878,27 @@ export function mountSurface(
     const button = root.querySelector("[data-native-home-assistant]");
     if (!button) return;
     const app = nativeHomeAssistantApp(catalog, state.capabilityIds);
-    // Set availability before exposing an actionable element. Removing a
-    // component or revoking its capability removes the route immediately.
-    button.hidden = true;
-    button.disabled = true;
-    button.removeAttribute("data-launch-app");
-    button.removeAttribute("aria-label");
-    button.removeAttribute("title");
     const labelNode = button.querySelector("[data-native-home-assistant-label]");
-    if (labelNode) labelNode.textContent = "";
-    if (!app) return;
+    if (!app) {
+      // Fail closed before clearing the route. A repeated missing or revoked
+      // app must not toggle the element or rewrite empty metadata.
+      if (!button.disabled) button.disabled = true;
+      syncHidden(button, true);
+      if (button.hasAttribute("data-launch-app")) button.removeAttribute("data-launch-app");
+      if (button.hasAttribute("aria-label")) button.removeAttribute("aria-label");
+      if (button.hasAttribute("title")) button.removeAttribute("title");
+      syncText(labelNode, "");
+      return;
+    }
     const label = appTitle(localization, app);
-    button.dataset.launchApp = app.id;
-    button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
-    button.title = label;
-    if (labelNode) labelNode.textContent = label;
-    button.disabled = false;
-    button.hidden = false;
+    // The catalog remains the only authority for this action. Set its route
+    // before making the control visible and enabled.
+    if (button.dataset.launchApp !== app.id) button.dataset.launchApp = app.id;
+    syncAttribute(button, "aria-label", localization.translate("surface.launcher.open", { app: label }));
+    if (button.title !== label) button.title = label;
+    syncText(labelNode, label);
+    if (button.disabled) button.disabled = false;
+    syncHidden(button, false);
   };
 
   const renderHomeInstalledApps = () => {
@@ -922,11 +926,14 @@ export function mountSurface(
       // Every shortcut goes through the same catalog availability check as
       // the launcher. Text comes from installed presentation metadata only.
       const label = appTitle(localization, app);
-      button.dataset.launchApp = app.id;
-      button.querySelector(".ordax-rail-icon").textContent = app.monogram;
-      button.querySelector(".ordax-home-installed-app-label").textContent = label;
-      button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
-      button.title = label;
+      if (button.dataset.launchApp !== app.id) button.dataset.launchApp = app.id;
+      const icon = button.querySelector(".ordax-rail-icon");
+      if (icon.textContent !== app.monogram) icon.textContent = app.monogram;
+      const titleNode = button.querySelector(".ordax-home-installed-app-label");
+      if (titleNode.textContent !== label) titleNode.textContent = label;
+      const ariaLabel = localization.translate("surface.launcher.open", { app: label });
+      if (button.getAttribute?.("aria-label") !== ariaLabel) button.setAttribute("aria-label", ariaLabel);
+      if (button.title !== label) button.title = label;
       retained.add(button);
     }
     for (const button of grid.querySelectorAll("[data-native-home-installed-app]")) {
@@ -963,12 +970,15 @@ export function mountSurface(
         existingButtons.set(app.id, button);
       }
       const label = appTitle(localization, app);
-      button.dataset.launchApp = app.id;
-      button.dataset.navMenuApp = app.id;
-      button.querySelector(".ordax-rail-icon").textContent = app.monogram;
-      button.querySelector(".ordax-nav-installed-app-label").textContent = label;
-      button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: label }));
-      button.title = label;
+      if (button.dataset.launchApp !== app.id) button.dataset.launchApp = app.id;
+      if (button.dataset.navMenuApp !== app.id) button.dataset.navMenuApp = app.id;
+      const icon = button.querySelector(".ordax-rail-icon");
+      if (icon.textContent !== app.monogram) icon.textContent = app.monogram;
+      const titleNode = button.querySelector(".ordax-nav-installed-app-label");
+      if (titleNode.textContent !== label) titleNode.textContent = label;
+      const ariaLabel = localization.translate("surface.launcher.open", { app: label });
+      if (button.getAttribute?.("aria-label") !== ariaLabel) button.setAttribute("aria-label", ariaLabel);
+      if (button.title !== label) button.title = label;
       retained.add(button);
     }
     for (const button of Array.from(slot.children)) {
