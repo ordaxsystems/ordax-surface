@@ -547,9 +547,11 @@ export function mountSurface(
 
   const updateDockOverflow = () => {
     if (!nativeDock) return;
-    const remaining = Math.max(0, nativeDock.scrollWidth - nativeDock.clientWidth - nativeDock.scrollLeft);
-    nativeDock.dataset.scrollBefore = String(nativeDock.scrollLeft > 1);
-    nativeDock.dataset.scrollAfter = String(remaining > 1);
+    const scrollLeft = nativeDock.scrollLeft;
+    const remaining = Math.max(0, nativeDock.scrollWidth - nativeDock.clientWidth - scrollLeft);
+    // Scroll/resize notifications must not rewrite unchanged DOM affordances.
+    syncDataset(nativeDock, "scrollBefore", scrollLeft > 1);
+    syncDataset(nativeDock, "scrollAfter", remaining > 1);
   };
 
   const onNativeDockWheel = (event) => scrollDockFromWheel(event, nativeDock);
@@ -771,6 +773,14 @@ export function mountSurface(
     const retained = new Set();
     const pinnedButtons = Array.from(root.querySelectorAll("[data-dock-pinned-app]"));
     const pinnedAppIds = new Set(pinnedButtons.map((button) => button.dataset.dockPinnedApp));
+    // A pinned app selects its first active-area window. Index once rather
+    // than scanning every window for every pinned control on focus events.
+    const firstWindowByAppId = new Map();
+    for (const windowState of area.windows) {
+      if (!firstWindowByAppId.has(windowState.appId)) {
+        firstWindowByAppId.set(windowState.appId, windowState);
+      }
+    }
     const existingRunningButtons = new Map();
     for (const child of runningApps.children) {
       if (child.dataset?.openWindow && !existingRunningButtons.has(child.dataset.openWindow)) {
@@ -780,36 +790,35 @@ export function mountSurface(
     for (const button of pinnedButtons) {
       const appId = button.dataset.dockPinnedApp;
       const app = catalog.get(appId);
-      const windowState = area.windows.find((item) => item.appId === appId) ?? null;
+      const windowState = firstWindowByAppId.get(appId) ?? null;
       if (!app) {
-        button.hidden = true;
+        syncHidden(button, true);
         continue;
       }
-      button.hidden = false;
+      syncHidden(button, false);
       const localizedTitle = appTitle(localization, app);
       if (windowState) {
-        button.dataset.openWindow = windowState.id;
-        button.dataset.active = String(area.activeWindowId === windowState.id && !windowState.minimized);
-        button.dataset.minimized = String(windowState.minimized);
-        button.removeAttribute("data-launch-app");
-        button.setAttribute("aria-label", localization.translate(
+        syncDataset(button, "openWindow", windowState.id);
+        syncDataset(button, "active", area.activeWindowId === windowState.id && !windowState.minimized);
+        syncDataset(button, "minimized", windowState.minimized);
+        if (button.hasAttribute("data-launch-app")) button.removeAttribute("data-launch-app");
+        const actionLabel = localization.translate(
           windowState.minimized ? "surface.dock.restore" : "surface.dock.focus",
           { app: localizedTitle },
-        ));
-        button.title = `${localizedTitle} · ${localization.translate(
-          windowState.minimized ? "surface.dock.restore" : "surface.dock.focus",
-          { app: localizedTitle },
-        )}`;
-        if (button.dataset.active === "true") button.setAttribute("aria-current", "true");
-        else button.removeAttribute("aria-current");
+        );
+        syncAttribute(button, "aria-label", actionLabel);
+        const title = localizedTitle + " · " + actionLabel;
+        if (button.title !== title) button.title = title;
+        if (button.dataset.active === "true") syncAttribute(button, "aria-current", "true");
+        else if (button.hasAttribute("aria-current")) button.removeAttribute("aria-current");
       } else {
-        delete button.dataset.openWindow;
-        delete button.dataset.active;
-        delete button.dataset.minimized;
-        button.dataset.launchApp = appId;
-        button.setAttribute("aria-label", localization.translate("surface.launcher.open", { app: localizedTitle }));
-        button.title = localizedTitle;
-        button.removeAttribute("aria-current");
+        if ("openWindow" in button.dataset) delete button.dataset.openWindow;
+        if ("active" in button.dataset) delete button.dataset.active;
+        if ("minimized" in button.dataset) delete button.dataset.minimized;
+        syncDataset(button, "launchApp", appId);
+        syncAttribute(button, "aria-label", localization.translate("surface.launcher.open", { app: localizedTitle }));
+        if (button.title !== localizedTitle) button.title = localizedTitle;
+        if (button.hasAttribute("aria-current")) button.removeAttribute("aria-current");
       }
     }
     let index = 0;
@@ -837,19 +846,24 @@ export function mountSurface(
       } else if (icon.textContent !== app.monogram) {
         icon.textContent = app.monogram;
       }
-      button.dataset.active = String(area.activeWindowId === windowState.id && !windowState.minimized);
-      button.dataset.minimized = String(windowState.minimized);
-      if (button.dataset.active === "true") button.setAttribute("aria-current", "true");
-      else button.removeAttribute("aria-current");
+      syncDataset(button, "active", area.activeWindowId === windowState.id && !windowState.minimized);
+      // Preserve the explicit Native/OS minimized projection while avoiding
+      // a mutation when focus changes without changing window visibility.
+      if (button.dataset.minimized !== String(windowState.minimized)) {
+        button.dataset.minimized = String(windowState.minimized);
+      }
+      if (button.dataset.active === "true") syncAttribute(button, "aria-current", "true");
+      else if (button.hasAttribute("aria-current")) button.removeAttribute("aria-current");
       const localizedTitle = appTitle(localization, app);
-      button.setAttribute(
+      syncAttribute(
+        button,
         "aria-label",
         localization.translate(
           windowState.minimized ? "surface.dock.restore" : "surface.dock.focus",
           { app: localizedTitle },
         ),
       );
-      button.title = localizedTitle;
+      if (button.title !== localizedTitle) button.title = localizedTitle;
       placeChildAt(runningApps, button, index);
       index += 1;
       retained.add(button);
