@@ -1039,7 +1039,9 @@ export function mountSurface(
     if (connectivityTray.dataset.networkDetailOwner !== "true") {
       syncText(root.querySelector("[data-connectivity-label]"), connectivityLabel);
       const connectivityIcon = root.querySelector("[data-connectivity-icon]");
-      syncDataset(connectivityIcon, "state", state.connectivity);
+      if (connectivityIcon.dataset.state !== state.connectivity) {
+        connectivityIcon.dataset.state = state.connectivity;
+      }
       syncDataset(connectivityIcon, "networkKind", "unknown");
       syncDataset(connectivityIcon, "signalLevel", "0");
       const trayTitle = localization.translate("surface.network.label", { status: connectivityLabel });
