@@ -63,6 +63,7 @@ test("actual Native render tail keeps DOM catalogs untouched on cosmetic prefere
       filterNativeNavigation: record("nav-filter"),
       updateDockOverflow: record("dock-geometry"),
       renderListeners,
+      notifyRenderListeners: record("extension-render"),
       navigationMenu: fakeMenu,
       navigationQuery: { value: "notes" },
       state: {},
@@ -106,8 +107,8 @@ test("dispatch passes previous locale before reducing preference changes, while 
   assert.match(dispatch, /render\(action, previousLocale, previousActiveWindowId\);/);
   assert.match(dispatch,
     /for \(const listener of \[\.\.\.preferenceListeners\]\) listener\(state\.preferences\)/);
-  assert.match(render,
-    /for \(const listener of \[\.\.\.renderListeners\]\) listener\(\)/,
+  assert.match(render, /notifyRenderListeners\(\)/);
+  assert.match(source, /const notifyRenderListeners = \(\) => \{\s*for \(const listener of \[\.\.\.renderListeners\]\) listener\(\)/,
     "Native host extensions must still see all preference events");
   assert.match(source, /else if \(current\.moved\) \{\s*render\(\);/,
     "pointer cancel still does a full repair render");
