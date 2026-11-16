@@ -487,6 +487,13 @@ export function mountStoreOverviewControls(
       mountedSlot = null;
       return;
     }
+    // The Native window stays mounted while minimized/unfocused. Its catalog
+    // is still authoritative, but rebuilding up to 256 cards in the background
+    // is wasted work. The next Surface focus render paints the latest snapshot.
+    if (windowNode && (windowNode.hidden || windowNode.dataset.active === "false")) {
+      mountedSlot = slot;
+      return;
+    }
     const searchField = slot.contains(slot.ownerDocument.activeElement)
       && slot.ownerDocument.activeElement?.dataset?.storeSearch === "true"
       ? slot.ownerDocument.activeElement : null;
@@ -958,40 +965,40 @@ export function mountStoreOverviewControls(
   const unsubscribeCatalog = catalog.subscribe((next) => {
     const verified = validateAppStoreCatalogSnapshot(next);
     const fingerprint = JSON.stringify(verified);
-    if (fingerprint !== catalogFingerprint) {
-      catalogFingerprint = fingerprint;
-      // Unrelated app updates must not cancel or reidentify another app's
-      // in-flight request. The canonical OS projection is checked per target.
-      if (verified.state === "ready") {
-        for (const [scope, receipt] of uncertainRequestIds) {
-          if (!sameLifecycleCandidate(verified, receipt.appId,
-            receipt.operation, receipt.candidateSignature)) {
-            uncertainRequestIds.delete(scope);
-          }
+    // Replayed catalog observations do not change cards or lifecycle receipts.
+    if (fingerprint === catalogFingerprint) return;
+    catalogFingerprint = fingerprint;
+    // Unrelated app updates must not cancel or reidentify another app's
+    // in-flight request. The canonical OS projection is checked per target.
+    if (verified.state === "ready") {
+      for (const [scope, receipt] of uncertainRequestIds) {
+        if (!sameLifecycleCandidate(verified, receipt.appId,
+          receipt.operation, receipt.candidateSignature)) {
+          uncertainRequestIds.delete(scope);
         }
       }
-      if (pendingRequest !== null && !sameLifecycleCandidate(verified,
-        pendingRequest.appId, pendingRequest.operation, pendingRequest.candidateSignature)) {
-        pendingRequest = null;
-        requestMessageId = null;
-        requestReason = null;
-      }
-      if (removalConfirmationAppId !== null
-        && !verified.entries.some((entry) =>
-          entry.appId === removalConfirmationAppId && entry.removable)) {
-        removalConfirmationAppId = null;
-      }
-      if (verified.state !== "ready") {
-        // Fail closed without interpreting temporary catalog unavailability
-        // as proof that any delegated lifecycle request was rejected.
-        removalConfirmationAppId = null;
-        updateAll?.cancelPending();
-        batchPresentationGeneration += 1;
-        batchReport = null;
-      }
-      // Update-all already revalidates each candidate at the OS-owned port;
-      // do not cancel its queue when the preceding app advances in the catalog.
     }
+    if (pendingRequest !== null && !sameLifecycleCandidate(verified,
+      pendingRequest.appId, pendingRequest.operation, pendingRequest.candidateSignature)) {
+      pendingRequest = null;
+      requestMessageId = null;
+      requestReason = null;
+    }
+    if (removalConfirmationAppId !== null
+      && !verified.entries.some((entry) =>
+        entry.appId === removalConfirmationAppId && entry.removable)) {
+      removalConfirmationAppId = null;
+    }
+    if (verified.state !== "ready") {
+      // Fail closed without interpreting temporary catalog unavailability
+      // as proof that any delegated lifecycle request was rejected.
+      removalConfirmationAppId = null;
+      updateAll?.cancelPending();
+      batchPresentationGeneration += 1;
+      batchReport = null;
+    }
+    // Update-all already revalidates each candidate at the OS-owned port;
+    // do not cancel its queue when the preceding app advances in the catalog.
     snapshot = verified;
     reconcileAcceptedRequest();
     render();
