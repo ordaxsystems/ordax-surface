@@ -105,6 +105,15 @@ function syncAttribute(node, name, value) {
   if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
 }
 
+function syncDataset(node, key, value) {
+  const next = String(value);
+  if (node.dataset[key] !== next) node.dataset[key] = next;
+}
+
+function syncHidden(node, value) {
+  if (node.hidden !== value) node.hidden = value;
+}
+
 function areaLabel(area, localization) {
   return localization.translate("surface.area.label", {
     ordinal: String(area.ordinal).padStart(2, "0"),
@@ -983,46 +992,44 @@ export function mountSurface(
     syncDocumentLocaleProfile(documentElement, localization);
     syncDesktopShellLocalization(root, localization);
     const appearance = resolveColorAppearance(state.preferences);
-    root.dataset.ordaxTheme = appearance.scheme;
-    root.dataset.theme = appearance.colorTheme;
-    root.dataset.ordaxPalette = appearance.colorTheme === "native" ? "native" : "standard";
+    syncDataset(root, "ordaxTheme", appearance.scheme);
+    syncDataset(root, "theme", appearance.colorTheme);
+    syncDataset(root, "ordaxPalette", appearance.colorTheme === "native" ? "native" : "standard");
     const themeToggle = root.querySelector("[data-native-theme-toggle]");
     if (themeToggle) {
       syncDesktopThemeToggle(themeToggle, appearance, localization);
     }
-    root.dataset.workspacePresentation = state.presentation;
-    root.dataset.view = state.presentation;
+    syncDataset(root, "workspacePresentation", state.presentation);
+    syncDataset(root, "view", state.presentation);
     const shell = root.querySelector("[data-ordax-shell]");
     if (shell) {
-      shell.dataset.workspacePresentation = state.presentation;
-      shell.dataset.view = state.presentation;
+      syncDataset(shell, "workspacePresentation", state.presentation);
+      syncDataset(shell, "view", state.presentation);
     }
-    root.dataset.nativeSidebar = state.sidebarMode;
+    syncDataset(root, "nativeSidebar", state.sidebarMode);
     const sidebarToggle = root.querySelector("[data-sidebar-toggle]");
     const sidebarExpanded = sidebarIsExpanded(root.querySelector(".ordax-rail"));
-    sidebarToggle.hidden = state.presentation === "desktop";
+    syncHidden(sidebarToggle, state.presentation === "desktop");
     syncDesktopSidebarToggle(sidebarToggle, sidebarExpanded, localization);
-    root.querySelector("[data-central-presentation]").hidden = state.presentation !== "central";
-    root.querySelector("[data-desktop-presentation]").hidden = state.presentation !== "desktop";
+    syncHidden(root.querySelector("[data-central-presentation]"), state.presentation !== "central");
+    syncHidden(root.querySelector("[data-desktop-presentation]"), state.presentation !== "desktop");
     const presentationToggle = root.querySelector("[data-presentation-toggle]");
     syncDesktopPresentationToggle(presentationToggle, state.presentation, localization);
-    root.dataset.ordaxContrast = state.preferences[ACCESSIBILITY_CONTRAST_PREFERENCE_ID];
-    root.dataset.ordaxMotion = state.preferences[ACCESSIBILITY_MOTION_PREFERENCE_ID];
-    documentElement.dataset.ordaxTextScale =
-      state.preferences[ACCESSIBILITY_TEXT_SCALE_PREFERENCE_ID];
-    documentElement.dataset.ordaxDisplayScale =
-      state.preferences[DISPLAY_SCALE_PREFERENCE_ID];
-    root.dataset.ordaxDisplayScale = state.preferences[DISPLAY_SCALE_PREFERENCE_ID];
-    launcher.hidden = !state.launcherOpen;
-    root.querySelectorAll("[data-launcher-toggle]").forEach(button => button.setAttribute("aria-expanded", String(state.launcherOpen)));
-    root.querySelectorAll("[data-navigation-menu-toggle]").forEach(button => button.setAttribute("aria-expanded", String(!navigationMenu.hidden)));
+    syncDataset(root, "ordaxContrast", state.preferences[ACCESSIBILITY_CONTRAST_PREFERENCE_ID]);
+    syncDataset(root, "ordaxMotion", state.preferences[ACCESSIBILITY_MOTION_PREFERENCE_ID]);
+    syncDataset(documentElement, "ordaxTextScale", state.preferences[ACCESSIBILITY_TEXT_SCALE_PREFERENCE_ID]);
+    syncDataset(documentElement, "ordaxDisplayScale", state.preferences[DISPLAY_SCALE_PREFERENCE_ID]);
+    syncDataset(root, "ordaxDisplayScale", state.preferences[DISPLAY_SCALE_PREFERENCE_ID]);
+    syncHidden(launcher, !state.launcherOpen);
+    root.querySelectorAll("[data-launcher-toggle]").forEach(button => syncAttribute(button, "aria-expanded", String(state.launcherOpen)));
+    root.querySelectorAll("[data-navigation-menu-toggle]").forEach(button => syncAttribute(button, "aria-expanded", String(!navigationMenu.hidden)));
     const moreDestinations = root.querySelector("[data-nav-menu-more]");
     if (moreDestinations) {
       const label = localization.translate("shell.sidebar.more");
-      moreDestinations.setAttribute("aria-label", label);
-      moreDestinations.title = label;
+      syncAttribute(moreDestinations, "aria-label", label);
+      if (moreDestinations.title !== label) moreDestinations.title = label;
       const labelNode = moreDestinations.querySelector("span:last-child");
-      if (labelNode) labelNode.textContent = label;
+      syncText(labelNode, label);
     }
 
     const connectivityMessage =
@@ -1030,24 +1037,24 @@ export function mountSurface(
     const connectivityLabel = localization.translate(connectivityMessage);
     const connectivityTray = root.querySelector("[data-connectivity-tray]");
     if (connectivityTray.dataset.networkDetailOwner !== "true") {
-      root.querySelector("[data-connectivity-label]").textContent = connectivityLabel;
+      syncText(root.querySelector("[data-connectivity-label]"), connectivityLabel);
       const connectivityIcon = root.querySelector("[data-connectivity-icon]");
-      connectivityIcon.dataset.state = state.connectivity;
-      connectivityIcon.dataset.networkKind = "unknown";
-      connectivityIcon.dataset.signalLevel = "0";
-      connectivityTray.title = localization.translate("surface.network.label", {
-        status: connectivityLabel,
-      });
+      if (connectivityIcon.dataset.state !== state.connectivity) {
+        connectivityIcon.dataset.state = state.connectivity;
+      }
+      syncDataset(connectivityIcon, "networkKind", "unknown");
+      syncDataset(connectivityIcon, "signalLevel", "0");
+      const trayTitle = localization.translate("surface.network.label", { status: connectivityLabel });
+      if (connectivityTray.title !== trayTitle) connectivityTray.title = trayTitle;
     }
 
     for (const targetButton of root.querySelectorAll("[data-requires-capability]")) {
       const capabilityId = targetButton.dataset.requiresCapability;
       const available = state.capabilityIds.includes(capabilityId);
-      targetButton.disabled = !available;
-      targetButton.setAttribute("aria-disabled", String(!available));
-      targetButton.title = available
-        ? ""
-        : localization.translate("surface.capability.destinationRequired");
+      if (targetButton.disabled !== !available) targetButton.disabled = !available;
+      syncAttribute(targetButton, "aria-disabled", String(!available));
+      const requirementTitle = available ? "" : localization.translate("surface.capability.destinationRequired");
+      if (targetButton.title !== requirementTitle) targetButton.title = requirementTitle;
     }
 
     renderNativeNavigationInstalledApps();
@@ -1055,9 +1062,9 @@ export function mountSurface(
     for (const targetButton of navigationMenu.querySelectorAll("[data-nav-menu-app]")) {
       const app = catalog.get(targetButton.dataset.navMenuApp);
       const available = catalog.isAvailable(app, state.capabilityIds);
-      targetButton.disabled = !available;
-      targetButton.setAttribute("aria-disabled", String(!available));
-      targetButton.dataset.active = String(activeNavigationWindow?.appId === targetButton.dataset.navMenuApp);
+      if (targetButton.disabled !== !available) targetButton.disabled = !available;
+      syncAttribute(targetButton, "aria-disabled", String(!available));
+      syncDataset(targetButton, "active", activeNavigationWindow?.appId === targetButton.dataset.navMenuApp);
     }
 
     renderLauncher();
