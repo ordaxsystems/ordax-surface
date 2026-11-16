@@ -138,11 +138,13 @@ function syncPreferenceChoice(choices, panel, state) {
       button = element("button", "ordax-preference-choice");
       button.type = "button";
     }
-    button.textContent = option.label;
-    button.dataset.preferenceId = panel.preferenceId;
-    button.dataset.preferenceValue = option.value;
-    button.dataset.selected = String(selected === option.value);
-    button.setAttribute("aria-pressed", String(selected === option.value));
+    // Focusable choices must survive ordinary window and host repaints.
+    if (button.textContent !== option.label) button.textContent = option.label;
+    if (button.dataset.preferenceId !== panel.preferenceId) button.dataset.preferenceId = panel.preferenceId;
+    if (button.dataset.preferenceValue !== option.value) button.dataset.preferenceValue = option.value;
+    const pressed = String(selected === option.value);
+    if (button.dataset.selected !== pressed) button.dataset.selected = pressed;
+    if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
     placeChildAt(choices, button, index);
     retained.add(button);
   }
@@ -153,24 +155,33 @@ function syncPreferenceChoice(choices, panel, state) {
 }
 
 function renderCapabilitiesPanel(section, state, localization) {
-  section.querySelector("[data-surface-capabilities]")?.remove();
-  let content;
-  if (state.capabilityIds.length === 0) {
-    content = element(
-      "p",
-      "ordax-empty",
-      localization.translate("surface.capability.none"),
-    );
-  } else {
-    content = element("ul", "ordax-capability-list");
-    for (const capabilityId of state.capabilityIds) {
-      content.append(element("li", "", capabilityId));
+  const existing = section.querySelector("[data-surface-capabilities]");
+  const empty = state.capabilityIds.length === 0;
+  const expectedTag = empty ? "P" : "UL";
+  let content = existing?.tagName === expectedTag ? existing : null;
+  if (!content) {
+    content = empty ? element("p", "ordax-empty") : element("ul", "ordax-capability-list");
+    content.dataset.surfaceCapabilities = "";
+    // Replace the previous presentation in place; keep its position before
+    // the body and never tear down an unchanged capability list.
+    if (existing) existing.replaceWith(content);
+    else {
+      const body = section.querySelector(".ordax-app-panel-body");
+      if (body) section.insertBefore(content, body);
+      else section.append(content);
     }
   }
-  content.dataset.surfaceCapabilities = "";
-  const body = section.querySelector(".ordax-app-panel-body");
-  if (body) section.insertBefore(content, body);
-  else section.append(content);
+  if (empty) {
+    const label = localization.translate("surface.capability.none");
+    if (content.textContent !== label) content.textContent = label;
+    return;
+  }
+  const current = Array.from(content.children);
+  const sameEntries = current.length === state.capabilityIds.length
+    && current.every((item, index) => item.textContent === state.capabilityIds[index]);
+  if (!sameEntries) {
+    content.replaceChildren(...state.capabilityIds.map((id) => element("li", "", id)));
+  }
 }
 
 function renderPanel(panel, state, index, app, localization) {
