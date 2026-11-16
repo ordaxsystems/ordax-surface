@@ -1084,8 +1084,26 @@ export function mountSurface(
     );
   };
 
+  // Only the rail geometry and its toggle change on workspace.sidebar.
+  // Keep the one canonical projection shared by full and narrow renders.
+  const syncSidebarPresentation = () => {
+    syncDataset(root, "nativeSidebar", state.sidebarMode);
+    const sidebarToggle = root.querySelector("[data-sidebar-toggle]");
+    const sidebarExpanded = sidebarIsExpanded(root.querySelector(".ordax-rail"));
+    syncHidden(sidebarToggle, state.presentation === "desktop");
+    syncDesktopSidebarToggle(sidebarToggle, sidebarExpanded, localization);
+  };
+
   const notifyRenderListeners = () => {
     for (const listener of [...renderListeners]) listener();
+  };
+
+  const renderSidebarModeOnly = () => {
+    syncSidebarPresentation();
+    // A different rail width may alter available dock space. The existing
+    // ResizeObserver still owns fitting the navigation destinations.
+    updateDockOverflow();
+    notifyRenderListeners();
   };
 
   const renderLauncherVisibilityOnly = () => {
@@ -1131,11 +1149,7 @@ export function mountSurface(
       syncDataset(shell, "workspacePresentation", state.presentation);
       syncDataset(shell, "view", state.presentation);
     }
-    syncDataset(root, "nativeSidebar", state.sidebarMode);
-    const sidebarToggle = root.querySelector("[data-sidebar-toggle]");
-    const sidebarExpanded = sidebarIsExpanded(root.querySelector(".ordax-rail"));
-    syncHidden(sidebarToggle, state.presentation === "desktop");
-    syncDesktopSidebarToggle(sidebarToggle, sidebarExpanded, localization);
+    syncSidebarPresentation();
     syncHidden(root.querySelector("[data-central-presentation]"), state.presentation !== "central");
     syncHidden(root.querySelector("[data-desktop-presentation]"), state.presentation !== "desktop");
     const presentationToggle = root.querySelector("[data-presentation-toggle]");
@@ -1226,6 +1240,8 @@ export function mountSurface(
     }
     if (action?.type === "launcher.toggle" || action?.type === "launcher.close") {
       renderLauncherVisibilityOnly();
+    } else if (action?.type === "workspace.sidebar") {
+      renderSidebarModeOnly();
     } else if (isConnectivityOnlyHostUpdate(action, previousState, state)) {
       renderConnectivityOnly();
     } else {

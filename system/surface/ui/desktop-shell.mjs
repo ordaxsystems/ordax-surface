@@ -13,12 +13,22 @@ import { getDesktopShortcutGlyphMarkup } from "../../services/surface/desktop-sh
 import { resolveHomeScene } from "../../services/surface/home-scene.mjs";
 import { homeConceptSections } from "./home-concept.mjs";
 
+function syncControlAttribute(button, name, value) {
+  if (typeof button.getAttribute !== "function" || button.getAttribute(name) !== value) {
+    button.setAttribute(name, value);
+  }
+}
+
+function syncControlTitle(button, value) {
+  if (button.title !== value) button.title = value;
+}
+
 export function syncDesktopPresentationToggle(button, presentation, localization) {
   const destination = presentationDestination(presentation);
   const label = localization.translate(destination.labelId);
-  button.setAttribute("aria-pressed", String(presentation === "desktop"));
-  button.setAttribute("aria-label", label);
-  button.title = label;
+  syncControlAttribute(button, "aria-pressed", String(presentation === "desktop"));
+  syncControlAttribute(button, "aria-label", label);
+  syncControlTitle(button, label);
   if (button.dataset.presentationDestination !== destination.target) {
     button.querySelector(".ordax-rail-icon").innerHTML = destination.target === "desktop" ? ICONS.system : ICONS.presentation;
     button.dataset.presentationDestination = destination.target;
@@ -31,9 +41,13 @@ export function syncDesktopThemeToggle(button, appearance, localization) {
   const label = nextScheme === "light"
     ? (english ? "Use light theme" : "Usar tema claro")
     : (english ? "Use dark theme" : "Usar tema escuro");
-  button.setAttribute("aria-label", label);
-  button.title = label;
-  button.querySelector(".ordax-rail-icon").innerHTML = appearance.scheme === "dark" ? ICONS.sun : ICONS.moon;
+  syncControlAttribute(button, "aria-label", label);
+  syncControlTitle(button, label);
+  // Initial markup has no glyph; afterwards only real theme changes touch SVG.
+  if (button.dataset.themeIconScheme !== appearance.scheme) {
+    button.querySelector(".ordax-rail-icon").innerHTML = appearance.scheme === "dark" ? ICONS.sun : ICONS.moon;
+    button.dataset.themeIconScheme = appearance.scheme;
+  }
 }
 
 const SURFACE_LOCALE = "pt-BR";
@@ -74,10 +88,15 @@ const ICONS = Object.freeze({
 
 export function syncDesktopSidebarToggle(button, expanded, localization) {
   const label = localization.translate(expanded ? "shell.sidebar.collapse" : "shell.sidebar.expand");
-  button.setAttribute("aria-expanded", String(expanded));
-  button.setAttribute("aria-label", label);
-  button.title = label;
-  button.querySelector("svg").innerHTML = expanded ? ICONS.sidebarClose : ICONS.sidebarOpen;
+  const expandedValue = String(expanded);
+  // The initial SVG agrees with its authored aria-expanded="true". The
+  // expansion state is the existing source for icon changes, not a new cache.
+  if (typeof button.getAttribute !== "function" || button.getAttribute("aria-expanded") !== expandedValue) {
+    button.querySelector("svg").innerHTML = expanded ? ICONS.sidebarClose : ICONS.sidebarOpen;
+  }
+  syncControlAttribute(button, "aria-expanded", expandedValue);
+  syncControlAttribute(button, "aria-label", label);
+  syncControlTitle(button, label);
 }
 
 function railButton(appId, label, icon, t, className = "ordax-rail-button") {
