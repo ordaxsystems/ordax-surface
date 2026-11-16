@@ -17,7 +17,7 @@ test("Home shortcuts, Ctrl+K apps and areas index existing controls once per rep
     "  const renderNativeNavigationInstalledApps = () => {");
   const navigation = section("  const renderNativeNavigationInstalledApps = () => {",
     "  const renderSidebar = () => {");
-  const areas = section("  const renderAreas = () => {", "  const render = (action = null, previousLocale = null) => {");
+  const areas = section("  const renderAreas = () => {", "  const render = (action = null, previousLocale = null, previousActiveWindowId = null) => {");
   assert.match(home, /const existingButtons = new Map\(/);
   assert.doesNotMatch(home, /Array\.from\(grid\.querySelectorAll\("\[data-native-home-installed-app\]"\)\)\s*\.find/);
   assert.match(navigation, /const existingButtons = new Map\(\)/);
@@ -31,7 +31,7 @@ test("Home shortcuts, Ctrl+K apps and areas index existing controls once per rep
 });
 
 test("Native area buttons and active dots persist across identical renders and switch safely", () => {
-  const areaCode = section("  const renderAreas = () => {", "  const render = (action = null, previousLocale = null) => {");
+  const areaCode = section("  const renderAreas = () => {", "  const render = (action = null, previousLocale = null, previousActiveWindowId = null) => {");
   class FakeNode {
     constructor(className = "", value = "") {
       this.className = className;
