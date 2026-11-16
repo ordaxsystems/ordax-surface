@@ -5,18 +5,17 @@ import test from "node:test";
 
 const source = await readFile(new URL("../system/surface/ui/surface.mjs", import.meta.url), "utf8");
 
-test("Launcher search matches accented application names using an unaccented query", () => {
-  const start = source.indexOf('    const normalizeSearch = value => ');
-  const end = source.indexOf('\n    const query = normalizeSearch(', start);
-  assert.ok(start > 0 && end > start, "use the production launcher normalizer");
-  const normalize = runInNewContext(source.slice(start, end) + '\nnormalizeSearch', {
-    locale: "pt-BR",
-  });
-  assert.equal(normalize("configuracoes"), normalize("Configurações"));
-  assert.equal(normalize("musica"), normalize("Música"));
-  assert.equal(normalize("configuracoes").includes(normalize("conta")), false);
-  assert.match(source, /const query = normalizeSearch\(launcherQuery\.value\.trim\(\)\)/);
-  assert.match(source, /const searchable = normalizeSearch\(`/);
+test("Launcher search matches accents through the single Native search normalizer", () => {
+  const start = source.indexOf("function normalizeNativeSearch(");
+  const end = source.indexOf("\nfunction appTitle(", start);
+  assert.ok(start > 0 && end > start, "use the production Native search normalizer");
+  const normalize = runInNewContext(source.slice(start, end) + "\nnormalizeNativeSearch");
+  assert.equal(normalize("configuracoes", "pt-BR"), normalize("Configurações", "pt-BR"));
+  assert.equal(normalize("musica", "pt-BR"), normalize("Música", "pt-BR"));
+  assert.equal(normalize("configuracoes", "pt-BR").includes(normalize("conta", "pt-BR")), false);
+  assert.match(source, /const normalized = normalizeNativeSearch\(query, localization\.getLocale\(\)\)/);
+  assert.match(source, /syncDataset\(button, "launcherSearch", searchText\)/);
+  assert.match(source, /if \(event\.target === launcherQuery\) filterLauncher\(launcherQuery\.value\)/);
 });
 
 test("Targeted launcher activation closes overlay only after successful authorized publish", () => {

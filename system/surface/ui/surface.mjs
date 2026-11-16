@@ -64,6 +64,12 @@ const CONNECTIVITY_MESSAGE_IDS = Object.freeze({
   unknown: "surface.connectivity.unknown",
 });
 
+// Search projection comes from the canonical catalog and current locale.
+// It is neither a second app registry nor a persistent search service.
+function normalizeNativeSearch(value, locale) {
+  return String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale).trim();
+}
+
 function appTitle(localization, app) {
   return app.presentation ? externalAppCopy(app, localization.getLocale()).title
     : localization.translate(`app.${app.id}.title`);
@@ -595,27 +601,55 @@ export function mountSurface(
     };
   };
 
+  // Typing only filters the canonical rendered projection. Catalog, locale
+  // and capability events still perform full reconciliation.
+  const filterLauncher = (query = launcherQuery.value) => {
+    const normalized = normalizeNativeSearch(query, localization.getLocale());
+    let visible = 0;
+    let total = 0;
+    for (const button of appLauncher.children) {
+      if (!button.dataset?.launchApp) continue;
+      total += 1;
+      const matches = !normalized || (button.dataset.launcherSearch ?? "").includes(normalized);
+      syncHidden(button, !matches);
+      if (matches) visible += 1;
+    }
+    let empty = appLauncher.querySelector("[data-launcher-empty]");
+    if (visible === 0) {
+      const message = localization.translate("surface.launcher.empty");
+      if (!empty) {
+        empty = element("p", "ordax-launcher-empty", message);
+        empty.dataset.launcherEmpty = "";
+      } else {
+        syncText(empty, message);
+      }
+      placeChildAt(appLauncher, empty, total);
+    } else {
+      empty?.remove();
+    }
+
+    // A revoked or hidden choice must never retain keyboard focus.
+    const active = root.ownerDocument.activeElement;
+    if (active?.dataset?.launchApp && (active.hidden || active.disabled || !appLauncher.contains(active))) {
+      launcherQuery.focus({ preventScroll: true });
+    }
+  };
+
   const renderLauncher = () => {
     const locale = localization.getLocale();
-    const normalizeSearch = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
-    const query = normalizeSearch(launcherQuery.value.trim());
     const focusedLauncherApp = root.ownerDocument.activeElement?.dataset?.launchApp ?? null;
     const retained = new Set();
-    // Index the existing launcher DOM once instead of scanning it per app.
     const existingButtons = new Map();
     for (const child of appLauncher.children) {
       if (child.dataset?.launchApp && !existingButtons.has(child.dataset.launchApp)) {
         existingButtons.set(child.dataset.launchApp, child);
       }
     }
-    let visible = 0;
 
     for (const [index, app] of catalog.list().entries()) {
       const available = catalog.isAvailable(app, state.capabilityIds);
       const localizedTitle = appTitle(localization, app);
       const localizedDescription = appDescription(localization, app);
-      const searchable = normalizeSearch(`${localizedTitle} ${localizedDescription} ${app.id}`);
-      const matches = !query || searchable.includes(query);
       let button = existingButtons.get(app.id) ?? null;
       if (!button) {
         button = element("button", "ordax-launcher-app");
@@ -628,50 +662,33 @@ export function mountSurface(
         button.append(copy);
       }
 
-      button.hidden = !matches;
-      button.disabled = !available;
-      button.setAttribute(
-        "aria-label",
+      // A disposable DOM search projection, rebuilt only from the canonical
+      // catalog; it never stores permissions, user input or runtime state.
+      const searchText = normalizeNativeSearch(localizedTitle + " " + localizedDescription + " " + app.id, locale);
+      syncDataset(button, "launcherSearch", searchText);
+      if (button.disabled !== !available) button.disabled = !available;
+      syncAttribute(
+        button, "aria-label",
         available
           ? localization.translate("surface.launcher.open", { app: localizedTitle })
           : localization.translate("surface.launcher.unavailable", { app: localizedTitle }),
       );
       const copy = button.querySelector(".ordax-launcher-app-copy");
       if (copy) {
-        const title = copy.querySelector("strong");
-        const description = copy.querySelector("small");
-        if (title) title.textContent = localizedTitle;
-        if (description) {
-          description.textContent = available
-            ? localizedDescription
-            : localization.translate("surface.launcher.requirementsUnavailable");
-        }
+        syncText(copy.querySelector("strong"), localizedTitle);
+        syncText(copy.querySelector("small"),
+          available ? localizedDescription : localization.translate("surface.launcher.requirementsUnavailable"));
       }
       placeChildAt(appLauncher, button, index);
       existingButtons.set(app.id, button);
       retained.add(button);
-      if (matches) visible += 1;
     }
 
     for (const child of Array.from(appLauncher.children)) {
       if (child.dataset?.launchApp && !retained.has(child)) child.remove();
     }
 
-    let empty = appLauncher.querySelector("[data-launcher-empty]");
-    if (visible === 0) {
-      if (!empty) {
-        empty = element(
-          "p",
-          "ordax-launcher-empty",
-          localization.translate("surface.launcher.empty"),
-        );
-        empty.dataset.launcherEmpty = "";
-      }
-      placeChildAt(appLauncher, empty, retained.size);
-    } else {
-      empty?.remove();
-    }
-
+    filterLauncher(launcherQuery.value);
     if (focusedLauncherApp) {
       const focusedButton = existingButtons.get(focusedLauncherApp) ?? null;
       if (!focusedButton || !retained.has(focusedButton) || focusedButton.hidden || focusedButton.disabled) {
@@ -1206,25 +1223,28 @@ export function mountSurface(
   };
   const filterNativeNavigation = query => {
     const locale = localization.getLocale();
-    const normalized = String(query).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale).trim();
+    const normalized = normalizeNativeSearch(query, locale);
+    const visibleGroups = new Set();
     for (const button of navigationMenu.querySelectorAll("[data-nav-menu-item]")) {
-      const value = button.textContent.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase(locale);
-      button.hidden = normalized !== "" && !value.includes(normalized);
+      const hidden = normalized !== "" && !normalizeNativeSearch(button.textContent, locale).includes(normalized);
+      syncHidden(button, hidden);
+      if (!hidden) {
+        const group = button.closest("[data-nav-menu-group]");
+        if (group) visibleGroups.add(group);
+      }
     }
-    let hasResults = false;
+    // One group pass, without a nested selector for every keypress.
     for (const group of navigationMenu.querySelectorAll("[data-nav-menu-group]")) {
-      group.hidden = !group.querySelector("[data-nav-menu-item]:not([hidden])");
-      if (!group.hidden) hasResults = true;
+      syncHidden(group, !visibleGroups.has(group));
     }
     const empty = navigationMenu.querySelector("[data-native-navigation-empty]");
     if (empty) {
-      empty.textContent = locale.toLowerCase().startsWith("en")
+      syncText(empty, locale.toLowerCase().startsWith("en")
         ? "No destinations or apps found."
-        : "Nenhum destino ou aplicativo encontrado.";
-      empty.hidden = hasResults;
+        : "Nenhum destino ou aplicativo encontrado.");
+      syncHidden(empty, visibleGroups.size > 0);
     }
-    // A live catalog or locale update can hide a keyboard-selected item.
-    // Return to the search input instead of leaving focus in a hidden group.
+    // Search and capability revocation must not strand a focused item.
     const focused = root.ownerDocument.activeElement;
     if (!navigationMenu.hidden && focused?.matches?.("[data-nav-menu-item]")
       && (focused.hidden || focused.disabled || focused.closest("[data-nav-menu-group]")?.hidden)) {
@@ -1415,7 +1435,7 @@ export function mountSurface(
   };
 
   const onInput = (event) => {
-    if (event.target === launcherQuery) renderLauncher();
+    if (event.target === launcherQuery) filterLauncher(launcherQuery.value);
     if (event.target === navigationQuery) filterNativeNavigation(navigationQuery.value);
   };
 
