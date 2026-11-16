@@ -556,6 +556,13 @@ export function mountSurface(
     const query = normalizeSearch(launcherQuery.value.trim());
     const focusedLauncherApp = root.ownerDocument.activeElement?.dataset?.launchApp ?? null;
     const retained = new Set();
+    // Index the existing launcher DOM once instead of scanning it per app.
+    const existingButtons = new Map();
+    for (const child of appLauncher.children) {
+      if (child.dataset?.launchApp && !existingButtons.has(child.dataset.launchApp)) {
+        existingButtons.set(child.dataset.launchApp, child);
+      }
+    }
     let visible = 0;
 
     for (const [index, app] of catalog.list().entries()) {
@@ -564,9 +571,7 @@ export function mountSurface(
       const localizedDescription = appDescription(localization, app);
       const searchable = normalizeSearch(`${localizedTitle} ${localizedDescription} ${app.id}`);
       const matches = !query || searchable.includes(query);
-      let button = Array.from(appLauncher.children).find(
-        (child) => child.dataset?.launchApp === app.id,
-      ) ?? null;
+      let button = existingButtons.get(app.id) ?? null;
       if (!button) {
         button = element("button", "ordax-launcher-app");
         button.type = "button";
@@ -598,6 +603,7 @@ export function mountSurface(
         }
       }
       placeChildAt(appLauncher, button, index);
+      existingButtons.set(app.id, button);
       retained.add(button);
       if (matches) visible += 1;
     }
@@ -622,10 +628,8 @@ export function mountSurface(
     }
 
     if (focusedLauncherApp) {
-      const focusedButton = Array.from(appLauncher.children).find(
-        (child) => child.dataset?.launchApp === focusedLauncherApp,
-      ) ?? null;
-      if (!focusedButton || focusedButton.hidden || focusedButton.disabled) {
+      const focusedButton = existingButtons.get(focusedLauncherApp) ?? null;
+      if (!focusedButton || !retained.has(focusedButton) || focusedButton.hidden || focusedButton.disabled) {
         launcherQuery.focus({ preventScroll: true });
       }
     }
@@ -634,6 +638,12 @@ export function mountSurface(
   const renderWindows = () => {
     const area = getActiveArea(state);
     const retained = new Set();
+    const existingWindows = new Map();
+    for (const node of windowLayer.children) {
+      if (node.dataset.windowAreaId === area.id && !existingWindows.has(node.dataset.windowId)) {
+        existingWindows.set(node.dataset.windowId, node);
+      }
+    }
     let renderedIndex = 0;
     let visibleIndex = 0;
 
@@ -643,12 +653,8 @@ export function mountSurface(
       const index = visibleIndex;
       if (!windowState.minimized) visibleIndex += 1;
 
-      let windowNode = Array.from(windowLayer.children).find(
-        (node) =>
-          node.dataset.windowAreaId === area.id
-          && node.dataset.windowId === windowState.id
-          && node.dataset.appId === app.id,
-      ) ?? null;
+      const existing = existingWindows.get(windowState.id);
+      let windowNode = existing?.dataset.appId === app.id ? existing : null;
       if (!windowNode) {
         windowNode = createWindow(app, windowState, state, index, area, localization);
       } else {
@@ -669,6 +675,12 @@ export function mountSurface(
     const retained = new Set();
     const pinnedButtons = Array.from(root.querySelectorAll("[data-dock-pinned-app]"));
     const pinnedAppIds = new Set(pinnedButtons.map((button) => button.dataset.dockPinnedApp));
+    const existingRunningButtons = new Map();
+    for (const child of runningApps.children) {
+      if (child.dataset?.openWindow && !existingRunningButtons.has(child.dataset.openWindow)) {
+        existingRunningButtons.set(child.dataset.openWindow, child);
+      }
+    }
     for (const button of pinnedButtons) {
       const appId = button.dataset.dockPinnedApp;
       const app = catalog.get(appId);
@@ -709,9 +721,7 @@ export function mountSurface(
       const app = catalog.get(windowState.appId);
       if (!app) continue;
       if (pinnedAppIds.has(app.id)) continue;
-      let button = Array.from(runningApps.children).find(
-        (child) => child.dataset?.openWindow === windowState.id,
-      ) ?? null;
+      let button = existingRunningButtons.get(windowState.id) ?? null;
       if (!button) {
         button = element("button", "ordax-running-app");
         button.type = "button";
@@ -725,8 +735,12 @@ export function mountSurface(
         icon.setAttribute("aria-hidden", "true");
         button.prepend(icon);
       }
-      if (ICONS[app.id]) icon.innerHTML = ICONS[app.id];
-      else icon.textContent = app.monogram;
+      // Preserve the icon subtree on ordinary focus/window state changes.
+      if (ICONS[app.id]) {
+        if (icon.innerHTML !== ICONS[app.id]) icon.innerHTML = ICONS[app.id];
+      } else if (icon.textContent !== app.monogram) {
+        icon.textContent = app.monogram;
+      }
       button.dataset.active = String(area.activeWindowId === windowState.id && !windowState.minimized);
       button.dataset.minimized = String(windowState.minimized);
       if (button.dataset.active === "true") button.setAttribute("aria-current", "true");

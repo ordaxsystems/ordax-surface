@@ -574,6 +574,8 @@ evitar duas experiências e dois caminhos de estado no Web.
 
 ## Desenvolvimento e testes
 
+Para feedback imediato **sem checkout do OS, npm install ou build de USB**, execute na raiz da Surface `node --test` (regressões locais, com Node 22+) e `git diff --check`. Para conferir a sintaxe de um módulo JavaScript modificado, use `node --check caminho/do/arquivo.mjs`. Essas verificações locais não resolvem imports que pertencem ao host OS e não substituem o gate de integração Web/Native da PR, que continua validando a composição real em `ordax-os/main`.
+
 1. Trabalhar somente no owner visual, em branch com PR. Não editar espelhos de `ui/` e `workspace/` no `ordax-os`.
 2. O workflow [`Surface source integration candidate`](.github/workflows/validate-source-integration.yml) testa PRs visuais e a `main` do repositório. Ele separa a prova da **importação histórica imutável**, com dados em [`provenance/`](provenance/), da montagem da **Surface candidata** sobre o host e os testes atuais de `ordax-os/main`.
 3. O gate confere os blobs da revisão candidata, recusa uma segunda cópia visual rastreada no OS, verifica imports/boundaries e executa testes Web e Native. A compatibilidade precisa ser revalidada sempre que os contratos do OS avançarem.
