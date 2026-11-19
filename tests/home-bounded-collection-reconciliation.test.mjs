@@ -3,6 +3,17 @@ import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 
+test("Native Home consumes only the canonical project reader after CAS cutover", async () => {
+  const source = await readFile(
+    new URL("../system/surface/ui/home-continuation.mjs", import.meta.url), "utf8",
+  );
+  assert.match(source, /assertProjectCatalogReader/);
+  assert.doesNotMatch(source, /assertProjectCatalogPort/);
+  assert.match(source, /projectPort\?\.getSnapshot\(\)/);
+  assert.match(source, /projectPort\?\.subscribe\(/);
+  assert.doesNotMatch(source, /projectPort\.(?:create|rename|remove|recordOpened)\(/);
+});
+
 for (const [file, hasTimeZone] of [
   ["home-continuation.mjs", true],
   ["home-pending.mjs", false],
