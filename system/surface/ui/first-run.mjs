@@ -1714,6 +1714,12 @@ export function mountFirstRunExperience(
   });
 
   render();
+  // A resumed First Run may mount directly on the Network step. Previously
+  // only go() issued the initial status request, leaving "Lendo estado..."
+  // indefinitely until the user clicked Scan.
+  if (STEPS[stepIndex] === "network" && networkPort && networkSnapshot === null) {
+    void refreshNetwork(false);
+  }
   if (STEPS[stepIndex] === "account" && sessionSnapshot.state === "unavailable") {
     void refreshIdentityAvailability();
   }

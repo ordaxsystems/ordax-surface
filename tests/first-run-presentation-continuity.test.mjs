@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
+import { runInNewContext } from "node:vm";
 import {captureFirstRunFocus,restoreFirstRunFocus,captureFirstRunReadingState,restoreFirstRunReadingState}
   from "../system/surface/ui/first-run-presentation-state.mjs";
 const mk=(attrs={},dataset={},rest={})=>({
@@ -81,4 +82,38 @@ test("Desktop account keeps one local-use choice while USB retains its footer", 
   assert.match(source, /productMode === "desktop" \? "Começar a usar o OrdaX"/);
   assert.match(css, /\.ordax-first-run-local-choice \{/);
   assert.match(css, /\.ordax-first-run-local-choice-action \{ justify-self:start;/);
+});
+
+
+// Exercise the real startup block, not a duplicate Wi-Fi wizard implementation.
+// A previously saved cursor can put First Run directly at Network on mount.
+test("resuming Network reads native Wi-Fi status before requiring Scan", async () => {
+  const source = await readFile(new URL("../system/surface/ui/first-run.mjs", import.meta.url), "utf8");
+  const start = source.lastIndexOf("  render();\n  // A resumed First Run");
+  const end = source.indexOf("  if (STEPS[stepIndex] === \"account\"", start);
+  assert.ok(start >= 0 && end > start, "native First Run startup location changed");
+  const initialization = source.slice(start, end);
+  assert.match(initialization, /void refreshNetwork\(false\)/);
+  for (const { current, hasPort, expected } of [
+    { current: "network", hasPort: true, expected: 1 },
+    { current: "network", hasPort: false, expected: 0 },
+    { current: "account", hasPort: true, expected: 0 },
+  ]) {
+    let calls = 0;
+    let renders = 0;
+    const sandbox = {
+      STEPS: ["welcome", "network", "account"],
+      stepIndex: ["welcome", "network", "account"].indexOf(current),
+      networkPort: hasPort ? { status() {} } : null,
+      networkSnapshot: null,
+      refreshNetwork(scan) {
+        assert.equal(scan, false);
+        calls += 1;
+      },
+      render() { renders += 1; },
+    };
+    runInNewContext(initialization, sandbox);
+    assert.equal(calls, expected, "initial read-only status call for " + current);
+    assert.equal(renders, 1);
+  }
 });
