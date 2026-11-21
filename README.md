@@ -1,5 +1,15 @@
 # OrdaX Surface
 
+## Governança documental multi-repositório
+
+A [entrada canônica da documentação transversal](https://github.com/ordaxsystems/ordax-os/blob/main/docs/README.md) e o [contrato de ownership](https://github.com/ordaxsystems/ordax-os/blob/main/docs/contracts/repository-ownership.json) definem **onde encontrar a autoridade**, não transferem para o OS o código, as APIs locais ou as responsabilidades dos outros owners.
+
+- Normas globais de arquitetura, composição, segurança e integração pertencem aos documentos e contratos canônicos indicados pelo índice do OS. Não duplicar essas regras aqui nem criar um SSOT paralelo.
+- Este repositório continua autoridade para seu próprio source, contratos que produz, guias de operação, testes e evidências. Documentos locais não podem alterar silenciosamente contratos de outro owner.
+- Em conflito, prevalecem o source/contrato vigente do owner aplicável e o índice de autoridades; planos, handoffs e evidências datadas não substituem estado vivo.
+- Alterações cross-repo devem atualizar a autoridade primária e somente os links/consumidores afetados, sem sincronização artificial de versões, rebuilds ou PRs.
+
+
 **Repositório canônico da apresentação compartilhada** do OrdaX (Web, Desktop, USB e Native). O source visual pertence a este repositório; o host, os serviços e a distribuição do sistema operacional pertencem ao `ordaxsystems/ordax-os`.
 
 **Checkpoint histórico de integração Aura/Fabric/MCP (04/11/2026):**
@@ -10,7 +20,7 @@ foi encerrada e a ponte Native
 [`OS #2400`](https://github.com/ordaxsystems/ordax-os/pull/2400)
 foi integrada em 04/11/2026. Para estado atual, consultar
 [`ordax-os/docs/CURRENT-STATE.md`](https://github.com/ordaxsystems/ordax-os/blob/main/docs/CURRENT-STATE.md),
-o [handoff do OS](https://github.com/ordaxsystems/ordax-os/blob/main/INTELLIGENCE-HANDOFF.md)
+o [índice canônico do OS](https://github.com/ordaxsystems/ordax-os/blob/main/docs/README.md)
 e os owners canônicos envolvidos. A Surface continua apenas owner da
 apresentação e do UX/consentimento sobre ports reais: não implementar
 aqui outro registry, token, executor ou Device status; `activeAppId`
